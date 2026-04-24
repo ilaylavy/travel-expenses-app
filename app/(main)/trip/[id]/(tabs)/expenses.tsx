@@ -100,7 +100,7 @@ export default function TripExpensesScreen() {
 
   const handlePressRow = useCallback(
     (expense: ExpenseWithPhotos) => {
-      router.push(href(`/expense/${expense.id}`));
+      router.push(href(`/trip/${tripId}/expense/${expense.id}`));
     },
     [router],
   );

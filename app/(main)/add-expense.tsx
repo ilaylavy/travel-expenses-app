@@ -19,6 +19,7 @@ import { CURRENCIES } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import {
   categoryUsageForTrip,
+  getExpense,
   lastUsedPaymentMethodForTrip,
   listRecentNotesForTrip,
 } from '@/db/queries/expenses';
@@ -79,12 +80,18 @@ export default function AddExpenseScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ tripId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    tripId?: string | string[];
+    expenseId?: string | string[];
+  }>();
   const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
+  const expenseId = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
+  const isEditing = Boolean(expenseId);
 
   const user = useAuthStore((s) => s.user);
   const allCategories = useCategoryStore((s) => s.categories);
   const createExpense = useExpenseStore((s) => s.createExpense);
+  const updateExpenseInStore = useExpenseStore((s) => s.updateExpense);
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [amountText, setAmountText] = useState('');
@@ -110,6 +117,12 @@ export default function AddExpenseScreen() {
     useState<Map<string, { count: number; lastUsed: string }>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Only relevant in edit mode: preserve the exchange rate the expense was
+  // originally booked at. PRD.md — historical values must not drift with
+  // live rates.
+  const [lockedExchangeRate, setLockedExchangeRate] = useState<number | null>(
+    null,
+  );
 
   // Load trip + recent-note / payment / usage data up front.
   useEffect(() => {
@@ -126,10 +139,10 @@ export default function AddExpenseScreen() {
         if (cancelled) return;
         if (loadedTrip) {
           setTrip(loadedTrip);
-          setCurrency(loadedTrip.baseCurrency);
+          if (!isEditing) setCurrency(loadedTrip.baseCurrency);
         }
         setRecentNotes(notes);
-        if (lastPayment) setPaymentMethod(lastPayment);
+        if (!isEditing && lastPayment) setPaymentMethod(lastPayment);
         setCategoryUsage(usage);
       } catch (e) {
         console.warn('Failed to load add-expense context:', e);
@@ -138,10 +151,44 @@ export default function AddExpenseScreen() {
     return () => {
       cancelled = true;
     };
-  }, [tripId]);
+  }, [tripId, isEditing]);
+
+  // Hydrate state from an existing expense when opened in edit mode.
+  useEffect(() => {
+    if (!expenseId) return;
+    let cancelled = false;
+    (async () => {
+      const existing = await getExpense(expenseId);
+      if (cancelled || !existing) return;
+      setAmountText(String(Math.abs(existing.amount)));
+      setCurrency(existing.currency);
+      setCategoryId(existing.categoryId);
+      setNote(existing.note ?? '');
+      setPaymentMethod(existing.paymentMethod ?? null);
+      setExpenseDate(existing.expenseDate);
+      setExpenseTime(existing.expenseTime);
+      setLatitude(existing.latitude);
+      setLongitude(existing.longitude);
+      setPlaceName(existing.placeName);
+      setLocationStatus(existing.latitude != null ? 'captured' : 'none');
+      setIsRefund(existing.isRefund);
+      setIsExcluded(existing.isExcludedFromMetrics);
+      if (existing.spreadStartDate && existing.spreadEndDate) {
+        setIsSpread(true);
+        setSpreadStart(existing.spreadStartDate);
+        setSpreadEnd(existing.spreadEndDate);
+      }
+      setLockedExchangeRate(existing.exchangeRate);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [expenseId]);
 
   // Auto-capture GPS once on mount. Non-blocking — user can proceed without it.
+  // Skipped in edit mode so we don't overwrite the original pin.
   useEffect(() => {
+    if (isEditing) return;
     let cancelled = false;
     setLocationStatus('capturing');
     (async () => {
@@ -159,7 +206,7 @@ export default function AddExpenseScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isEditing]);
 
   const orderedCategories = useMemo(() => {
     const list = selectCategoriesForTrip(allCategories, tripId ?? null);
@@ -179,7 +226,9 @@ export default function AddExpenseScreen() {
 
   // Placeholder exchange-rate logic. Until the rate service lands, we lock 1.0
   // for same-currency expenses and 1.0 otherwise (user can edit on detail).
-  const exchangeRate = currency && trip && currency === trip.homeCurrency ? 1 : 1;
+  // In edit mode, keep the rate the expense was originally booked at.
+  const exchangeRate =
+    lockedExchangeRate ?? (currency && trip && currency === trip.homeCurrency ? 1 : 1);
   const convertedAmount = amountValue * exchangeRate;
 
   const handleKey = useCallback((key: NumPadKey) => {
@@ -259,35 +308,58 @@ export default function AddExpenseScreen() {
         const signedConverted = isRefund
           ? -Math.abs(convertedAmount)
           : convertedAmount;
-        const created = await createExpense({
-          tripId,
-          userId: user.id,
-          amount: signedAmount,
-          currency,
-          convertedAmount: signedConverted,
-          exchangeRate,
-          categoryId: categoryId as string,
-          note: note.trim() || null,
-          paymentMethod,
-          latitude,
-          longitude,
-          placeName,
-          expenseDate,
-          expenseTime: normalizeTime(expenseTime),
-          isRefund,
-          isExcludedFromMetrics: isExcluded,
-          spreadStartDate: isSpread ? spreadStart : null,
-          spreadEndDate: isSpread ? spreadEnd : null,
-          photos: photos.map((p) => ({ localUri: p.uri })),
-        });
 
-        if (options.thenShare) {
-          await shareExpense({
-            expense: created,
-            categoryName: selectedCategory?.name ?? null,
-            categoryEmoji: selectedCategory?.emoji ?? null,
-            homeCurrency: trip.homeCurrency,
+        if (isEditing && expenseId) {
+          await updateExpenseInStore({
+            id: expenseId,
+            amount: signedAmount,
+            currency,
+            convertedAmount: signedConverted,
+            exchangeRate,
+            categoryId: categoryId as string,
+            note: note.trim() || null,
+            paymentMethod,
+            latitude,
+            longitude,
+            placeName,
+            expenseDate,
+            expenseTime: normalizeTime(expenseTime),
+            isRefund,
+            isExcludedFromMetrics: isExcluded,
+            spreadStartDate: isSpread ? spreadStart : null,
+            spreadEndDate: isSpread ? spreadEnd : null,
           });
+        } else {
+          const created = await createExpense({
+            tripId,
+            userId: user.id,
+            amount: signedAmount,
+            currency,
+            convertedAmount: signedConverted,
+            exchangeRate,
+            categoryId: categoryId as string,
+            note: note.trim() || null,
+            paymentMethod,
+            latitude,
+            longitude,
+            placeName,
+            expenseDate,
+            expenseTime: normalizeTime(expenseTime),
+            isRefund,
+            isExcludedFromMetrics: isExcluded,
+            spreadStartDate: isSpread ? spreadStart : null,
+            spreadEndDate: isSpread ? spreadEnd : null,
+            photos: photos.map((p) => ({ localUri: p.uri })),
+          });
+
+          if (options.thenShare) {
+            await shareExpense({
+              expense: created,
+              categoryName: selectedCategory?.name ?? null,
+              categoryEmoji: selectedCategory?.emoji ?? null,
+              homeCurrency: trip.homeCurrency,
+            });
+          }
         }
 
         router.back();
@@ -303,10 +375,13 @@ export default function AddExpenseScreen() {
       categoryId,
       convertedAmount,
       createExpense,
+      updateExpenseInStore,
       currency,
       expenseDate,
+      expenseId,
       expenseTime,
       exchangeRate,
+      isEditing,
       isExcluded,
       isRefund,
       isSpread,
@@ -351,15 +426,21 @@ export default function AddExpenseScreen() {
         >
           <Text style={[styles.headerButtonText, { color: theme.text }]}>✕</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>{t('expense.title')}</Text>
-        <Pressable
-          onPress={() => handleSave({ thenShare: true })}
-          disabled={saving}
-          hitSlop={8}
-          style={[styles.headerButton, { backgroundColor: theme.surface, borderColor: theme.border, opacity: saving ? 0.5 : 1 }]}
-        >
-          <Text style={[styles.headerButtonText, { color: theme.text }]}>↗</Text>
-        </Pressable>
+        <Text style={[styles.title, { color: theme.text }]}>
+          {isEditing ? t('expense.editTitle') : t('expense.title')}
+        </Text>
+        {isEditing ? (
+          <View style={styles.headerButton} />
+        ) : (
+          <Pressable
+            onPress={() => handleSave({ thenShare: true })}
+            disabled={saving}
+            hitSlop={8}
+            style={[styles.headerButton, { backgroundColor: theme.surface, borderColor: theme.border, opacity: saving ? 0.5 : 1 }]}
+          >
+            <Text style={[styles.headerButtonText, { color: theme.text }]}>↗</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -610,7 +691,8 @@ export default function AddExpenseScreen() {
           ) : null}
         </Section>
 
-        {/* Photos */}
+        {/* Photos — not editable in edit mode for now */}
+        {!isEditing ? (
         <Section title={t('expense.photosSection')} theme={theme}>
           <View style={styles.photoButtonRow}>
             <Pressable
@@ -654,6 +736,7 @@ export default function AddExpenseScreen() {
             </ScrollView>
           ) : null}
         </Section>
+        ) : null}
 
         {error ? (
           <Text style={[styles.error, { color: theme.red }]}>{error}</Text>

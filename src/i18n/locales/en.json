@@ -9,7 +9,9 @@
     "settings": "Settings",
     "ongoing": "Ongoing",
     "shared": "Shared",
-    "optional": "optional"
+    "optional": "optional",
+    "edit": "Edit",
+    "share": "Share"
   },
   "auth": {
     "login": {
@@ -201,6 +203,36 @@
       "saveFailed": "Could not save expense",
       "notSignedIn": "You must be signed in"
     }
+  },
+  "expenseDetail": {
+    "title": "Expense",
+    "categoryLabel": "Category",
+    "noteLabel": "Note",
+    "paymentLabel": "Payment",
+    "dateTimeLabel": "Date & time",
+    "locationLabel": "Location",
+    "exchangeLabel": "Exchange rate",
+    "exchangeRate": "1 {{from}} = {{rate}} {{to}}",
+    "convertedLine": "≈ {{amount}} in {{currency}}",
+    "sameCurrencyExchange": "Same currency — no conversion",
+    "spreadLabel": "Spread over",
+    "spreadRange": "{{start}} – {{end}}",
+    "noteEmpty": "No note",
+    "locationMissing": "No location",
+    "loggedBy": "Logged by {{name}}",
+    "you": "you",
+    "photosLabel": "Photos",
+    "editButton": "Edit",
+    "deleteButton": "Delete expense",
+    "shareButton": "Share",
+    "backAction": "Back",
+    "deleteConfirmTitle": "Delete expense?",
+    "deleteConfirmBody": "This cannot be undone.",
+    "deleteFailedTitle": "Could not delete",
+    "notFound": "Expense not found.",
+    "badgeRefund": "REFUND",
+    "badgeExcluded": "EXCLUDED FROM METRICS",
+    "badgeMultiDay": "MULTI-DAY"
   },
   "language": {
     "settingLabel": "Language",

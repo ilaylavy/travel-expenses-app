@@ -229,7 +229,7 @@ export default function TripMapScreen() {
             category={categoryById.get(selectedExpense.categoryId) ?? null}
             homeCurrency={trip.homeCurrency}
             onPress={() => {
-              router.push(href(`/expense/${selectedExpense.id}`));
+              router.push(href(`/trip/${tripId}/expense/${selectedExpense.id}`));
             }}
             onClose={() => setSelectedExpense(null)}
           />

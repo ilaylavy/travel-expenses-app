@@ -9,7 +9,9 @@
     "settings": "",
     "ongoing": "",
     "shared": "",
-    "optional": ""
+    "optional": "",
+    "edit": "",
+    "share": ""
   },
   "auth": {
     "login": {
@@ -201,6 +203,36 @@
       "saveFailed": "",
       "notSignedIn": ""
     }
+  },
+  "expenseDetail": {
+    "title": "",
+    "categoryLabel": "",
+    "noteLabel": "",
+    "paymentLabel": "",
+    "dateTimeLabel": "",
+    "locationLabel": "",
+    "exchangeLabel": "",
+    "exchangeRate": "",
+    "convertedLine": "",
+    "sameCurrencyExchange": "",
+    "spreadLabel": "",
+    "spreadRange": "",
+    "noteEmpty": "",
+    "locationMissing": "",
+    "loggedBy": "",
+    "you": "",
+    "photosLabel": "",
+    "editButton": "",
+    "deleteButton": "",
+    "shareButton": "",
+    "backAction": "",
+    "deleteConfirmTitle": "",
+    "deleteConfirmBody": "",
+    "deleteFailedTitle": "",
+    "notFound": "",
+    "badgeRefund": "",
+    "badgeExcluded": "",
+    "badgeMultiDay": ""
   },
   "language": {
     "settingLabel": "",
