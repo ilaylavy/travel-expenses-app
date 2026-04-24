@@ -1,20 +1,65 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
+import { useAuthStore } from '@/stores/authStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const segments = useSegments();
+  const isInitialized = useAuthStore((s) => s.isInitialized);
+  const session = useAuthStore((s) => s.session);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    const inAuthGroup = segments[0] === '(auth)';
+    if (!session && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    } else if (session && inAuthGroup) {
+      router.replace('/(main)/(tabs)/dashboard');
+    }
+  }, [isInitialized, session, segments, router]);
+
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
+  const theme = useTheme();
+  const isDark = useSettingsStore((s) => s.isDark);
+  const isSettingsHydrated = useSettingsStore((s) => s.isHydrated);
+  const hydrateSettings = useSettingsStore((s) => s.hydrate);
+  const isAuthInitialized = useAuthStore((s) => s.isInitialized);
+  const initializeAuth = useAuthStore((s) => s.initialize);
+
+  useEffect(() => {
+    void hydrateSettings();
+    void initializeAuth();
+  }, [hydrateSettings, initializeAuth]);
+
+  const ready = isSettingsHydrated && isAuthInitialized;
+
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.bg }}>
       <SafeAreaProvider>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(main)" />
-        </Stack>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        {ready ? (
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(main)" />
+            </Stack>
+          </AuthGate>
+        ) : (
+          <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={theme.accent} />
+          </View>
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
