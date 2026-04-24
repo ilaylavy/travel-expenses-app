@@ -4,7 +4,7 @@
 
 TRAVEL-EXPENSES-APP is a mobile expense tracker for travelers. Built with React Native (Expo), TypeScript, SQLite (local), and Supabase (backend). Users create trips, log expenses with location/currency/category, view spending on a map, see stats, share trips with a partner, and ask natural language questions about their data.
 
-**Read `PRD.md` for full product requirements. Read `TECHNICAL_SPEC.md` for architecture details, database schema, and sync design.**
+**Read `PRD.md` for full product requirements. Read `TECHNICAL_SPEC.md` for architecture details, database schema, and sync design. Read `DESIGN_SYSTEM.md` for all visual design specs, color tokens, component patterns, and theming.**
 
 ---
 
@@ -19,7 +19,7 @@ TRAVEL-EXPENSES-APP is a mobile expense tracker for travelers. Built with React 
 - **Maps:** `react-native-maps` with Google Maps provider
 - **Charts:** `victory-native`
 - **AI:** OpenAI GPT-4o-mini via Supabase Edge Function (never call OpenAI directly from client)
-- **Styling:** React Native StyleSheet. Dark theme by default. Colors and spacing from `src/constants/theme.ts`
+- **Styling:** React Native StyleSheet. Both dark and light themes. All color tokens, spacing, typography, and component patterns defined in `DESIGN_SYSTEM.md` and implemented in `src/constants/theme.ts`
 
 ---
 
@@ -197,44 +197,51 @@ eas build --platform ios
 3. **Then data layer:** Write/update SQLite schema, migrations, and query functions.
 4. **Then service layer:** Any new external service calls go in `src/services/`.
 5. **Then store:** Update Zustand stores if the feature needs global state.
-6. **Then UI:** Build the screen/component last, consuming the layers above.
-7. **Don't forget sync:** Every data mutation must include a sync_queue entry.
-8. **Verify with MCP:** After database changes, use Supabase MCP to verify the migration applied correctly and RLS policies work.
-9. **Commit:** Use commit-commands to make a clean commit after each working feature.
+6. **Before building UI:** Read `DESIGN_SYSTEM.md` for component patterns, colors, spacing, and typography. Every screen must follow the design system precisely. Both dark and light modes must work.
+7. **Then UI:** Build the screen/component, consuming the layers above and following the design system.
+8. **Don't forget sync:** Every data mutation must include a sync_queue entry.
+9. **Verify with MCP:** After database changes, use Supabase MCP to verify the migration applied correctly and RLS policies work.
+10. **Commit:** Use commit-commands to make a clean commit after each working feature.
 
 ---
 
 ## Style Guide (UI)
 
-### Theme Colors (dark mode default)
-- Background: `#0F1117`
-- Surface/cards: `#1A1D27` with `#2A2E3F` border
-- Elevated cards: `#1E2130`
-- Text primary: `#E8E9ED`
-- Text secondary: `#8B8FA3`
-- Text muted: `#5C6078`
-- Accent (primary): `#6C5CE7` (purple)
-- Accent light: `#A29BFE`
-- Success/green: `#00B894`
-- Error/red: `#FF6B6B`
-- Warning/orange: `#FDCB6E`
-- Info/blue: `#74B9FF`
+**Read `DESIGN_SYSTEM.md` for the complete design system.** This is the authoritative reference for all visual design. Key highlights:
 
-### Spacing
-- Base unit: 4px
-- Standard padding: 16px
-- Card padding: 16px
-- Card border radius: 16px
-- Button border radius: 12px
-- Small element radius: 8px
+### Design Philosophy
+The app should feel **colorful, playful, and alive** — not like a spreadsheet. Every category has its own color. Gradients add energy. Emojis add personality. Bold typography makes financial data scannable.
 
-### Typography
-- Use system font (`-apple-system` / default RN)
-- Headings: 28px bold (screen titles), 18px semibold (section titles), 14px semibold (card titles)
-- Body: 14px regular
-- Secondary: 13px regular
-- Caption: 11-12px
-- Numeric displays: 36-44px bold (amount displays)
+### Theming
+- **Both dark and light mode** are supported. Dark is the default.
+- All colors come from the theme object — NEVER hardcode color values in components.
+- Implement with Zustand store (isDark toggle) + `useTheme()` hook.
+- Every component must work correctly in both modes.
+- Components use `StyleSheet.create()` for static styles, dynamic style objects for theme colors:
+  ```
+  <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+  ```
+
+### Key Design Tokens (quick reference — see DESIGN_SYSTEM.md for full values)
+- Card radius: 22px (outer), 18px (inner)
+- Button/input radius: 14px
+- Chip/badge radius: 22px
+- Card padding: 18px
+- Font weights: 800 for amounts, 700 for titles, 600 for labels, 500 for body
+- FAB: 56x56, gradient background, floats 10px above nav bar with glow shadow
+- Category icons: emoji in colored soft-background containers
+- Gradients: used on hero cards, FAB, AI card, budget bars, CTAs — not on regular cards
+
+### Category Colors
+Each category maps to a specific color. This mapping is used everywhere: chips, icons, charts, map pins, borders.
+- Food → orange, Transport → blue, Hotel → accent/purple, Flight → pink
+- Coffee → yellow, Shopping → green, Activities → coral, Other → teal
+
+### Navigation
+- Bottom nav: 5 tabs with emoji icons (🏠 📋 ＋ 📍 📊)
+- Active tab: accentSoft pill background, full-color emoji, accent-colored label
+- Inactive tab: grayscale emoji, muted label
+- Center FAB button with gradient, glow shadow, floats above nav
 
 ---
 
@@ -276,3 +283,8 @@ OPENAI_API_KEY=<your-openai-key>
 - Do not assume the user is online. Every feature (except AI) must work offline.
 - Do not ignore security-hook warnings. Fix them before committing.
 - Do not use generic React Native patterns when the Expo skill provides Expo-specific patterns.
+- Do not hardcode color values in components. Always use the theme object via `useTheme()`.
+- Do not build UI that only works in one theme mode. Both dark and light must work.
+- Do not use line icons for navigation or categories. Use emojis as defined in the design system.
+- Do not use flat card backgrounds. Use `cardGradient` from the theme for subtle depth.
+- Do not use generic/plain styling. Follow `DESIGN_SYSTEM.md` precisely — the app should feel colorful and playful.

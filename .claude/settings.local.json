@@ -4,7 +4,12 @@
       "Bash(npm install *)",
       "Bash(npx tsc *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'Initial project setup *)"
+      "Bash(git commit -m 'Initial project setup *)",
+      "Bash(npx supabase *)",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_advisors"
     ]
   },
   "enabledPlugins": {
