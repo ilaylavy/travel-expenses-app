@@ -75,7 +75,37 @@
     "deleteConfirmTitle": "Delete trip?",
     "deleteConfirmBody": "This will delete \"{{name}}\" and all its expenses. This cannot be undone.",
     "deleteFailedTitle": "Could not delete trip",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "manageCategories": "Manage Categories"
+  },
+  "categories": {
+    "title": "Categories",
+    "sectionDefaults": "DEFAULTS",
+    "sectionTrip": "THIS TRIP",
+    "noTripCategories": "No custom categories for this trip yet. Tap + to add one.",
+    "archivedBadge": "Archived",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "newTitle": "New Category",
+    "editTitle": "Edit Category",
+    "createSubmit": "Create Category",
+    "editSubmit": "Save Changes",
+    "creating": "Creating…",
+    "notFound": "Category not found.",
+    "deleteConfirmTitle": "Delete category?",
+    "deleteConfirmBody": "Remove \"{{name}}\"? This cannot be undone.",
+    "cannotDeleteTitle": "Cannot delete",
+    "cannotDeleteBody": "This category has expenses. Archive it instead."
+  },
+  "categoryForm": {
+    "name": "Name",
+    "namePlaceholder": "e.g. Groceries",
+    "emoji": "Emoji",
+    "color": "Color",
+    "errors": {
+      "nameRequired": "Name is required",
+      "saveFailed": "Could not save category"
+    }
   },
   "tripForm": {
     "emoji": "Emoji",

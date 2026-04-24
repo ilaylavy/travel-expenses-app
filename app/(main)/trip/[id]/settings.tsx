@@ -120,19 +120,36 @@ export default function TripSettingsScreen() {
         submittingLabel={t('tripSettings.submitting')}
         onSubmit={handleSubmit}
         footer={
-          isOwner ? (
+          <>
             <Pressable
-              onPress={handleDelete}
+              onPress={() => router.push(href(`/trip/${trip.id}/categories`))}
               style={({ pressed }) => [
-                styles.deleteButton,
-                { backgroundColor: theme.redSoft, borderColor: theme.red, opacity: pressed ? 0.7 : 1 },
+                styles.manageButton,
+                {
+                  backgroundColor: theme.accentSoft,
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.8 : 1,
+                },
               ]}
             >
-              <Text style={[styles.deleteText, { color: theme.red }]}>
-                {t('tripSettings.deleteButton')}
+              <Text style={[styles.manageText, { color: theme.accent }]}>
+                {t('tripSettings.manageCategories')}
               </Text>
             </Pressable>
-          ) : null
+            {isOwner && (
+              <Pressable
+                onPress={handleDelete}
+                style={({ pressed }) => [
+                  styles.deleteButton,
+                  { backgroundColor: theme.redSoft, borderColor: theme.red, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Text style={[styles.deleteText, { color: theme.red }]}>
+                  {t('tripSettings.deleteButton')}
+                </Text>
+              </Pressable>
+            )}
+          </>
         }
       />
     </SafeAreaView>
@@ -160,6 +177,14 @@ const styles = StyleSheet.create({
   backButtonText: { fontSize: 24, fontWeight: '600', lineHeight: 24 },
   title: { ...typography.screenTitle, flex: 1 },
   spacer: { width: sizing.headerButton },
+  manageButton: {
+    marginTop: spacing.sm,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1.5,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  manageText: { fontSize: 14, fontWeight: '700' },
   deleteButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,

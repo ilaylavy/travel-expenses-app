@@ -27,6 +27,7 @@ export interface ThemeColors {
   teal: string;
   tealSoft: string;
   coral: string;
+  coralSoft: string;
   navBg: string;
   gradient1: readonly [string, string];
   gradient2: readonly [string, string];
@@ -64,6 +65,7 @@ export const darkTheme: ThemeColors = {
   teal: '#4DD9C0',
   tealSoft: 'rgba(77, 217, 192, 0.14)',
   coral: '#FF8A80',
+  coralSoft: 'rgba(255, 138, 128, 0.14)',
   navBg: 'rgba(14, 16, 22, 0.92)',
   gradient1: ['#7C6EF6', '#5EB5FF'] as const,
   gradient2: ['#FF7EB3', '#FFB347'] as const,
@@ -101,6 +103,7 @@ export const lightTheme: ThemeColors = {
   teal: '#00D2B4',
   tealSoft: 'rgba(0, 210, 180, 0.1)',
   coral: '#FF7B72',
+  coralSoft: 'rgba(255, 123, 114, 0.1)',
   navBg: 'rgba(255, 255, 255, 0.92)',
   gradient1: ['#6C5CE7', '#3B8BFF'] as const,
   gradient2: ['#FF6B9D', '#FF9F43'] as const,

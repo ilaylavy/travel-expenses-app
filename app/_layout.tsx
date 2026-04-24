@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
+import { useCategoryStore } from '@/stores/categoryStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTripStore } from '@/stores/tripStore';
 import { href } from '@/utils/nav';
@@ -38,12 +39,14 @@ export default function RootLayout() {
   const isAuthInitialized = useAuthStore((s) => s.isInitialized);
   const initializeAuth = useAuthStore((s) => s.initialize);
   const hydrateTrips = useTripStore((s) => s.hydrate);
+  const hydrateCategories = useCategoryStore((s) => s.hydrate);
 
   useEffect(() => {
     void hydrateSettings();
     void initializeAuth();
     void hydrateTrips();
-  }, [hydrateSettings, initializeAuth, hydrateTrips]);
+    void hydrateCategories();
+  }, [hydrateSettings, initializeAuth, hydrateTrips, hydrateCategories]);
 
   const ready = isSettingsHydrated && isAuthInitialized;
 

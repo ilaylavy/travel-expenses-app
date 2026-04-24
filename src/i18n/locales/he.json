@@ -75,7 +75,37 @@
     "deleteConfirmTitle": "",
     "deleteConfirmBody": "",
     "deleteFailedTitle": "",
-    "unknownError": ""
+    "unknownError": "",
+    "manageCategories": ""
+  },
+  "categories": {
+    "title": "",
+    "sectionDefaults": "",
+    "sectionTrip": "",
+    "noTripCategories": "",
+    "archivedBadge": "",
+    "archive": "",
+    "unarchive": "",
+    "newTitle": "",
+    "editTitle": "",
+    "createSubmit": "",
+    "editSubmit": "",
+    "creating": "",
+    "notFound": "",
+    "deleteConfirmTitle": "",
+    "deleteConfirmBody": "",
+    "cannotDeleteTitle": "",
+    "cannotDeleteBody": ""
+  },
+  "categoryForm": {
+    "name": "",
+    "namePlaceholder": "",
+    "emoji": "",
+    "color": "",
+    "errors": {
+      "nameRequired": "",
+      "saveFailed": ""
+    }
   },
   "tripForm": {
     "emoji": "",
