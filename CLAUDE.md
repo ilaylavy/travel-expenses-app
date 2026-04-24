@@ -20,6 +20,8 @@ TRAVEL-EXPENSES-APP is a mobile expense tracker for travelers. Built with React 
 - **Charts:** `victory-native`
 - **AI:** OpenAI GPT-4o-mini via Supabase Edge Function (never call OpenAI directly from client)
 - **Styling:** React Native StyleSheet. Both dark and light themes. All color tokens, spacing, typography, and component patterns defined in `DESIGN_SYSTEM.md` and implemented in `src/constants/theme.ts`
+- **Internationalization:** `i18next` + `react-i18next` for translation, `expo-localization` for device-locale detection. Translation JSON files live in `src/i18n/locales/`. Supported languages: English (`en`) and Hebrew (`he`). Device language is auto-detected on first launch; users can override it in Settings.
+- **RTL:** Hebrew switches the layout to right-to-left via `I18nManager.forceRTL()`. Every screen must work correctly in both LTR and RTL — prefer `flex-direction: row` (which mirrors automatically) and logical margins/paddings over hardcoded `left`/`right` positioning.
 
 ---
 
@@ -193,6 +195,7 @@ eas build --platform ios
 ## When Working on Features
 
 1. **Before coding:** Read the relevant section in `PRD.md` and `TECHNICAL_SPEC.md` to understand the full requirements.
+1.5. **Every user-facing string goes through i18n.** Add new strings to both `src/i18n/locales/en.json` and `src/i18n/locales/he.json` (English values only for now, Hebrew will be filled in later — leave empty strings so they fall back to English). Consume them via `const { t } = useTranslation()` from `@/hooks/useTranslation` and `t('your.key')`. Never hardcode English in components.
 2. **Start with types:** Define or update TypeScript types in `src/types/` first.
 3. **Then data layer:** Write/update SQLite schema, migrations, and query functions.
 4. **Then service layer:** Any new external service calls go in `src/services/`.
@@ -288,3 +291,5 @@ OPENAI_API_KEY=<your-openai-key>
 - Do not use line icons for navigation or categories. Use emojis as defined in the design system.
 - Do not use flat card backgrounds. Use `cardGradient` from the theme for subtle depth.
 - Do not use generic/plain styling. Follow `DESIGN_SYSTEM.md` precisely — the app should feel colorful and playful.
+- Do not hardcode English strings in components. Always use translation keys via the `t()` function from `useTranslation()` (imported from `@/hooks/useTranslation`), and add the string to both `src/i18n/locales/en.json` and `src/i18n/locales/he.json`.
+- Do not assume LTR layout. RTL is active whenever Hebrew is selected; avoid hardcoded `left`/`right` positioning or margins and prefer logical flex direction so components mirror correctly.

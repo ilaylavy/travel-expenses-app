@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TripCard } from '@/components/trip/TripCard';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTripStore } from '@/stores/tripStore';
 import { href } from '@/utils/nav';
@@ -14,6 +15,7 @@ import { href } from '@/utils/nav';
 export default function TripListScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const trips = useTripStore((s) => s.trips);
   const isHydrated = useTripStore((s) => s.isHydrated);
   const refresh = useTripStore((s) => s.refresh);
@@ -27,7 +29,7 @@ export default function TripListScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Trips</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('trips.title')}</Text>
         <Pressable
           onPress={toggleTheme}
           style={[
@@ -49,9 +51,11 @@ export default function TripListScreen() {
           {trips.length === 0 && (
             <View style={[styles.empty, { borderColor: theme.borderLight }]}>
               <Text style={styles.emptyEmoji}>🗺️</Text>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>No trips yet</Text>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {t('trips.emptyTitle')}
+              </Text>
               <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-                Tap the card below to start your first adventure.
+                {t('trips.emptyBody')}
               </Text>
             </View>
           )}
@@ -83,9 +87,11 @@ export default function TripListScreen() {
                 <Text style={styles.newCardPlus}>＋</Text>
               </LinearGradient>
               <View style={styles.newCardText}>
-                <Text style={[styles.newCardTitle, { color: theme.text }]}>New Trip</Text>
+                <Text style={[styles.newCardTitle, { color: theme.text }]}>
+                  {t('trips.newTripCardTitle')}
+                </Text>
                 <Text style={[styles.newCardSubtitle, { color: theme.textSecondary }]}>
-                  Start tracking a new adventure
+                  {t('trips.newTripCardSubtitle')}
                 </Text>
               </View>
             </View>

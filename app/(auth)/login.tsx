@@ -17,11 +17,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
+import { href } from '@/utils/nav';
 
 export default function LoginScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const signIn = useAuthStore((s) => s.signIn);
   const isLoading = useAuthStore((s) => s.isLoading);
 
@@ -31,16 +34,16 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Missing info', 'Please enter your email and password.');
+      Alert.alert(t('auth.login.missingInfoTitle'), t('auth.login.missingInfoBody'));
       return;
     }
     setSubmitting(true);
     try {
       await signIn({ email: email.trim(), password });
-      router.replace('/(main)/(tabs)/dashboard');
+      router.replace(href('/(main)'));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to log in.';
-      Alert.alert('Login failed', message);
+      const message = error instanceof Error ? error.message : t('auth.login.failedFallback');
+      Alert.alert(t('auth.login.failedTitle'), message);
     } finally {
       setSubmitting(false);
     }
@@ -67,18 +70,18 @@ export default function LoginScreen() {
             >
               <Text style={styles.heroEmoji}>✈️</Text>
             </LinearGradient>
-            <Text style={[styles.title, { color: theme.text }]}>Welcome back</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('auth.login.heroTitle')}</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Log in to keep tracking your adventures.
+              {t('auth.login.heroSubtitle')}
             </Text>
           </View>
 
           <View style={styles.form}>
             <Field
-              label="Email"
+              label={t('auth.login.email')}
               value={email}
               onChangeText={setEmail}
-              placeholder="you@travel.com"
+              placeholder={t('auth.login.emailPlaceholder')}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
@@ -86,10 +89,10 @@ export default function LoginScreen() {
               theme={theme}
             />
             <Field
-              label="Password"
+              label={t('auth.login.password')}
               value={password}
               onChangeText={setPassword}
-              placeholder="••••••••"
+              placeholder={t('auth.login.passwordPlaceholder')}
               secureTextEntry
               autoComplete="password"
               textContentType="password"
@@ -110,18 +113,20 @@ export default function LoginScreen() {
                 {busy ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitText}>Log in</Text>
+                  <Text style={styles.submitText}>{t('auth.login.submit')}</Text>
                 )}
               </LinearGradient>
             </Pressable>
 
             <View style={styles.footerRow}>
               <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                Don&apos;t have an account?
+                {t('auth.login.footerPrompt')}
               </Text>
               <Link href="/(auth)/signup" asChild>
                 <Pressable>
-                  <Text style={[styles.footerLink, { color: theme.accent }]}>Sign up</Text>
+                  <Text style={[styles.footerLink, { color: theme.accent }]}>
+                    {t('auth.login.footerLink')}
+                  </Text>
                 </Pressable>
               </Link>
             </View>

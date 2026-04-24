@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { TripWithStats } from '@/types/trip';
 import { formatAmount } from '@/utils/currency';
 import { formatDateRange } from '@/utils/date';
@@ -14,6 +15,7 @@ interface TripCardProps {
 
 export function TripCard({ trip, onPress }: TripCardProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { stats } = trip;
   const hasBudget = trip.budget != null && trip.budget > 0;
   const pct = hasBudget ? Math.min(1, stats.totalSpent / (trip.budget ?? 1)) : 0;
@@ -46,18 +48,22 @@ export function TripCard({ trip, onPress }: TripCardProps) {
               {trip.name}
             </Text>
             <Text style={[styles.dates, { color: theme.textSecondary }]} numberOfLines={1}>
-              {formatDateRange(trip.startDate, trip.endDate)}
+              {formatDateRange(trip.startDate, trip.endDate, t('common.ongoing'))}
             </Text>
           </View>
           <View style={styles.badges}>
             {isOngoing && (
               <View style={[styles.badge, { backgroundColor: theme.tealSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.teal }]}>ONGOING</Text>
+                <Text style={[styles.badgeText, { color: theme.teal }]}>
+                  {t('trips.ongoingBadge')}
+                </Text>
               </View>
             )}
             {isShared && (
               <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.accentLight }]}>👥 SHARED</Text>
+                <Text style={[styles.badgeText, { color: theme.accentLight }]}>
+                  {t('trips.sharedBadge')}
+                </Text>
               </View>
             )}
           </View>
@@ -65,7 +71,9 @@ export function TripCard({ trip, onPress }: TripCardProps) {
 
         <View style={styles.amountRow}>
           <View style={styles.amountCol}>
-            <Text style={[styles.amountLabel, { color: theme.textMuted }]}>TOTAL SPENT</Text>
+            <Text style={[styles.amountLabel, { color: theme.textMuted }]}>
+              {t('trips.totalSpent')}
+            </Text>
             <Text style={[styles.amount, { color: theme.text }]}>
               {formatAmount(stats.totalSpent, trip.homeCurrency)}
             </Text>
@@ -80,7 +88,9 @@ export function TripCard({ trip, onPress }: TripCardProps) {
         {hasBudget && (
           <View style={styles.budgetBlock}>
             <View style={styles.budgetHeader}>
-              <Text style={[styles.budgetLabel, { color: theme.textMuted }]}>BUDGET</Text>
+              <Text style={[styles.budgetLabel, { color: theme.textMuted }]}>
+                {t('trips.budget')}
+              </Text>
               <Text style={[styles.budgetValue, { color: theme.textSecondary }]}>
                 {formatAmount(stats.totalSpent, trip.baseCurrency)} /{' '}
                 {formatAmount(trip.budget ?? 0, trip.baseCurrency)}

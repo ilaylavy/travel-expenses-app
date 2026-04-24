@@ -1,0 +1,109 @@
+{
+  "common": {
+    "appName": "Travel Expenses App",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "delete": "Delete",
+    "back": "Back",
+    "settings": "Settings",
+    "ongoing": "Ongoing",
+    "shared": "Shared",
+    "optional": "optional"
+  },
+  "auth": {
+    "login": {
+      "heroTitle": "Welcome back",
+      "heroSubtitle": "Log in to keep tracking your adventures.",
+      "email": "Email",
+      "emailPlaceholder": "you@travel.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "submit": "Log in",
+      "footerPrompt": "Don't have an account?",
+      "footerLink": "Sign up",
+      "missingInfoTitle": "Missing info",
+      "missingInfoBody": "Please enter your email and password.",
+      "failedTitle": "Login failed",
+      "failedFallback": "Unable to log in."
+    },
+    "signup": {
+      "heroTitle": "Start your journey",
+      "heroSubtitle": "Create an account to track trips and expenses.",
+      "name": "Name",
+      "namePlaceholder": "Your name",
+      "email": "Email",
+      "emailPlaceholder": "you@travel.com",
+      "password": "Password",
+      "passwordPlaceholder": "At least 6 characters",
+      "defaultCurrency": "Default currency",
+      "submit": "Create account",
+      "footerPrompt": "Already have an account?",
+      "footerLink": "Log in",
+      "missingInfoTitle": "Missing info",
+      "missingInfoBody": "Please fill in name, email, and password.",
+      "weakPasswordTitle": "Weak password",
+      "weakPasswordBody": "Please use a password of at least 6 characters.",
+      "failedTitle": "Signup failed",
+      "failedFallback": "Unable to sign up."
+    }
+  },
+  "trips": {
+    "title": "Trips",
+    "emptyTitle": "No trips yet",
+    "emptyBody": "Tap the card below to start your first adventure.",
+    "totalSpent": "TOTAL SPENT",
+    "budget": "BUDGET",
+    "ongoingBadge": "ONGOING",
+    "sharedBadge": "👥 SHARED",
+    "newTripCardTitle": "New Trip",
+    "newTripCardSubtitle": "Start tracking a new adventure",
+    "dateRangeOngoing": "{{start}} · Ongoing",
+    "notFound": "Trip not found.",
+    "backToTrips": "Back to trips"
+  },
+  "newTrip": {
+    "title": "New Trip",
+    "submit": "Create Trip",
+    "submitting": "Creating…"
+  },
+  "tripSettings": {
+    "title": "Trip Settings",
+    "submit": "Save Changes",
+    "submitting": "Saving…",
+    "deleteButton": "Delete Trip",
+    "deleteConfirmTitle": "Delete trip?",
+    "deleteConfirmBody": "This will delete \"{{name}}\" and all its expenses. This cannot be undone.",
+    "deleteFailedTitle": "Could not delete trip",
+    "unknownError": "Unknown error"
+  },
+  "tripForm": {
+    "emoji": "Emoji",
+    "name": "Name",
+    "namePlaceholder": "Tokyo 2026",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "datePlaceholder": "YYYY-MM-DD",
+    "ongoingToggle": "Ongoing (no end date)",
+    "tripCurrency": "Trip currency",
+    "homeCurrency": "Home currency",
+    "budget": "Budget ({{currency}}, optional)",
+    "budgetPlaceholder": "0",
+    "errors": {
+      "nameRequired": "Trip name is required",
+      "startDateInvalid": "Start date must be YYYY-MM-DD",
+      "endDateInvalid": "End date must be YYYY-MM-DD",
+      "budgetInvalid": "Budget must be a positive number",
+      "saveFailed": "Could not save trip",
+      "notSignedIn": "You must be signed in to create a trip"
+    }
+  },
+  "language": {
+    "settingLabel": "Language",
+    "auto": "Auto (device)",
+    "english": "English",
+    "hebrew": "עברית",
+    "rtlRestartTitle": "Restart required",
+    "rtlRestartBody": "Please close and reopen the app for the layout direction to update."
+  }
+}

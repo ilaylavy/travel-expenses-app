@@ -20,8 +20,12 @@ function formatDayWithYear(iso: string): string {
   return `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
 
-export function formatDateRange(startIso: string, endIso: string | null): string {
-  if (!endIso) return `${formatDayWithYear(startIso)} · Ongoing`;
+export function formatDateRange(
+  startIso: string,
+  endIso: string | null,
+  ongoingLabel = 'Ongoing',
+): string {
+  if (!endIso) return `${formatDayWithYear(startIso)} · ${ongoingLabel}`;
   const start = parseIsoDate(startIso);
   const end = parseIsoDate(endIso);
   if (!start || !end) return `${startIso} – ${endIso}`;

@@ -25,6 +25,8 @@
 | Sharing | expo-sharing + react-native share | — |
 | Secure Storage | expo-secure-store | — |
 | Exchange Rates | exchangerate.host API | Free tier |
+| Internationalization | i18next + react-i18next | 26.x / 17.x |
+| Locale Detection | expo-localization | 17.x |
 
 ---
 
@@ -125,6 +127,11 @@ TRAVEL-EXPENSES-APP/
 │   │   ├── currencies.ts         # Currency list with symbols
 │   │   ├── theme.ts              # Colors, spacing, typography
 │   │   └── config.ts             # API URLs, feature flags
+│   ├── i18n/                     # Internationalization
+│   │   ├── index.ts              # i18next init, RTL helpers, language resolution
+│   │   └── locales/
+│   │       ├── en.json           # English translations
+│   │       └── he.json           # Hebrew translations
 │   └── types/                    # TypeScript type definitions
 │       ├── trip.ts
 │       ├── expense.ts

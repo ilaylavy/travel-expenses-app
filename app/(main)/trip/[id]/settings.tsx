@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
 import { useTripStore } from '@/stores/tripStore';
 import { href } from '@/utils/nav';
@@ -13,6 +14,7 @@ import { href } from '@/utils/nav';
 export default function TripSettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ id: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
   const user = useAuthStore((s) => s.user);
@@ -40,12 +42,14 @@ export default function TripSettingsScreen() {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
         <View style={styles.missing}>
-          <Text style={[styles.missingText, { color: theme.textSecondary }]}>Trip not found.</Text>
+          <Text style={[styles.missingText, { color: theme.textSecondary }]}>
+            {t('trips.notFound')}
+          </Text>
           <Pressable
             onPress={() => router.replace(href('/(main)'))}
             style={[styles.linkButton, { backgroundColor: theme.accent }]}
           >
-            <Text style={styles.linkButtonText}>Back to trips</Text>
+            <Text style={styles.linkButtonText}>{t('trips.backToTrips')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -70,19 +74,22 @@ export default function TripSettingsScreen() {
 
   const handleDelete = (): void => {
     Alert.alert(
-      'Delete trip?',
-      `This will delete "${trip.name}" and all its expenses. This cannot be undone.`,
+      t('tripSettings.deleteConfirmTitle'),
+      t('tripSettings.deleteConfirmBody', { name: trip.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteTrip(trip.id);
               router.replace(href('/(main)'));
             } catch (e) {
-              Alert.alert('Could not delete trip', e instanceof Error ? e.message : 'Unknown error');
+              Alert.alert(
+                t('tripSettings.deleteFailedTitle'),
+                e instanceof Error ? e.message : t('tripSettings.unknownError'),
+              );
             }
           },
         },
@@ -103,14 +110,14 @@ export default function TripSettingsScreen() {
         >
           <Text style={[styles.backButtonText, { color: theme.text }]}>‹</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Trip Settings</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('tripSettings.title')}</Text>
         <View style={styles.spacer} />
       </View>
 
       <TripForm
         initial={initial}
-        submitLabel="Save Changes"
-        submittingLabel="Saving…"
+        submitLabel={t('tripSettings.submit')}
+        submittingLabel={t('tripSettings.submitting')}
         onSubmit={handleSubmit}
         footer={
           isOwner ? (
@@ -121,7 +128,9 @@ export default function TripSettingsScreen() {
                 { backgroundColor: theme.redSoft, borderColor: theme.red, opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Text style={[styles.deleteText, { color: theme.red }]}>Delete Trip</Text>
+              <Text style={[styles.deleteText, { color: theme.red }]}>
+                {t('tripSettings.deleteButton')}
+              </Text>
             </Pressable>
           ) : null
         }

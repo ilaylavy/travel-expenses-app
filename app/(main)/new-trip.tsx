@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTripStore } from '@/stores/tripStore';
@@ -12,12 +13,13 @@ import { useTripStore } from '@/stores/tripStore';
 export default function NewTripScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const defaultCurrency = useSettingsStore((s) => s.defaultCurrency);
   const createTrip = useTripStore((s) => s.createTrip);
 
   const handleSubmit = async (values: TripFormValues): Promise<void> => {
-    if (!user) throw new Error('You must be signed in to create a trip');
+    if (!user) throw new Error(t('tripForm.errors.notSignedIn'));
     await createTrip({
       name: values.name,
       emoji: values.emoji,
@@ -44,13 +46,13 @@ export default function NewTripScreen() {
         >
           <Text style={[styles.backButtonText, { color: theme.text }]}>‹</Text>
         </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>New Trip</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t('newTrip.title')}</Text>
         <View style={styles.spacer} />
       </View>
 
       <TripForm
-        submitLabel="Create Trip"
-        submittingLabel="Creating…"
+        submitLabel={t('newTrip.submit')}
+        submittingLabel={t('newTrip.submitting')}
         initial={{
           baseCurrency: defaultCurrency,
           homeCurrency: defaultCurrency,

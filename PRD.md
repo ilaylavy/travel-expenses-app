@@ -15,6 +15,8 @@ TRAVEL-EXPENSES-APP is a mobile expense tracker designed primarily for travelers
 
 **Target platforms:** Android (primary), iOS (secondary — same codebase via React Native)
 
+**Languages:** English and Hebrew. The app auto-detects the device language on first launch and defaults to it; users can override the choice in Settings. The UI flips to right-to-left when Hebrew is active.
+
 ---
 
 ## 2. User Personas

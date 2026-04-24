@@ -1,0 +1,109 @@
+{
+  "common": {
+    "appName": "",
+    "cancel": "",
+    "save": "",
+    "saving": "",
+    "delete": "",
+    "back": "",
+    "settings": "",
+    "ongoing": "",
+    "shared": "",
+    "optional": ""
+  },
+  "auth": {
+    "login": {
+      "heroTitle": "",
+      "heroSubtitle": "",
+      "email": "",
+      "emailPlaceholder": "",
+      "password": "",
+      "passwordPlaceholder": "",
+      "submit": "",
+      "footerPrompt": "",
+      "footerLink": "",
+      "missingInfoTitle": "",
+      "missingInfoBody": "",
+      "failedTitle": "",
+      "failedFallback": ""
+    },
+    "signup": {
+      "heroTitle": "",
+      "heroSubtitle": "",
+      "name": "",
+      "namePlaceholder": "",
+      "email": "",
+      "emailPlaceholder": "",
+      "password": "",
+      "passwordPlaceholder": "",
+      "defaultCurrency": "",
+      "submit": "",
+      "footerPrompt": "",
+      "footerLink": "",
+      "missingInfoTitle": "",
+      "missingInfoBody": "",
+      "weakPasswordTitle": "",
+      "weakPasswordBody": "",
+      "failedTitle": "",
+      "failedFallback": ""
+    }
+  },
+  "trips": {
+    "title": "",
+    "emptyTitle": "",
+    "emptyBody": "",
+    "totalSpent": "",
+    "budget": "",
+    "ongoingBadge": "",
+    "sharedBadge": "",
+    "newTripCardTitle": "",
+    "newTripCardSubtitle": "",
+    "dateRangeOngoing": "",
+    "notFound": "",
+    "backToTrips": ""
+  },
+  "newTrip": {
+    "title": "",
+    "submit": "",
+    "submitting": ""
+  },
+  "tripSettings": {
+    "title": "",
+    "submit": "",
+    "submitting": "",
+    "deleteButton": "",
+    "deleteConfirmTitle": "",
+    "deleteConfirmBody": "",
+    "deleteFailedTitle": "",
+    "unknownError": ""
+  },
+  "tripForm": {
+    "emoji": "",
+    "name": "",
+    "namePlaceholder": "",
+    "startDate": "",
+    "endDate": "",
+    "datePlaceholder": "",
+    "ongoingToggle": "",
+    "tripCurrency": "",
+    "homeCurrency": "",
+    "budget": "",
+    "budgetPlaceholder": "",
+    "errors": {
+      "nameRequired": "",
+      "startDateInvalid": "",
+      "endDateInvalid": "",
+      "budgetInvalid": "",
+      "saveFailed": "",
+      "notSignedIn": ""
+    }
+  },
+  "language": {
+    "settingLabel": "",
+    "auto": "",
+    "english": "",
+    "hebrew": "",
+    "rtlRestartTitle": "",
+    "rtlRestartBody": ""
+  }
+}

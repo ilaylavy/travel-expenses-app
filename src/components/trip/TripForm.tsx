@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from
 import { sizing, spacing, typography } from '@/constants/theme';
 import { CURRENCIES } from '@/constants/currencies';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
 
 const TRIP_EMOJIS = ['✈️', '🏖️', '🏔️', '🗺️', '🏛️', '🍜', '🌴', '🎒', '🚂', '🏕️', '🌸', '🌃'];
@@ -28,6 +29,7 @@ interface TripFormProps {
 
 export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, footer }: TripFormProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [name, setName] = useState(initial?.name ?? '');
   const [emoji, setEmoji] = useState(initial?.emoji ?? TRIP_EMOJIS[0]);
   const [startDate, setStartDate] = useState(initial?.startDate ?? todayIsoDate());
@@ -46,12 +48,12 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
 
   const handleSubmit = async (): Promise<void> => {
     setError(null);
-    if (!name.trim()) return setError('Trip name is required');
-    if (!isValidIsoDate(startDate)) return setError('Start date must be YYYY-MM-DD');
-    if (!ongoing && !isValidIsoDate(endDate)) return setError('End date must be YYYY-MM-DD');
+    if (!name.trim()) return setError(t('tripForm.errors.nameRequired'));
+    if (!isValidIsoDate(startDate)) return setError(t('tripForm.errors.startDateInvalid'));
+    if (!ongoing && !isValidIsoDate(endDate)) return setError(t('tripForm.errors.endDateInvalid'));
     const parsedBudget = budget.trim() ? Number(budget) : null;
     if (parsedBudget != null && (!Number.isFinite(parsedBudget) || parsedBudget < 0)) {
-      return setError('Budget must be a positive number');
+      return setError(t('tripForm.errors.budgetInvalid'));
     }
     setSubmitting(true);
     try {
@@ -65,7 +67,7 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
         budget: parsedBudget,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save trip');
+      setError(e instanceof Error ? e.message : t('tripForm.errors.saveFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -73,7 +75,7 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Field label="Emoji" theme={theme}>
+      <Field label={t('tripForm.emoji')} theme={theme}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiRow}>
           {TRIP_EMOJIS.map((e) => {
             const selected = e === emoji;
@@ -96,29 +98,31 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
         </ScrollView>
       </Field>
 
-      <Field label="Name" theme={theme}>
+      <Field label={t('tripForm.name')} theme={theme}>
         <TextInput
           style={inputStyle}
           value={name}
           onChangeText={setName}
-          placeholder="Tokyo 2026"
+          placeholder={t('tripForm.namePlaceholder')}
           placeholderTextColor={theme.textMuted}
         />
       </Field>
 
-      <Field label="Start date" theme={theme}>
+      <Field label={t('tripForm.startDate')} theme={theme}>
         <TextInput
           style={inputStyle}
           value={startDate}
           onChangeText={setStartDate}
-          placeholder="YYYY-MM-DD"
+          placeholder={t('tripForm.datePlaceholder')}
           placeholderTextColor={theme.textMuted}
           autoCapitalize="none"
         />
       </Field>
 
       <View style={styles.ongoingRow}>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>Ongoing (no end date)</Text>
+        <Text style={[styles.label, { color: theme.textSecondary }]}>
+          {t('tripForm.ongoingToggle')}
+        </Text>
         <Switch
           value={ongoing}
           onValueChange={setOngoing}
@@ -128,32 +132,32 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
       </View>
 
       {!ongoing && (
-        <Field label="End date" theme={theme}>
+        <Field label={t('tripForm.endDate')} theme={theme}>
           <TextInput
             style={inputStyle}
             value={endDate}
             onChangeText={setEndDate}
-            placeholder="YYYY-MM-DD"
+            placeholder={t('tripForm.datePlaceholder')}
             placeholderTextColor={theme.textMuted}
             autoCapitalize="none"
           />
         </Field>
       )}
 
-      <Field label="Trip currency" theme={theme}>
+      <Field label={t('tripForm.tripCurrency')} theme={theme}>
         <CurrencyStrip selected={baseCurrency} onSelect={setBaseCurrency} />
       </Field>
 
-      <Field label="Home currency" theme={theme}>
+      <Field label={t('tripForm.homeCurrency')} theme={theme}>
         <CurrencyStrip selected={homeCurrency} onSelect={setHomeCurrency} />
       </Field>
 
-      <Field label={`Budget (${baseCurrency}, optional)`} theme={theme}>
+      <Field label={t('tripForm.budget', { currency: baseCurrency })} theme={theme}>
         <TextInput
           style={inputStyle}
           value={budget}
           onChangeText={setBudget}
-          placeholder="0"
+          placeholder={t('tripForm.budgetPlaceholder')}
           placeholderTextColor={theme.textMuted}
           keyboardType="decimal-pad"
         />
@@ -170,7 +174,7 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
         ]}
       >
         <Text style={styles.submitText}>
-          {submitting ? submittingLabel ?? 'Saving…' : submitLabel}
+          {submitting ? submittingLabel ?? t('common.saving') : submitLabel}
         </Text>
       </Pressable>
 

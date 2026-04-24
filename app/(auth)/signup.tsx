@@ -18,12 +18,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CURRENCIES, DEFAULT_CURRENCY } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { href } from '@/utils/nav';
 
 export default function SignupScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const signUp = useAuthStore((s) => s.signUp);
   const isLoading = useAuthStore((s) => s.isLoading);
   const setDefaultCurrencyPref = useSettingsStore((s) => s.setDefaultCurrency);
@@ -36,11 +39,11 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     if (!name.trim() || !email.trim() || !password) {
-      Alert.alert('Missing info', 'Please fill in name, email, and password.');
+      Alert.alert(t('auth.signup.missingInfoTitle'), t('auth.signup.missingInfoBody'));
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Weak password', 'Please use a password of at least 6 characters.');
+      Alert.alert(t('auth.signup.weakPasswordTitle'), t('auth.signup.weakPasswordBody'));
       return;
     }
     setSubmitting(true);
@@ -52,10 +55,10 @@ export default function SignupScreen() {
         defaultCurrency: currency,
       });
       setDefaultCurrencyPref(currency);
-      router.replace('/(main)/(tabs)/dashboard');
+      router.replace(href('/(main)'));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to sign up.';
-      Alert.alert('Signup failed', message);
+      const message = error instanceof Error ? error.message : t('auth.signup.failedFallback');
+      Alert.alert(t('auth.signup.failedTitle'), message);
     } finally {
       setSubmitting(false);
     }
@@ -82,28 +85,28 @@ export default function SignupScreen() {
             >
               <Text style={styles.heroEmoji}>🧳</Text>
             </LinearGradient>
-            <Text style={[styles.title, { color: theme.text }]}>Start your journey</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('auth.signup.heroTitle')}</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Create an account to track trips and expenses.
+              {t('auth.signup.heroSubtitle')}
             </Text>
           </View>
 
           <View style={styles.form}>
             <Field
-              label="Name"
+              label={t('auth.signup.name')}
               value={name}
               onChangeText={setName}
-              placeholder="Your name"
+              placeholder={t('auth.signup.namePlaceholder')}
               autoCapitalize="words"
               autoComplete="name"
               textContentType="name"
               theme={theme}
             />
             <Field
-              label="Email"
+              label={t('auth.signup.email')}
               value={email}
               onChangeText={setEmail}
-              placeholder="you@travel.com"
+              placeholder={t('auth.signup.emailPlaceholder')}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
@@ -111,10 +114,10 @@ export default function SignupScreen() {
               theme={theme}
             />
             <Field
-              label="Password"
+              label={t('auth.signup.password')}
               value={password}
               onChangeText={setPassword}
-              placeholder="At least 6 characters"
+              placeholder={t('auth.signup.passwordPlaceholder')}
               secureTextEntry
               autoComplete="password-new"
               textContentType="newPassword"
@@ -122,7 +125,9 @@ export default function SignupScreen() {
             />
 
             <View style={styles.field}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Default currency</Text>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                {t('auth.signup.defaultCurrency')}
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -170,18 +175,20 @@ export default function SignupScreen() {
                 {busy ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitText}>Create account</Text>
+                  <Text style={styles.submitText}>{t('auth.signup.submit')}</Text>
                 )}
               </LinearGradient>
             </Pressable>
 
             <View style={styles.footerRow}>
               <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                Already have an account?
+                {t('auth.signup.footerPrompt')}
               </Text>
               <Link href="/(auth)/login" asChild>
                 <Pressable>
-                  <Text style={[styles.footerLink, { color: theme.accent }]}>Log in</Text>
+                  <Text style={[styles.footerLink, { color: theme.accent }]}>
+                    {t('auth.signup.footerLink')}
+                  </Text>
                 </Pressable>
               </Link>
             </View>
