@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCard';
 import { TripCard } from '@/components/trip/TripCard';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -48,6 +49,8 @@ export default function TripListScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          <CurrencyConverterCard />
+
           {trips.length === 0 && (
             <View style={[styles.empty, { borderColor: theme.borderLight }]}>
               <Text style={styles.emptyEmoji}>🗺️</Text>

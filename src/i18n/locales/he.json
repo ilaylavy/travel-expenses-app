@@ -241,5 +241,29 @@
     "hebrew": "",
     "rtlRestartTitle": "",
     "rtlRestartBody": ""
+  },
+  "currency": {
+    "picker": {
+      "title": "",
+      "searchPlaceholder": "",
+      "moreChip": ""
+    },
+    "converter": {
+      "title": "",
+      "from": "",
+      "to": "",
+      "swap": "",
+      "rateLabel": "",
+      "rateUnavailable": "",
+      "stale": ""
+    },
+    "override": {
+      "chip": "",
+      "title": "",
+      "subtitle": "",
+      "placeholder": "",
+      "save": "",
+      "auto": ""
+    }
   }
 }

@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryGrid } from '@/components/expense/CategoryGrid';
 import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/NumPad';
-import { CURRENCIES } from '@/constants/currencies';
+import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
+import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
+import { CURRENCIES, POPULAR_CURRENCIES } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import {
   categoryUsageForTrip,
@@ -24,6 +26,7 @@ import {
   listRecentNotesForTrip,
 } from '@/db/queries/expenses';
 import { getTrip } from '@/db/queries/trips';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { captureCurrentLocation } from '@/services/locationService';
@@ -123,6 +126,8 @@ export default function AddExpenseScreen() {
   const [lockedExchangeRate, setLockedExchangeRate] = useState<number | null>(
     null,
   );
+  const [manualRate, setManualRate] = useState<number | null>(null);
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
 
   // Load trip + recent-note / payment / usage data up front.
   useEffect(() => {
@@ -224,12 +229,30 @@ export default function AddExpenseScreen() {
     return Number.isFinite(n) ? n : 0;
   }, [amountText]);
 
-  // Placeholder exchange-rate logic. Until the rate service lands, we lock 1.0
-  // for same-currency expenses and 1.0 otherwise (user can edit on detail).
-  // In edit mode, keep the rate the expense was originally booked at.
+  // Fetch the live rate for this currency pair. The hook returns 1 for
+  // same-currency pairs and handles offline fallback. In edit mode we keep
+  // the rate the expense was originally booked at (lockedExchangeRate), so
+  // historical values don't drift.
+  const { rate: fetchedRate, status: rateStatus } = useExchangeRate(
+    currency || null,
+    trip?.homeCurrency || null,
+    expenseDate,
+  );
+  // Priority: manual override > locked (edit mode) > fetched > 1.
   const exchangeRate =
-    lockedExchangeRate ?? (currency && trip && currency === trip.homeCurrency ? 1 : 1);
+    manualRate ?? lockedExchangeRate ?? fetchedRate ?? 1;
   const convertedAmount = amountValue * exchangeRate;
+  const showConvertedPreview = Boolean(
+    trip && currency && currency !== trip.homeCurrency,
+  );
+
+  const popularCurrencies = useMemo(() => {
+    const codes = new Set<string>(POPULAR_CURRENCIES);
+    if (trip?.baseCurrency) codes.add(trip.baseCurrency);
+    if (trip?.homeCurrency) codes.add(trip.homeCurrency);
+    if (currency) codes.add(currency);
+    return CURRENCIES.filter((c) => codes.has(c.code));
+  }, [trip?.baseCurrency, trip?.homeCurrency, currency]);
 
   const handleKey = useCallback((key: NumPadKey) => {
     setAmountText((current) => appendNumPadKey(current, key));
@@ -414,7 +437,7 @@ export default function AddExpenseScreen() {
   }
 
   const symbol = currency ? getCurrencySymbol(currency) : '';
-  const showConverted = trip && currency && currency !== trip.homeCurrency;
+  const showConverted = showConvertedPreview;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
@@ -451,24 +474,43 @@ export default function AddExpenseScreen() {
             {amountText || '0'}
           </Text>
           {showConverted ? (
-            <Text style={[styles.converted, { color: theme.textMuted }]}>
-              {t('expense.convertedLabel', {
-                amount: formatAmount(convertedAmount, trip!.homeCurrency),
-                currency: trip!.homeCurrency,
-              })}
-            </Text>
+            <>
+              <Text style={[styles.converted, { color: theme.textMuted }]}>
+                {t('expense.convertedLabel', {
+                  amount: formatAmount(convertedAmount, trip!.homeCurrency),
+                  currency: trip!.homeCurrency,
+                })}
+              </Text>
+              <RateOverrideChip
+                baseCurrency={currency}
+                targetCurrency={trip!.homeCurrency}
+                rate={exchangeRate}
+                isOverridden={manualRate !== null}
+                onOverride={setManualRate}
+                onResetToAuto={() => setManualRate(null)}
+              />
+              {rateStatus === 'stale' ? (
+                <Text style={[styles.staleHint, { color: theme.orange }]}>
+                  {t('currency.converter.stale')}
+                </Text>
+              ) : null}
+            </>
           ) : null}
         </View>
 
         {/* Currency strip */}
         <Section title={t('expense.currencySection')} theme={theme}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {CURRENCIES.map((c) => {
+            {popularCurrencies.map((c) => {
               const active = c.code === currency;
               return (
                 <Pressable
                   key={c.code}
-                  onPress={() => setCurrency(c.code)}
+                  onPress={() => {
+                    setCurrency(c.code);
+                    setManualRate(null);
+                    setLockedExchangeRate(null);
+                  }}
                   style={[
                     styles.currencyChip,
                     {
@@ -488,8 +530,30 @@ export default function AddExpenseScreen() {
                 </Pressable>
               );
             })}
+            <Pressable
+              onPress={() => setCurrencyPickerOpen(true)}
+              style={[
+                styles.currencyChip,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Text style={[styles.currencyChipText, { color: theme.textSecondary }]}>
+                {t('currency.picker.moreChip')}
+              </Text>
+            </Pressable>
           </ScrollView>
         </Section>
+
+        <CurrencyPickerModal
+          visible={currencyPickerOpen}
+          selectedCode={currency || null}
+          onSelect={(code) => {
+            setCurrency(code);
+            setManualRate(null);
+            setLockedExchangeRate(null);
+          }}
+          onClose={() => setCurrencyPickerOpen(false)}
+        />
 
         {/* Category */}
         <Section title={t('expense.categorySection')} theme={theme}>
@@ -836,6 +900,7 @@ const styles = StyleSheet.create({
   },
   amountDisplay: { ...typography.entryAmount },
   converted: { ...typography.subtitle },
+  staleHint: { ...typography.caption, marginTop: 4 },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.micro, marginBottom: 2 },
   chipRow: { gap: spacing.sm, paddingVertical: 4 },

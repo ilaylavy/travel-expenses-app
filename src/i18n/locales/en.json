@@ -241,5 +241,29 @@
     "hebrew": "עברית",
     "rtlRestartTitle": "Restart required",
     "rtlRestartBody": "Please close and reopen the app for the layout direction to update."
+  },
+  "currency": {
+    "picker": {
+      "title": "Choose currency",
+      "searchPlaceholder": "Search code or name",
+      "moreChip": "More…"
+    },
+    "converter": {
+      "title": "Quick converter",
+      "from": "FROM",
+      "to": "TO",
+      "swap": "Swap",
+      "rateLabel": "1 {{base}} = {{rate}} {{target}}",
+      "rateUnavailable": "Rate unavailable",
+      "stale": "Offline rate"
+    },
+    "override": {
+      "chip": "1 {{base}} = {{rate}} {{target}} · Edit",
+      "title": "Override exchange rate",
+      "subtitle": "Set a custom 1 {{base}} → {{target}} rate for this expense.",
+      "placeholder": "e.g. 3.65",
+      "save": "Save",
+      "auto": "Auto"
+    }
   }
 }
