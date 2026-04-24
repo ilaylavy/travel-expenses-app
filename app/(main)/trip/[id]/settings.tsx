@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MembersSection } from '@/components/trip/MembersSection';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -194,6 +195,7 @@ export default function TripSettingsScreen() {
                 {t('tripSettings.manageCategories')}
               </Text>
             </Pressable>
+            <MembersSection tripId={trip.id} ownerId={trip.ownerId} />
             {isOwner && (
               <Pressable
                 onPress={handleDelete}

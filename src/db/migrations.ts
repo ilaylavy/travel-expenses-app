@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { V1_STATEMENTS } from './schema';
+import { V1_STATEMENTS, V3_STATEMENTS } from './schema';
 
 export interface Migration {
   version: number;
@@ -25,6 +25,15 @@ export const MIGRATIONS: readonly Migration[] = [
       await db.execAsync(
         'ALTER TABLE expenses RENAME COLUMN is_excluded_from_metrics TO is_excluded_from_daily_metrics;',
       );
+    },
+  },
+  {
+    version: 3,
+    name: 'add_is_private_to_expenses',
+    run: async (db) => {
+      for (const stmt of V3_STATEMENTS) {
+        await db.execAsync(stmt);
+      }
     },
   },
 ] as const;

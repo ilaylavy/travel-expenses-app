@@ -25,7 +25,7 @@ import {
   lastUsedPaymentMethodForTrip,
   listRecentNotesForTrip,
 } from '@/db/queries/expenses';
-import { getTrip } from '@/db/queries/trips';
+import { getTrip, listTripMembers } from '@/db/queries/trips';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -97,6 +97,7 @@ export default function AddExpenseScreen() {
   const updateExpenseInStore = useExpenseStore((s) => s.updateExpense);
 
   const [trip, setTrip] = useState<Trip | null>(null);
+  const [isSharedTrip, setIsSharedTrip] = useState(false);
   const [amountText, setAmountText] = useState('');
   const [currency, setCurrency] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -111,6 +112,7 @@ export default function AddExpenseScreen() {
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [isRefund, setIsRefund] = useState(false);
   const [isExcluded, setIsExcluded] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
   const [isSpread, setIsSpread] = useState(false);
   const [spreadStart, setSpreadStart] = useState('');
   const [spreadEnd, setSpreadEnd] = useState('');
@@ -135,11 +137,12 @@ export default function AddExpenseScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const [loadedTrip, notes, lastPayment, usage] = await Promise.all([
+        const [loadedTrip, notes, lastPayment, usage, members] = await Promise.all([
           getTrip(tripId),
           listRecentNotesForTrip(tripId),
           lastUsedPaymentMethodForTrip(tripId),
           categoryUsageForTrip(tripId),
+          listTripMembers(tripId),
         ]);
         if (cancelled) return;
         if (loadedTrip) {
@@ -149,6 +152,7 @@ export default function AddExpenseScreen() {
         setRecentNotes(notes);
         if (!isEditing && lastPayment) setPaymentMethod(lastPayment);
         setCategoryUsage(usage);
+        setIsSharedTrip(members.length > 1);
       } catch (e) {
         console.warn('Failed to load add-expense context:', e);
       }
@@ -178,6 +182,7 @@ export default function AddExpenseScreen() {
       setLocationStatus(existing.latitude != null ? 'captured' : 'none');
       setIsRefund(existing.isRefund);
       setIsExcluded(existing.isExcludedFromDailyMetrics);
+      setIsPrivate(existing.isPrivate);
       if (existing.spreadStartDate && existing.spreadEndDate) {
         setIsSpread(true);
         setSpreadStart(existing.spreadStartDate);
@@ -349,6 +354,7 @@ export default function AddExpenseScreen() {
             expenseTime: normalizeTime(expenseTime),
             isRefund,
             isExcludedFromDailyMetrics: isExcluded,
+            isPrivate,
             spreadStartDate: isSpread ? spreadStart : null,
             spreadEndDate: isSpread ? spreadEnd : null,
           });
@@ -370,6 +376,7 @@ export default function AddExpenseScreen() {
             expenseTime: normalizeTime(expenseTime),
             isRefund,
             isExcludedFromDailyMetrics: isExcluded,
+            isPrivate,
             spreadStartDate: isSpread ? spreadStart : null,
             spreadEndDate: isSpread ? spreadEnd : null,
             photos: photos.map((p) => ({ localUri: p.uri })),
@@ -406,6 +413,7 @@ export default function AddExpenseScreen() {
       exchangeRate,
       isEditing,
       isExcluded,
+      isPrivate,
       isRefund,
       isSpread,
       latitude,
@@ -714,6 +722,15 @@ export default function AddExpenseScreen() {
             onChange={setIsExcluded}
             theme={theme}
           />
+          {isSharedTrip ? (
+            <ToggleRow
+              label={t('expense.privateToggle')}
+              hint={t('expense.privateHint')}
+              value={isPrivate}
+              onChange={setIsPrivate}
+              theme={theme}
+            />
+          ) : null}
           <ToggleRow
             label={t('expense.spreadToggle')}
             hint={t('expense.spreadHint')}

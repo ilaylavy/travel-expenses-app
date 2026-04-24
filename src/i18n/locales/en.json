@@ -62,7 +62,11 @@
     "newTripCardSubtitle": "Start tracking a new adventure",
     "dateRangeOngoing": "{{start}} · Ongoing",
     "notFound": "Trip not found.",
-    "backToTrips": "Back to trips"
+    "backToTrips": "Back to trips",
+    "pendingInvites": "Pending invites",
+    "acceptInvite": "Accept",
+    "declineInvite": "Decline",
+    "invitedBy": "Invited by {{name}}"
   },
   "newTrip": {
     "title": "New Trip",
@@ -78,7 +82,27 @@
     "deleteConfirmBody": "This will delete \"{{name}}\" and all its expenses. This cannot be undone.",
     "deleteFailedTitle": "Could not delete trip",
     "unknownError": "Unknown error",
-    "manageCategories": "Manage Categories"
+    "manageCategories": "Manage Categories",
+    "members": {
+      "title": "Members",
+      "inviteEmail": "Invite a partner by email",
+      "inviteButton": "Invite",
+      "inviteNotFound": "This email isn't on the app yet. Ask them to sign up first.",
+      "inviteFailed": "Could not send invite",
+      "alreadyMember": "That user is already on this trip",
+      "cannotInviteSelf": "You're already on this trip",
+      "youLabel": "You",
+      "ownerLabel": "Owner",
+      "pending": "Pending",
+      "remove": "Remove",
+      "removeConfirmTitle": "Remove member?",
+      "removeConfirmBody": "{{name}} will lose access to this trip.",
+      "removeFailedTitle": "Could not remove member",
+      "leaveTrip": "Leave trip",
+      "leaveConfirmTitle": "Leave this trip?",
+      "leaveConfirmBody": "You'll no longer see this trip or its expenses.",
+      "leaveFailedTitle": "Could not leave trip"
+    }
   },
   "categories": {
     "title": "Categories",
@@ -189,6 +213,9 @@
     "spreadHint": "Divide evenly across the date range in daily charts",
     "spreadStart": "Start date",
     "spreadEnd": "End date",
+    "privateToggle": "Keep private",
+    "privateHint": "Only you will see this — hidden from your partner",
+    "privateBadge": "Private",
     "photosSection": "Photos",
     "photosCamera": "Camera",
     "photosGallery": "Gallery",
@@ -278,6 +305,7 @@
     "dailySpending": "Daily spending",
     "average": "Avg",
     "splitBalance": "Split balance",
+    "splitBalanceNote": "Private expenses are excluded from the split.",
     "paymentMethods": "Payment methods",
     "topExpenses": "Top 5 expenses",
     "otherCategory": "Other",

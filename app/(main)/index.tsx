@@ -1,15 +1,24 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCard';
+import { PendingInviteCard } from '@/components/trip/PendingInviteCard';
 import { TripCard } from '@/components/trip/TripCard';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
+import { getProfileName } from '@/db/queries/profiles';
+import {
+  acceptInvite as dbAcceptInvite,
+  declineInvite as dbDeclineInvite,
+  listPendingInvitesForUser,
+  type PendingInvite,
+} from '@/db/queries/tripMembers';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
@@ -24,10 +33,47 @@ export default function TripListScreen() {
   const refresh = useTripStore((s) => s.refresh);
   const isDark = useSettingsStore((s) => s.isDark);
   const toggleTheme = useSettingsStore((s) => s.toggleTheme);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [inviterNames, setInviterNames] = useState<Record<string, string>>({});
+
+  const reloadInvites = useCallback(async (): Promise<void> => {
+    if (!userId) {
+      setPendingInvites([]);
+      return;
+    }
+    const invites = await listPendingInvitesForUser(userId);
+    setPendingInvites(invites);
+    const names: Record<string, string> = {};
+    await Promise.all(
+      invites.map(async (i) => {
+        const n = await getProfileName(i.trip.ownerId);
+        if (n) names[i.trip.ownerId] = n;
+      }),
+    );
+    setInviterNames(names);
+  }, [userId]);
 
   useEffect(() => {
     if (isHydrated) void refresh();
   }, [isHydrated, refresh]);
+
+  useEffect(() => {
+    void reloadInvites();
+  }, [reloadInvites, trips]);
+
+  const handleAccept = useCallback(async (invite: PendingInvite): Promise<void> => {
+    await dbAcceptInvite(invite.member.id);
+    void syncEngine.triggerSync();
+    await reloadInvites();
+    await refresh();
+  }, [reloadInvites, refresh]);
+
+  const handleDecline = useCallback(async (invite: PendingInvite): Promise<void> => {
+    await dbDeclineInvite(invite.member.id);
+    void syncEngine.triggerSync();
+    await reloadInvites();
+  }, [reloadInvites]);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
@@ -65,7 +111,24 @@ export default function TripListScreen() {
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           <CurrencyConverterCard />
 
-          {trips.length === 0 && (
+          {pendingInvites.length > 0 ? (
+            <View style={styles.invitesSection}>
+              <Text style={[styles.invitesHeading, { color: theme.textMuted }]}>
+                {t('trips.pendingInvites').toUpperCase()}
+              </Text>
+              {pendingInvites.map((invite) => (
+                <PendingInviteCard
+                  key={invite.member.id}
+                  invite={invite}
+                  inviterName={inviterNames[invite.trip.ownerId] ?? null}
+                  onAccept={handleAccept}
+                  onDecline={handleDecline}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {trips.length === 0 && pendingInvites.length === 0 && (
             <View style={[styles.empty, { borderColor: theme.borderLight }]}>
               <Text style={styles.emptyEmoji}>🗺️</Text>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
@@ -143,6 +206,13 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: spacing.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: spacing.base, paddingBottom: spacing.xxl },
+  invitesSection: {
+    marginBottom: spacing.lg,
+  },
+  invitesHeading: {
+    ...typography.micro,
+    marginBottom: spacing.sm,
+  },
   empty: {
     borderRadius: sizing.radiusCard,
     borderWidth: 1.5,

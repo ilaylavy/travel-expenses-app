@@ -19,6 +19,9 @@ interface SwipeableExpenseCardProps {
   confirmLabel: string;
   cancelLabel: string;
   deleteLabel: string;
+  loggedByName?: string | null;
+  isSelfLogged?: boolean;
+  canDelete?: boolean;
 }
 
 export function SwipeableExpenseCard({
@@ -32,6 +35,9 @@ export function SwipeableExpenseCard({
   confirmLabel,
   cancelLabel,
   deleteLabel,
+  loggedByName,
+  isSelfLogged,
+  canDelete = true,
 }: SwipeableExpenseCardProps) {
   const theme = useTheme();
   const ref = useRef<Swipeable>(null);
@@ -74,7 +80,7 @@ export function SwipeableExpenseCard({
   return (
     <Swipeable
       ref={ref}
-      renderRightActions={renderRightActions}
+      renderRightActions={canDelete ? renderRightActions : undefined}
       overshootRight={false}
       friction={2}
     >
@@ -83,6 +89,8 @@ export function SwipeableExpenseCard({
         category={category}
         homeCurrency={homeCurrency}
         onPress={onPress}
+        loggedByName={loggedByName}
+        isSelfLogged={isSelfLogged}
       />
     </Swipeable>
   );

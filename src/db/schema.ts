@@ -131,6 +131,12 @@ export const V1_STATEMENTS: readonly string[] = [
   'CREATE INDEX IF NOT EXISTS idx_sync_queue_unsynced ON sync_queue(synced_at) WHERE synced_at IS NULL;',
 ] as const;
 
+// V3: add is_private flag on expenses for shared-trip privacy.
+export const V3_STATEMENTS: readonly string[] = [
+  'ALTER TABLE expenses ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;',
+  'CREATE INDEX IF NOT EXISTS idx_expenses_is_private ON expenses(is_private);',
+] as const;
+
 export const ALL_TABLES = [
   'profiles',
   'trips',

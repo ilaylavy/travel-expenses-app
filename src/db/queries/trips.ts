@@ -112,11 +112,31 @@ export async function listTrips(): Promise<Trip[]> {
   return rows.map(rowToTrip);
 }
 
-export async function listTripsWithStats(): Promise<TripWithStats[]> {
+// Hide trips where the current user is still a pending invitee (joined_at IS
+// NULL). They belong in the pending-invites section, not the trips list.
+export async function listTripsWithStats(
+  currentUserId?: string,
+): Promise<TripWithStats[]> {
   const db = await getDatabase();
-  const trips = await db.getAllAsync<TripRow>(
-    'SELECT * FROM trips WHERE deleted_at IS NULL ORDER BY updated_at DESC;',
-  );
+  const trips = currentUserId
+    ? await db.getAllAsync<TripRow>(
+        `SELECT t.* FROM trips t
+           WHERE t.deleted_at IS NULL
+             AND (
+               t.owner_id = ?
+               OR EXISTS (
+                 SELECT 1 FROM trip_members m
+                 WHERE m.trip_id = t.id
+                   AND m.user_id = ?
+                   AND m.joined_at IS NOT NULL
+               )
+             )
+           ORDER BY t.updated_at DESC;`,
+        [currentUserId, currentUserId],
+      )
+    : await db.getAllAsync<TripRow>(
+        'SELECT * FROM trips WHERE deleted_at IS NULL ORDER BY updated_at DESC;',
+      );
   if (trips.length === 0) return [];
 
   const statsRows = await db.getAllAsync<TripStatsRow>(

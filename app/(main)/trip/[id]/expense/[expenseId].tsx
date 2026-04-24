@@ -68,6 +68,7 @@ export default function ExpenseDetailScreen() {
 
   const memberCount = trip?.stats.memberCount ?? 1;
   const isShared = memberCount > 1;
+  const canMutate = expense ? expense.userId === user?.id : false;
 
   useEffect(() => {
     if (!expense) return;
@@ -180,21 +181,25 @@ export default function ExpenseDetailScreen() {
         <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
           {t('expenseDetail.title')}
         </Text>
-        <Pressable
-          onPress={handleEdit}
-          hitSlop={8}
-          style={[
-            styles.headerButton,
-            {
-              backgroundColor: theme.accentSoft,
-              borderColor: theme.accent,
-            },
-          ]}
-        >
-          <Text style={[styles.headerButtonText, { color: theme.accent }]}>
-            ✎
-          </Text>
-        </Pressable>
+        {canMutate ? (
+          <Pressable
+            onPress={handleEdit}
+            hitSlop={8}
+            style={[
+              styles.headerButton,
+              {
+                backgroundColor: theme.accentSoft,
+                borderColor: theme.accent,
+              },
+            ]}
+          >
+            <Text style={[styles.headerButtonText, { color: theme.accent }]}>
+              ✎
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headerButton} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -244,6 +249,13 @@ export default function ExpenseDetailScreen() {
               <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
                 <Text style={[styles.badgeText, { color: theme.accent }]}>
                   {t('expenseDetail.badgeMultiDay')}
+                </Text>
+              </View>
+            ) : null}
+            {expense.isPrivate ? (
+              <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+                <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+                  🔒 {t('expense.privateBadge')}
                 </Text>
               </View>
             ) : null}
@@ -378,14 +390,16 @@ export default function ExpenseDetailScreen() {
             ↗  {t('expenseDetail.shareButton')}
           </Text>
         </Pressable>
-        <Pressable
-          onPress={handleDelete}
-          style={[styles.deleteButton, { backgroundColor: theme.redSoft }]}
-        >
-          <Text style={[styles.deleteButtonText, { color: theme.red }]}>
-            {t('expenseDetail.deleteButton')}
-          </Text>
-        </Pressable>
+        {canMutate ? (
+          <Pressable
+            onPress={handleDelete}
+            style={[styles.deleteButton, { backgroundColor: theme.redSoft }]}
+          >
+            <Text style={[styles.deleteButtonText, { color: theme.red }]}>
+              {t('expenseDetail.deleteButton')}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </SafeAreaView>
   );

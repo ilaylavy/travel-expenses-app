@@ -8,6 +8,7 @@ import {
   type CreateTripInput,
   type UpdateTripInput,
 } from '@/db/queries/trips';
+import { useAuthStore } from '@/stores/authStore';
 import type { TripWithStats } from '@/types/trip';
 
 interface TripState {
@@ -40,7 +41,8 @@ export const useTripStore = create<TripState>((set, get) => ({
     if (get().isHydrated) return;
     set({ isLoading: true, error: null });
     try {
-      const trips = await listTripsWithStats();
+      const userId = useAuthStore.getState().user?.id;
+      const trips = await listTripsWithStats(userId);
       set({ trips, isHydrated: true, isLoading: false });
     } catch (error) {
       console.warn('Failed to hydrate trip store:', error);
@@ -50,7 +52,8 @@ export const useTripStore = create<TripState>((set, get) => ({
 
   refresh: async () => {
     try {
-      const trips = await listTripsWithStats();
+      const userId = useAuthStore.getState().user?.id;
+      const trips = await listTripsWithStats(userId);
       set({ trips, error: null });
     } catch (error) {
       console.warn('Failed to refresh trips:', error);

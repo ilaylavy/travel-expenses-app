@@ -14,8 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SwipeableExpenseCard } from '@/components/expense/SwipeableExpenseCard';
 import { CategoryFilterChips } from '@/components/ui/CategoryFilterChips';
 import { sizing, spacing, typography } from '@/constants/theme';
+import { getProfileName } from '@/db/queries/profiles';
+import { listTripMembers } from '@/db/queries/trips';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/stores/authStore';
 import {
   selectCategoriesForTrip,
   useCategoryStore,
@@ -46,10 +49,32 @@ export default function TripExpensesScreen() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+  const isSharedTrip = Object.keys(memberNames).length > 1;
 
   useEffect(() => {
     if (tripId && activeTripId !== tripId) void loadForTrip(tripId);
   }, [tripId, activeTripId, loadForTrip]);
+
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    (async () => {
+      const members = await listTripMembers(tripId);
+      if (cancelled) return;
+      const entries = await Promise.all(
+        members.map(async (m) => [m.userId, (await getProfileName(m.userId)) ?? ''] as const),
+      );
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      for (const [id, name] of entries) if (name) map[id] = name;
+      setMemberNames(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
 
   const tripCategories = useMemo(
     () => selectCategoriesForTrip(allCategories, tripId ?? null),
@@ -206,20 +231,28 @@ export default function TripExpensesScreen() {
             </Text>
           </View>
         )}
-        renderItem={({ item }) => (
-          <SwipeableExpenseCard
-            expense={item.displayExpense}
-            category={categoryById.get(item.expense.categoryId) ?? null}
-            homeCurrency={trip.homeCurrency}
-            onPress={() => handlePressRow(item.expense)}
-            onDelete={() => handleDelete(item.expense)}
-            confirmTitle={t('expensesList.deleteConfirmTitle')}
-            confirmBody={t('expensesList.deleteConfirmBody')}
-            confirmLabel={t('common.delete')}
-            cancelLabel={t('common.cancel')}
-            deleteLabel={t('expensesList.deleteAction')}
-          />
-        )}
+        renderItem={({ item }) => {
+          const loggedById = item.expense.userId;
+          const isSelfLogged = loggedById === currentUserId;
+          const loggedByName = isSharedTrip ? memberNames[loggedById] ?? null : null;
+          return (
+            <SwipeableExpenseCard
+              expense={item.displayExpense}
+              category={categoryById.get(item.expense.categoryId) ?? null}
+              homeCurrency={trip.homeCurrency}
+              onPress={() => handlePressRow(item.expense)}
+              onDelete={() => handleDelete(item.expense)}
+              confirmTitle={t('expensesList.deleteConfirmTitle')}
+              confirmBody={t('expensesList.deleteConfirmBody')}
+              confirmLabel={t('common.delete')}
+              cancelLabel={t('common.cancel')}
+              deleteLabel={t('expensesList.deleteAction')}
+              loggedByName={loggedByName}
+              isSelfLogged={isSelfLogged}
+              canDelete={isSelfLogged}
+            />
+          );
+        }}
         ListEmptyComponent={
           filteredAway ? (
             <View style={[styles.empty, { borderColor: theme.borderLight }]}>

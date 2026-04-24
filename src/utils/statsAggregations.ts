@@ -211,8 +211,10 @@ export function aggregate({ expenses, trip, today }: AggregateInput): TripStats 
     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 
   // ----- By member -----
+  // Private expenses are the logger's own cost and are excluded from the split.
   const memberMap = new Map<string, number>();
   for (const e of active) {
+    if (e.isPrivate) continue;
     memberMap.set(e.userId, (memberMap.get(e.userId) ?? 0) + e.convertedAmount);
   }
   const byMember: MemberTotal[] = Array.from(memberMap.entries())

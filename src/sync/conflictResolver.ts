@@ -153,8 +153,9 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
        (id, trip_id, user_id, amount, currency, converted_amount, exchange_rate,
         category_id, note, payment_method, latitude, longitude, place_name,
         expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
-        spread_start_date, spread_end_date, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        is_private, spread_start_date, spread_end_date,
+        created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       asString(r.id),
       asString(r.trip_id),
@@ -173,6 +174,7 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
       asString(r.expense_time) ?? '',
       asBoolInt(r.is_refund),
       asBoolInt(r.is_excluded_from_daily_metrics),
+      asBoolInt(r.is_private),
       asString(r.spread_start_date),
       asString(r.spread_end_date),
       asString(r.created_at) ?? new Date().toISOString(),

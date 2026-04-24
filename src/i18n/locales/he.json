@@ -62,7 +62,11 @@
     "newTripCardSubtitle": "",
     "dateRangeOngoing": "",
     "notFound": "",
-    "backToTrips": ""
+    "backToTrips": "",
+    "pendingInvites": "",
+    "acceptInvite": "",
+    "declineInvite": "",
+    "invitedBy": ""
   },
   "newTrip": {
     "title": "",
@@ -78,7 +82,27 @@
     "deleteConfirmBody": "",
     "deleteFailedTitle": "",
     "unknownError": "",
-    "manageCategories": ""
+    "manageCategories": "",
+    "members": {
+      "title": "",
+      "inviteEmail": "",
+      "inviteButton": "",
+      "inviteNotFound": "",
+      "inviteFailed": "",
+      "alreadyMember": "",
+      "cannotInviteSelf": "",
+      "youLabel": "",
+      "ownerLabel": "",
+      "pending": "",
+      "remove": "",
+      "removeConfirmTitle": "",
+      "removeConfirmBody": "",
+      "removeFailedTitle": "",
+      "leaveTrip": "",
+      "leaveConfirmTitle": "",
+      "leaveConfirmBody": "",
+      "leaveFailedTitle": ""
+    }
   },
   "categories": {
     "title": "",
@@ -189,6 +213,9 @@
     "spreadHint": "",
     "spreadStart": "",
     "spreadEnd": "",
+    "privateToggle": "",
+    "privateHint": "",
+    "privateBadge": "",
     "photosSection": "",
     "photosCamera": "",
     "photosGallery": "",
@@ -278,6 +305,7 @@
     "dailySpending": "",
     "average": "",
     "splitBalance": "",
+    "splitBalanceNote": "",
     "paymentMethods": "",
     "topExpenses": "",
     "otherCategory": "",

@@ -14,9 +14,19 @@ interface ExpenseCardProps {
   category: Category | null;
   homeCurrency: string;
   onPress?: () => void;
+  // In shared trips, the logger's display name. Omit on solo trips.
+  loggedByName?: string | null;
+  isSelfLogged?: boolean;
 }
 
-function ExpenseCardInner({ expense, category, homeCurrency, onPress }: ExpenseCardProps) {
+function ExpenseCardInner({
+  expense,
+  category,
+  homeCurrency,
+  onPress,
+  loggedByName,
+  isSelfLogged,
+}: ExpenseCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const color = category ? getCategoryColor(category.color, theme) : theme.accent;
@@ -95,6 +105,20 @@ function ExpenseCardInner({ expense, category, homeCurrency, onPress }: ExpenseC
             <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
               <Text style={[styles.badgeText, { color: theme.textMuted }]}>
                 {t('expenseDetail.badgeExcluded')}
+              </Text>
+            </View>
+          ) : null}
+          {expense.isPrivate ? (
+            <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+              <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+                🔒 {t('expense.privateBadge')}
+              </Text>
+            </View>
+          ) : null}
+          {loggedByName && !isSelfLogged ? (
+            <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
+              <Text style={[styles.badgeText, { color: theme.accent }]}>
+                {loggedByName}
               </Text>
             </View>
           ) : null}

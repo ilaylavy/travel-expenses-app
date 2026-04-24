@@ -5,6 +5,7 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { formatAmount } from '@/utils/currency';
+import { initials } from '@/utils/initials';
 import type { MemberTotal, Settlement } from '@/utils/statsAggregations';
 
 interface Props {
@@ -13,13 +14,6 @@ interface Props {
   currency: string;
   currentUserId: string | null;
   memberNames: Record<string, string>;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '?';
 }
 
 export function SplitBalanceCard({
