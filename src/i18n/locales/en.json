@@ -319,6 +319,58 @@
     "paymentDebit": "Debit",
     "paymentOther": "Other"
   },
+  "settings": {
+    "title": "Settings",
+    "profile": {
+      "section": "Profile",
+      "nameLabel": "Name",
+      "namePlaceholder": "Your name",
+      "emailLabel": "Email",
+      "saveFailed": "Could not save. Try again."
+    },
+    "preferences": {
+      "section": "Preferences",
+      "theme": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "language": "Language",
+      "defaultCurrency": "Default currency"
+    },
+    "categories": {
+      "section": "Categories",
+      "manageDefaults": "Manage default categories",
+      "count": "{{count}} active"
+    },
+    "sync": {
+      "section": "Data & sync",
+      "status": "Status",
+      "statusSynced": "Synced",
+      "statusPending": "Pending",
+      "statusError": "Error",
+      "lastSynced": "Last synced",
+      "pendingChanges": "Pending changes"
+    },
+    "account": {
+      "section": "Account",
+      "signOut": "Sign out",
+      "signOutConfirmTitle": "Sign out?",
+      "signOutConfirmBody": "You'll need to log in again. Unsynced changes will be lost.",
+      "signOutFailed": "Could not sign out",
+      "deleteAccount": "Delete account",
+      "deleteConfirmTitle": "Delete account?",
+      "deleteConfirmBody": "Permanent account deletion is coming soon. For now we'll sign you out on this device."
+    },
+    "about": {
+      "section": "About",
+      "appName": "App",
+      "version": "Version",
+      "footer": "Built with ❤️ for travelers"
+    }
+  },
+  "defaultCategories": {
+    "title": "Default categories",
+    "subtitle": "These categories are available on every trip. Archive the ones you don't use."
+  },
   "sync": {
     "syncNow": "Sync now",
     "syncing": "Syncing…",

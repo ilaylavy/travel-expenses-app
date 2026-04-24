@@ -22,6 +22,7 @@ interface CategoryState {
   updateCategory: (input: UpdateCategoryInput) => Promise<Category>;
   reorderCategories: (orderedIds: string[]) => Promise<void>;
   deleteCategoryIfEmpty: (id: string) => Promise<boolean>;
+  reset: () => void;
 }
 
 function byOrder(a: Category, b: Category): number {
@@ -89,6 +90,8 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
     }
     return deleted;
   },
+
+  reset: () => set({ categories: [], isHydrated: false, error: null }),
 }));
 
 // Helper selector: returns the effective list of categories for a given trip

@@ -319,6 +319,58 @@
     "paymentDebit": "",
     "paymentOther": ""
   },
+  "settings": {
+    "title": "",
+    "profile": {
+      "section": "",
+      "nameLabel": "",
+      "namePlaceholder": "",
+      "emailLabel": "",
+      "saveFailed": ""
+    },
+    "preferences": {
+      "section": "",
+      "theme": "",
+      "themeLight": "",
+      "themeDark": "",
+      "language": "",
+      "defaultCurrency": ""
+    },
+    "categories": {
+      "section": "",
+      "manageDefaults": "",
+      "count": ""
+    },
+    "sync": {
+      "section": "",
+      "status": "",
+      "statusSynced": "",
+      "statusPending": "",
+      "statusError": "",
+      "lastSynced": "",
+      "pendingChanges": ""
+    },
+    "account": {
+      "section": "",
+      "signOut": "",
+      "signOutConfirmTitle": "",
+      "signOutConfirmBody": "",
+      "signOutFailed": "",
+      "deleteAccount": "",
+      "deleteConfirmTitle": "",
+      "deleteConfirmBody": ""
+    },
+    "about": {
+      "section": "",
+      "appName": "",
+      "version": "",
+      "footer": ""
+    }
+  },
+  "defaultCategories": {
+    "title": "",
+    "subtitle": ""
+  },
   "sync": {
     "syncNow": "",
     "syncing": "",

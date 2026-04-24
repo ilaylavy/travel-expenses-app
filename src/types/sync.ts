@@ -1,6 +1,7 @@
 export type SyncAction = 'create' | 'update' | 'delete';
 
 export type SyncTable =
+  | 'profiles'
   | 'trips'
   | 'trip_members'
   | 'expenses'
@@ -9,7 +10,7 @@ export type SyncTable =
 
 export type SyncStatus = 'synced' | 'pending' | 'syncing' | 'error';
 
-export type PullTable = SyncTable | 'profiles';
+export type PullTable = SyncTable;
 
 export interface SyncQueueEntry {
   id: number;

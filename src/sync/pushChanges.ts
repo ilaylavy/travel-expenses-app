@@ -8,6 +8,7 @@ import { getPendingEntries, markError, markSynced } from './syncQueue';
 
 // Dependency order: tables whose rows are referenced by FKs push first.
 const TABLE_ORDER: SyncTable[] = [
+  'profiles',
   'trips',
   'trip_members',
   'categories',
@@ -30,10 +31,11 @@ function normalizePayload(table: SyncTable, payload: Record<string, unknown>): R
   }
 
   const boolFields: Record<SyncTable, string[]> = {
+    profiles: [],
     trips: [],
     trip_members: [],
     categories: ['is_archived'],
-    expenses: ['is_refund', 'is_excluded_from_daily_metrics'],
+    expenses: ['is_refund', 'is_excluded_from_daily_metrics', 'is_private'],
     expense_photos: [],
   };
   for (const field of boolFields[table]) {

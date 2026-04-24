@@ -100,6 +100,16 @@ export default function TripListScreen() {
           >
             <Text style={styles.headerButtonText}>{isDark ? '🌙' : '☀️'}</Text>
           </Pressable>
+          <Pressable
+            onPress={() => router.push(href('/settings'))}
+            style={[
+              styles.headerButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            hitSlop={8}
+          >
+            <Text style={styles.headerButtonText}>⚙️</Text>
+          </Pressable>
         </View>
       </View>
 
