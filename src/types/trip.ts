@@ -31,6 +31,8 @@ export interface TripWithMembers extends Trip {
 export interface TripStats {
   totalSpent: number;
   memberCount: number;
+  // Budget converted into homeCurrency. Null when the trip has no budget.
+  budgetHome: number | null;
 }
 
 export interface TripWithStats extends Trip {

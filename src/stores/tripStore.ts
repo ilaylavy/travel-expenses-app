@@ -62,7 +62,14 @@ export const useTripStore = create<TripState>((set, get) => ({
 
   createTrip: async (input) => {
     const trip = await dbCreateTrip(input);
-    const withStats: TripWithStats = { ...trip, stats: { totalSpent: 0, memberCount: 1 } };
+    const withStats: TripWithStats = {
+      ...trip,
+      stats: {
+        totalSpent: 0,
+        memberCount: 1,
+        budgetHome: trip.baseCurrency === trip.homeCurrency ? trip.budget : null,
+      },
+    };
     set((state) => ({ trips: [withStats, ...state.trips] }));
     return withStats;
   },
@@ -72,10 +79,23 @@ export const useTripStore = create<TripState>((set, get) => ({
     set((state) => ({
       trips: state.trips.map((t) => {
         if (t.id !== updated.id) return t;
-        const stats = findTrip(state.trips, updated.id)?.stats ?? { totalSpent: 0, memberCount: 1 };
-        return { ...updated, stats };
+        const prev = findTrip(state.trips, updated.id)?.stats ?? {
+          totalSpent: 0,
+          memberCount: 1,
+          budgetHome: null,
+        };
+        // Recompute budgetHome locally only in the trivial single-currency case.
+        // Cross-currency recomputation needs the expense ratios — defer to refresh().
+        const budgetHome =
+          updated.baseCurrency === updated.homeCurrency
+            ? updated.budget
+            : prev.budgetHome;
+        return { ...updated, stats: { ...prev, budgetHome } };
       }),
     }));
+    if (input.baseCurrency !== undefined || input.budget !== undefined) {
+      await get().refresh();
+    }
   },
 
   deleteTrip: async (tripId) => {
