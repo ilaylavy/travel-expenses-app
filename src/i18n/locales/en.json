@@ -136,7 +136,10 @@
     "settings": "Settings",
     "addExpense": "Add expense",
     "emptyExpensesTitle": "No expenses yet",
-    "emptyExpensesBody": "Tap Add expense to log your first one."
+    "emptyExpensesBody": "Tap Add expense to log your first one.",
+    "mapAllCategories": "All",
+    "mapEmptyTitle": "No pinned expenses yet",
+    "mapEmptyBody": "Log an expense with location to see it on the map."
   },
   "expense": {
     "title": "Add Expense",

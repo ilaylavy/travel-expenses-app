@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,7 @@ export default function TripExpensesScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useGlobalSearchParams<{ id: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const trip = useTripStore((s) => s.trips.find((x) => x.id === tripId));

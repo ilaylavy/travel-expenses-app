@@ -136,7 +136,10 @@
     "settings": "",
     "addExpense": "",
     "emptyExpensesTitle": "",
-    "emptyExpensesBody": ""
+    "emptyExpensesBody": "",
+    "mapAllCategories": "",
+    "mapEmptyTitle": "",
+    "mapEmptyBody": ""
   },
   "expense": {
     "title": "",
