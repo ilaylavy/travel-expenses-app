@@ -27,3 +27,12 @@ export interface TripMember {
 export interface TripWithMembers extends Trip {
   members: TripMember[];
 }
+
+export interface TripStats {
+  totalSpent: number;
+  memberCount: number;
+}
+
+export interface TripWithStats extends Trip {
+  stats: TripStats;
+}

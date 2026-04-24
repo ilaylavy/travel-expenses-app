@@ -8,6 +8,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useTripStore } from '@/stores/tripStore';
+import { href } from '@/utils/nav';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,7 +23,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login');
     } else if (session && inAuthGroup) {
-      router.replace('/(main)/(tabs)/dashboard');
+      router.replace(href('/(main)'));
     }
   }, [isInitialized, session, segments, router]);
 
@@ -35,11 +37,13 @@ export default function RootLayout() {
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
   const isAuthInitialized = useAuthStore((s) => s.isInitialized);
   const initializeAuth = useAuthStore((s) => s.initialize);
+  const hydrateTrips = useTripStore((s) => s.hydrate);
 
   useEffect(() => {
     void hydrateSettings();
     void initializeAuth();
-  }, [hydrateSettings, initializeAuth]);
+    void hydrateTrips();
+  }, [hydrateSettings, initializeAuth, hydrateTrips]);
 
   const ready = isSettingsHydrated && isAuthInitialized;
 

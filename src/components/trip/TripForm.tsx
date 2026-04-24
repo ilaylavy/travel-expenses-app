@@ -1,0 +1,282 @@
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+
+import { sizing, spacing, typography } from '@/constants/theme';
+import { CURRENCIES } from '@/constants/currencies';
+import { useTheme } from '@/hooks/useTheme';
+import { isValidIsoDate, todayIsoDate } from '@/utils/date';
+
+const TRIP_EMOJIS = ['✈️', '🏖️', '🏔️', '🗺️', '🏛️', '🍜', '🌴', '🎒', '🚂', '🏕️', '🌸', '🌃'];
+
+export interface TripFormValues {
+  name: string;
+  emoji: string;
+  startDate: string;
+  endDate: string | null;
+  baseCurrency: string;
+  homeCurrency: string;
+  budget: number | null;
+}
+
+interface TripFormProps {
+  initial?: Partial<TripFormValues>;
+  submitLabel: string;
+  submittingLabel?: string;
+  onSubmit: (values: TripFormValues) => Promise<void>;
+  footer?: React.ReactNode;
+}
+
+export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, footer }: TripFormProps) {
+  const theme = useTheme();
+  const [name, setName] = useState(initial?.name ?? '');
+  const [emoji, setEmoji] = useState(initial?.emoji ?? TRIP_EMOJIS[0]);
+  const [startDate, setStartDate] = useState(initial?.startDate ?? todayIsoDate());
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '');
+  const [ongoing, setOngoing] = useState(initial?.endDate == null && initial != null ? true : false);
+  const [baseCurrency, setBaseCurrency] = useState(initial?.baseCurrency ?? 'USD');
+  const [homeCurrency, setHomeCurrency] = useState(initial?.homeCurrency ?? 'USD');
+  const [budget, setBudget] = useState(initial?.budget != null ? String(initial.budget) : '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const inputStyle = useMemo(
+    () => [styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }],
+    [theme],
+  );
+
+  const handleSubmit = async (): Promise<void> => {
+    setError(null);
+    if (!name.trim()) return setError('Trip name is required');
+    if (!isValidIsoDate(startDate)) return setError('Start date must be YYYY-MM-DD');
+    if (!ongoing && !isValidIsoDate(endDate)) return setError('End date must be YYYY-MM-DD');
+    const parsedBudget = budget.trim() ? Number(budget) : null;
+    if (parsedBudget != null && (!Number.isFinite(parsedBudget) || parsedBudget < 0)) {
+      return setError('Budget must be a positive number');
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        name: name.trim(),
+        emoji,
+        startDate,
+        endDate: ongoing ? null : endDate,
+        baseCurrency,
+        homeCurrency,
+        budget: parsedBudget,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save trip');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Field label="Emoji" theme={theme}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiRow}>
+          {TRIP_EMOJIS.map((e) => {
+            const selected = e === emoji;
+            return (
+              <Pressable
+                key={e}
+                onPress={() => setEmoji(e)}
+                style={[
+                  styles.emojiChip,
+                  {
+                    backgroundColor: selected ? theme.accentSoft : theme.surface,
+                    borderColor: selected ? theme.accent : theme.border,
+                  },
+                ]}
+              >
+                <Text style={styles.emojiText}>{e}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </Field>
+
+      <Field label="Name" theme={theme}>
+        <TextInput
+          style={inputStyle}
+          value={name}
+          onChangeText={setName}
+          placeholder="Tokyo 2026"
+          placeholderTextColor={theme.textMuted}
+        />
+      </Field>
+
+      <Field label="Start date" theme={theme}>
+        <TextInput
+          style={inputStyle}
+          value={startDate}
+          onChangeText={setStartDate}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={theme.textMuted}
+          autoCapitalize="none"
+        />
+      </Field>
+
+      <View style={styles.ongoingRow}>
+        <Text style={[styles.label, { color: theme.textSecondary }]}>Ongoing (no end date)</Text>
+        <Switch
+          value={ongoing}
+          onValueChange={setOngoing}
+          trackColor={{ true: theme.accent, false: theme.border }}
+          thumbColor={theme.surface}
+        />
+      </View>
+
+      {!ongoing && (
+        <Field label="End date" theme={theme}>
+          <TextInput
+            style={inputStyle}
+            value={endDate}
+            onChangeText={setEndDate}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={theme.textMuted}
+            autoCapitalize="none"
+          />
+        </Field>
+      )}
+
+      <Field label="Trip currency" theme={theme}>
+        <CurrencyStrip selected={baseCurrency} onSelect={setBaseCurrency} />
+      </Field>
+
+      <Field label="Home currency" theme={theme}>
+        <CurrencyStrip selected={homeCurrency} onSelect={setHomeCurrency} />
+      </Field>
+
+      <Field label={`Budget (${baseCurrency}, optional)`} theme={theme}>
+        <TextInput
+          style={inputStyle}
+          value={budget}
+          onChangeText={setBudget}
+          placeholder="0"
+          placeholderTextColor={theme.textMuted}
+          keyboardType="decimal-pad"
+        />
+      </Field>
+
+      {error && <Text style={[styles.error, { color: theme.red }]}>{error}</Text>}
+
+      <Pressable
+        onPress={handleSubmit}
+        disabled={submitting}
+        style={({ pressed }) => [
+          styles.submit,
+          { backgroundColor: theme.accent, opacity: submitting || pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Text style={styles.submitText}>
+          {submitting ? submittingLabel ?? 'Saving…' : submitLabel}
+        </Text>
+      </Pressable>
+
+      {footer}
+    </ScrollView>
+  );
+}
+
+function Field({
+  label,
+  theme,
+  children,
+}: {
+  label: string;
+  theme: ReturnType<typeof useTheme>;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
+function CurrencyStrip({
+  selected,
+  onSelect,
+}: {
+  selected: string;
+  onSelect: (code: string) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.currencyRow}>
+      {CURRENCIES.map((c) => {
+        const active = c.code === selected;
+        return (
+          <Pressable
+            key={c.code}
+            onPress={() => onSelect(c.code)}
+            style={[
+              styles.currencyChip,
+              {
+                backgroundColor: active ? theme.accentSoft : theme.surface,
+                borderColor: active ? theme.accent : theme.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.currencyChipText,
+                { color: active ? theme.accent : theme.textSecondary },
+              ]}
+            >
+              {c.code}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: spacing.base, paddingBottom: spacing.xxl * 2, gap: spacing.base },
+  field: { gap: spacing.sm },
+  label: { ...typography.subtitle },
+  input: {
+    borderRadius: sizing.radiusInput,
+    borderWidth: 1.5,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  emojiRow: { gap: spacing.sm, paddingVertical: 4 },
+  emojiChip: {
+    width: 52,
+    height: 52,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiText: { fontSize: 26 },
+  currencyRow: { gap: spacing.sm, paddingVertical: 4 },
+  currencyChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: sizing.radiusChip,
+    borderWidth: 1.5,
+  },
+  currencyChipText: { fontSize: 12, fontWeight: '700' },
+  ongoingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  error: { ...typography.caption, marginTop: -spacing.xs },
+  submit: {
+    borderRadius: sizing.radiusButton,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  submitText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+});
