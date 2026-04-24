@@ -6,11 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCard';
 import { TripCard } from '@/components/trip/TripCard';
+import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTripStore } from '@/stores/tripStore';
+import { syncEngine } from '@/sync/syncEngine';
 import { href } from '@/utils/nav';
 
 export default function TripListScreen() {
@@ -31,16 +33,28 @@ export default function TripListScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>{t('trips.title')}</Text>
-        <Pressable
-          onPress={toggleTheme}
-          style={[
-            styles.headerButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-          ]}
-          hitSlop={8}
-        >
-          <Text style={styles.headerButtonText}>{isDark ? '🌙' : '☀️'}</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => { void syncEngine.triggerSync(); }}
+            style={[
+              styles.headerButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            hitSlop={8}
+          >
+            <SyncStatusDot />
+          </Pressable>
+          <Pressable
+            onPress={toggleTheme}
+            style={[
+              styles.headerButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            hitSlop={8}
+          >
+            <Text style={styles.headerButtonText}>{isDark ? '🌙' : '☀️'}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {!isHydrated ? (
@@ -126,6 +140,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerButtonText: { fontSize: 16 },
+  headerActions: { flexDirection: 'row', gap: spacing.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: spacing.base, paddingBottom: spacing.xxl },
   empty: {

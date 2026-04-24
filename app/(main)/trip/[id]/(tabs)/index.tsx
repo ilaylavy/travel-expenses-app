@@ -2,10 +2,12 @@ import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTripStore } from '@/stores/tripStore';
+import { syncEngine } from '@/sync/syncEngine';
 import { formatAmount } from '@/utils/currency';
 import { formatDateRange } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -53,7 +55,16 @@ export default function TripDashboardScreen() {
             {trip.name}
           </Text>
         </View>
-        <View style={styles.headerButton} />
+        <Pressable
+          onPress={() => { void syncEngine.triggerSync(); }}
+          style={[
+            styles.headerButton,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+          hitSlop={8}
+        >
+          <SyncStatusDot />
+        </Pressable>
       </View>
 
       <View style={styles.content}>

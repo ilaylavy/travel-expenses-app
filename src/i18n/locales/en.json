@@ -290,5 +290,17 @@
     "paymentCredit": "Credit",
     "paymentDebit": "Debit",
     "paymentOther": "Other"
+  },
+  "sync": {
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "pending": "{{count}} pending",
+    "lastSynced": "Last synced {{time}} ago",
+    "neverSynced": "Not synced yet",
+    "successTitle": "Sync complete",
+    "successBody": "Your data is up to date.",
+    "errorTitle": "Sync failed",
+    "errorBody": "We couldn't reach the server. We'll retry automatically."
   }
 }

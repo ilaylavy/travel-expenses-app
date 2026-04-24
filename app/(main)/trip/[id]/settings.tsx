@@ -8,8 +8,23 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
+import { useSyncStore } from '@/stores/syncStore';
 import { useTripStore } from '@/stores/tripStore';
+import { syncEngine } from '@/sync/syncEngine';
 import { href } from '@/utils/nav';
+
+function formatAgo(iso: string | null): string | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const diffSec = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (diffSec < 60) return `${diffSec}s`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  return `${Math.round(diffHr / 24)}d`;
+}
 
 export default function TripSettingsScreen() {
   const theme = useTheme();
@@ -21,6 +36,9 @@ export default function TripSettingsScreen() {
   const trip = useTripStore((s) => s.trips.find((t) => t.id === tripId));
   const updateTrip = useTripStore((s) => s.updateTrip);
   const deleteTrip = useTripStore((s) => s.deleteTrip);
+  const syncStatus = useSyncStore((s) => s.status);
+  const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
+  const pendingCount = useSyncStore((s) => s.pendingCount);
 
   const initial = useMemo<Partial<TripFormValues> | undefined>(
     () =>
@@ -57,6 +75,27 @@ export default function TripSettingsScreen() {
   }
 
   const isOwner = user?.id === trip.ownerId;
+
+  const handleSyncNow = async (): Promise<void> => {
+    await syncEngine.triggerSync();
+    const state = useSyncStore.getState();
+    if (state.status === 'error') {
+      Alert.alert(
+        t('sync.errorTitle'),
+        state.lastError ?? t('sync.errorBody'),
+      );
+    } else {
+      Alert.alert(t('sync.successTitle'), t('sync.successBody'));
+    }
+  };
+
+  const syncSubtitle = (() => {
+    if (syncStatus === 'syncing') return t('sync.syncing');
+    if (pendingCount > 0) return t('sync.pending', { count: pendingCount });
+    const ago = formatAgo(lastSyncedAt);
+    if (ago) return t('sync.lastSynced', { time: ago });
+    return t('sync.neverSynced');
+  })();
 
   const handleSubmit = async (values: TripFormValues): Promise<void> => {
     await updateTrip({
@@ -122,6 +161,25 @@ export default function TripSettingsScreen() {
         footer={
           <>
             <Pressable
+              onPress={() => { void handleSyncNow(); }}
+              disabled={syncStatus === 'syncing'}
+              style={({ pressed }) => [
+                styles.syncButton,
+                {
+                  backgroundColor: theme.accentSoft,
+                  borderColor: theme.accent,
+                  opacity: pressed || syncStatus === 'syncing' ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.syncButtonLabel, { color: theme.accent }]}>
+                {t('sync.syncNow')}
+              </Text>
+              <Text style={[styles.syncButtonSubtitle, { color: theme.textSecondary }]}>
+                {syncSubtitle}
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push(href(`/trip/${trip.id}/categories`))}
               style={({ pressed }) => [
                 styles.manageButton,
@@ -177,6 +235,16 @@ const styles = StyleSheet.create({
   backButtonText: { fontSize: 24, fontWeight: '600', lineHeight: 24 },
   title: { ...typography.screenTitle, flex: 1 },
   spacer: { width: sizing.headerButton },
+  syncButton: {
+    marginTop: spacing.sm,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1.5,
+    paddingVertical: 12,
+    alignItems: 'center',
+    gap: 2,
+  },
+  syncButtonLabel: { fontSize: 14, fontWeight: '700' },
+  syncButtonSubtitle: { fontSize: 12, fontWeight: '500' },
   manageButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,

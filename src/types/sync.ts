@@ -7,7 +7,9 @@ export type SyncTable =
   | 'expense_photos'
   | 'categories';
 
-export type SyncStatus = 'synced' | 'pending' | 'error';
+export type SyncStatus = 'synced' | 'pending' | 'syncing' | 'error';
+
+export type PullTable = SyncTable | 'profiles';
 
 export interface SyncQueueEntry {
   id: number;

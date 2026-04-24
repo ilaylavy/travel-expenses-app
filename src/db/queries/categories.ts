@@ -233,10 +233,11 @@ export async function seedDefaultCategoriesIfNeeded(): Promise<number> {
     updatedAt: now,
   }));
 
+  // Global defaults (trip_id = null) are server-managed and are NOT enqueued.
+  // They get reconciled against remote canonical rows via reconcileDefaults.
   await db.withTransactionAsync(async () => {
     for (const category of seeded) {
       await insertCategory(db, category);
-      await enqueueSync(db, 'categories', category.id, 'create', categoryToPayload(category));
     }
   });
 

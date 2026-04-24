@@ -290,5 +290,17 @@
     "paymentCredit": "",
     "paymentDebit": "",
     "paymentOther": ""
+  },
+  "sync": {
+    "syncNow": "",
+    "syncing": "",
+    "synced": "",
+    "pending": "",
+    "lastSynced": "",
+    "neverSynced": "",
+    "successTitle": "",
+    "successBody": "",
+    "errorTitle": "",
+    "errorBody": ""
   }
 }
