@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Initial project setup *)"
+    ]
+  },
+  "enabledPlugins": {
+    "supabase@claude-plugins-official": true,
+    "postgres-best-practices@supabase-agent-skills": true,
+    "expo@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true
+  }
+}
