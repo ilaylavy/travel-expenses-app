@@ -11,9 +11,10 @@ import { formatDateRange } from '@/utils/date';
 interface TripCardProps {
   trip: TripWithStats;
   onPress: () => void;
+  onEdit?: () => void;
 }
 
-export function TripCard({ trip, onPress }: TripCardProps) {
+export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { stats } = trip;
@@ -27,7 +28,8 @@ export function TripCard({ trip, onPress }: TripCardProps) {
   const overBudgetColor = theme.red;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.wrapper, pressed && styles.pressed]}>
+    <View style={styles.wrapper}>
+      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
       <LinearGradient
         colors={theme.cardGradient}
         start={{ x: 0, y: 0 }}
@@ -116,13 +118,42 @@ export function TripCard({ trip, onPress }: TripCardProps) {
           </View>
         )}
       </LinearGradient>
-    </Pressable>
+      </Pressable>
+      {onEdit && (
+        <Pressable
+          onPress={onEdit}
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.editButton,
+            {
+              backgroundColor: theme.surfaceRaised,
+              borderColor: theme.borderLight,
+              opacity: pressed ? 0.7 : 1,
+            },
+          ]}
+        >
+          <Text style={styles.editIcon}>✏️</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { marginBottom: spacing.lg },
+  wrapper: { marginBottom: spacing.lg, position: 'relative' },
   pressed: { opacity: 0.85 },
+  editButton: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editIcon: { fontSize: 14 },
   card: {
     borderRadius: sizing.radiusCard,
     borderWidth: 1.5,

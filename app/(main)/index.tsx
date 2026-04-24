@@ -64,7 +64,8 @@ export default function TripListScreen() {
             <TripCard
               key={trip.id}
               trip={trip}
-              onPress={() => router.push(href(`/trip/${trip.id}/settings`))}
+              onPress={() => router.push(href(`/trip/${trip.id}`))}
+              onEdit={() => router.push(href(`/trip/${trip.id}/settings`))}
             />
           ))}
 

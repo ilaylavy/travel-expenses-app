@@ -328,8 +328,9 @@ Single scrollable screen within the trip tab. Sections:
 App
 ├── Auth screens (sign up, log in) — shown if not authenticated
 ├── Trip List (home) — main entry point
-│   ├── [Settings]
-│   └── [Tap a trip] → Trip View
+│   ├── [Settings] (app settings)
+│   ├── [Pencil icon on trip card] → Edit Trip (settings screen)
+│   └── [Tap a trip card] → Trip View
 │       ├── Bottom Nav
 │       │   ├── Dashboard (home icon)
 │       │   ├── Expenses (list icon)
@@ -337,10 +338,12 @@ App
 │       │   ├── Map (map icon)
 │       │   └── Stats (chart icon)
 │       ├── Ask AI (brain icon in header)
-│       ├── Trip Settings (from dashboard)
+│       ├── Categories (from Edit Trip screen)
 │       └── Add/Edit Expense (modal overlay)
 └── New Trip (from trip list)
 ```
+
+Edit Trip is reached via the pencil icon on the trip card in the trip list — it is not exposed from inside the trip view's tab navigation.
 
 ---
 

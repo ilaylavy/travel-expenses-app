@@ -35,28 +35,31 @@
 ```
 TRAVEL-EXPENSES-APP/
 ├── app/                          # Expo Router screens
-│   ├── (auth)/                   # Auth group (login, signup)
-│   │   ├── login.tsx
-│   │   ├── signup.tsx
-│   │   └── _layout.tsx
-│   ├── (main)/                   # Main app group (requires auth)
-│   │   ├── (tabs)/               # Bottom tab navigator
-│   │   │   ├── dashboard.tsx
-│   │   │   ├── expenses.tsx
-│   │   │   ├── map.tsx
-│   │   │   ├── stats.tsx
-│   │   │   └── _layout.tsx
-│   │   ├── trip/[id]/            # Trip-specific screens
-│   │   │   ├── index.tsx         # Trip view (contains tabs)
-│   │   │   ├── settings.tsx
-│   │   │   ├── ask.tsx           # AI query screen
-│   │   │   └── expense/[expenseId].tsx  # Expense detail
-│   │   ├── add-expense.tsx       # Add/edit expense modal
-│   │   ├── new-trip.tsx          # Create trip
-│   │   ├── settings.tsx          # App settings
-│   │   └── _layout.tsx
+│   ├── _layout.tsx               # Root layout
 │   ├── index.tsx                 # Entry point / redirect
-│   └── _layout.tsx               # Root layout
+│   ├── (auth)/                   # Auth group (login, signup)
+│   │   ├── _layout.tsx
+│   │   ├── login.tsx
+│   │   └── signup.tsx
+│   └── (main)/                   # Main app group (requires auth)
+│       ├── _layout.tsx
+│       ├── index.tsx             # Trip list (home screen)
+│       ├── add-expense.tsx       # Add/edit expense modal
+│       ├── new-trip.tsx          # Create trip
+│       └── trip/[id]/            # Per-trip Stack
+│           ├── _layout.tsx       # Stack hosting tabs + settings + categories
+│           ├── settings.tsx      # Edit-trip screen (opened from pencil icon on trip card)
+│           ├── (tabs)/           # Bottom tab navigator for the active trip
+│           │   ├── _layout.tsx
+│           │   ├── index.tsx     # Dashboard tab
+│           │   ├── expenses.tsx  # Expenses list tab
+│           │   ├── map.tsx       # Map tab
+│           │   └── stats.tsx     # Stats tab
+│           └── categories/       # Category management stack (per-trip)
+│               ├── _layout.tsx
+│               ├── index.tsx     # Category list
+│               ├── new.tsx       # Create category
+│               └── [categoryId].tsx  # Edit category
 ├── src/
 │   ├── components/               # Reusable UI components
 │   │   ├── ui/                   # Generic UI (Button, Input, Badge, Card)
