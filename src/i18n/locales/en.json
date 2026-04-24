@@ -141,6 +141,18 @@
     "mapEmptyTitle": "No pinned expenses yet",
     "mapEmptyBody": "Log an expense with location to see it on the map."
   },
+  "expensesList": {
+    "searchPlaceholder": "Search notes and places",
+    "filterAll": "All",
+    "dateToday": "Today",
+    "dateYesterday": "Yesterday",
+    "deleteAction": "Delete",
+    "deleteConfirmTitle": "Delete expense?",
+    "deleteConfirmBody": "This cannot be undone.",
+    "deleteFailedTitle": "Could not delete",
+    "emptyFilteredTitle": "No matches",
+    "emptyFilteredBody": "Try clearing the search or filters."
+  },
   "expense": {
     "title": "Add Expense",
     "editTitle": "Edit Expense",

@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CategoryFilterChips } from '@/components/map/CategoryFilterChips';
+import { CategoryFilterChips } from '@/components/ui/CategoryFilterChips';
 import { CategoryPin, ClusterPin } from '@/components/map/ExpensePin';
 import { ExpensePopup } from '@/components/map/ExpensePopup';
 import { sizing, spacing, typography } from '@/constants/theme';
@@ -194,6 +194,7 @@ export default function TripMapScreen() {
             onToggle={toggleCategory}
             onClear={() => setSelectedCategoryIds(new Set())}
             allLabel={t('tripView.mapAllCategories')}
+            elevated
           />
         ) : null}
       </SafeAreaView>

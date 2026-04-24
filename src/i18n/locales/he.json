@@ -141,6 +141,18 @@
     "mapEmptyTitle": "",
     "mapEmptyBody": ""
   },
+  "expensesList": {
+    "searchPlaceholder": "",
+    "filterAll": "",
+    "dateToday": "",
+    "dateYesterday": "",
+    "deleteAction": "",
+    "deleteConfirmTitle": "",
+    "deleteConfirmBody": "",
+    "deleteFailedTitle": "",
+    "emptyFilteredTitle": "",
+    "emptyFilteredBody": ""
+  },
   "expense": {
     "title": "",
     "editTitle": "",

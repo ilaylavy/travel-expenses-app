@@ -8,13 +8,13 @@ function parseIsoDate(iso: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function formatDay(iso: string): string {
+export function formatDay(iso: string): string {
   const d = parseIsoDate(iso);
   if (!d) return iso;
   return `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-function formatDayWithYear(iso: string): string {
+export function formatDayWithYear(iso: string): string {
   const d = parseIsoDate(iso);
   if (!d) return iso;
   return `${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;

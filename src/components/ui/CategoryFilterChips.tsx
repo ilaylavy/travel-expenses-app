@@ -11,6 +11,8 @@ interface CategoryFilterChipsProps {
   onToggle: (categoryId: string) => void;
   onClear: () => void;
   allLabel: string;
+  // When true, adds a drop shadow so the chips read as floating over a map.
+  elevated?: boolean;
 }
 
 export function CategoryFilterChips({
@@ -19,9 +21,11 @@ export function CategoryFilterChips({
   onToggle,
   onClear,
   allLabel,
+  elevated = false,
 }: CategoryFilterChipsProps) {
   const theme = useTheme();
   const allActive = selectedIds.size === 0;
+  const chipBase = [styles.chip, elevated && styles.chipElevated];
 
   return (
     <ScrollView
@@ -33,7 +37,7 @@ export function CategoryFilterChips({
       <Pressable
         onPress={onClear}
         style={[
-          styles.chip,
+          ...chipBase,
           {
             backgroundColor: allActive ? theme.accent : theme.surface,
             borderColor: allActive ? theme.accent : theme.border,
@@ -58,7 +62,7 @@ export function CategoryFilterChips({
             key={c.id}
             onPress={() => onToggle(c.id)}
             style={[
-              styles.chip,
+              ...chipBase,
               {
                 backgroundColor: active ? soft : theme.surface,
                 borderColor: active ? color : theme.border,
@@ -97,6 +101,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: sizing.radiusChip,
     borderWidth: 1.5,
+  },
+  chipElevated: {
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 4,

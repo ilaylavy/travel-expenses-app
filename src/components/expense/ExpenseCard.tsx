@@ -75,6 +75,11 @@ function ExpenseCardInner({ expense, category, homeCurrency, onPress }: ExpenseC
               </Text>
             </View>
           ) : null}
+          {expense.isRefund ? (
+            <View style={[styles.badge, { backgroundColor: theme.greenSoft }]}>
+              <Text style={[styles.badgeText, { color: theme.green }]}>REFUND</Text>
+            </View>
+          ) : null}
           {expense.spreadStartDate && expense.spreadEndDate ? (
             <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
               <Text style={[styles.badgeText, { color: theme.accent }]}>MULTI-DAY</Text>
