@@ -18,8 +18,9 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { stats } = trip;
-  const hasBudget = trip.budget != null && trip.budget > 0;
-  const pct = hasBudget ? Math.min(1, stats.totalSpent / (trip.budget ?? 1)) : 0;
+  const hasBudget =
+    trip.budget != null && trip.budget > 0 && stats.budgetHome != null && stats.budgetHome > 0;
+  const pct = hasBudget ? Math.min(1, stats.totalSpent / (stats.budgetHome ?? 1)) : 0;
   const isOngoing = trip.endDate == null;
   const isShared = stats.memberCount > 1;
 
@@ -82,7 +83,7 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
           </View>
           <View style={[styles.currencyChip, { backgroundColor: theme.accentSoft }]}>
             <Text style={[styles.currencyChipText, { color: theme.accentLight }]}>
-              {trip.baseCurrency}
+              {trip.homeCurrency}
             </Text>
           </View>
         </View>
@@ -94,8 +95,8 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
                 {t('trips.budget')}
               </Text>
               <Text style={[styles.budgetValue, { color: theme.textSecondary }]}>
-                {formatAmount(stats.totalSpent, trip.baseCurrency)} /{' '}
-                {formatAmount(trip.budget ?? 0, trip.baseCurrency)}
+                {formatAmount(stats.totalSpent, trip.homeCurrency)} /{' '}
+                {formatAmount(stats.budgetHome ?? 0, trip.homeCurrency)}
               </Text>
             </View>
             <View style={[styles.track, { backgroundColor: theme.bgSoft }]}>

@@ -34,6 +34,7 @@ interface TripStatsRow {
   id: string;
   total_spent: number | null;
   member_count: number | null;
+  budget_home: number | null;
 }
 
 export interface CreateTripInput {
@@ -125,22 +126,43 @@ export async function listTripsWithStats(): Promise<TripWithStats[]> {
           FROM expenses e
           WHERE e.trip_id = t.id
             AND e.deleted_at IS NULL) AS total_spent,
-       (SELECT COUNT(*) FROM trip_members m WHERE m.trip_id = t.id) AS member_count
+       (SELECT COUNT(*) FROM trip_members m WHERE m.trip_id = t.id) AS member_count,
+       CASE
+         WHEN t.budget IS NULL THEN NULL
+         WHEN t.base_currency = t.home_currency THEN t.budget
+         ELSE t.budget * COALESCE(
+           (SELECT AVG(e.converted_amount * 1.0 / e.amount)
+              FROM expenses e
+              WHERE e.trip_id = t.id
+                AND e.deleted_at IS NULL
+                AND e.currency = t.base_currency
+                AND e.amount != 0),
+           1
+         )
+       END AS budget_home
      FROM trips t
      WHERE t.deleted_at IS NULL;`,
   );
 
-  const statsById = new Map<string, { totalSpent: number; memberCount: number }>();
+  const statsById = new Map<
+    string,
+    { totalSpent: number; memberCount: number; budgetHome: number | null }
+  >();
   for (const row of statsRows) {
     statsById.set(row.id, {
       totalSpent: row.total_spent ?? 0,
       memberCount: row.member_count ?? 0,
+      budgetHome: row.budget_home,
     });
   }
 
   return trips.map((row) => {
     const base = rowToTrip(row);
-    const stats = statsById.get(row.id) ?? { totalSpent: 0, memberCount: 0 };
+    const stats = statsById.get(row.id) ?? {
+      totalSpent: 0,
+      memberCount: 0,
+      budgetHome: null,
+    };
     return { ...base, stats };
   });
 }
