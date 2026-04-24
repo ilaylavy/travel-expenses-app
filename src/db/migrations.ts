@@ -18,6 +18,15 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 2,
+    name: 'rename_is_excluded_from_metrics',
+    run: async (db) => {
+      await db.execAsync(
+        'ALTER TABLE expenses RENAME COLUMN is_excluded_from_metrics TO is_excluded_from_daily_metrics;',
+      );
+    },
+  },
 ] as const;
 
 export const LATEST_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

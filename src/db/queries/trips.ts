@@ -124,8 +124,7 @@ export async function listTripsWithStats(): Promise<TripWithStats[]> {
        (SELECT COALESCE(SUM(e.converted_amount), 0)
           FROM expenses e
           WHERE e.trip_id = t.id
-            AND e.deleted_at IS NULL
-            AND e.is_excluded_from_metrics = 0) AS total_spent,
+            AND e.deleted_at IS NULL) AS total_spent,
        (SELECT COUNT(*) FROM trip_members m WHERE m.trip_id = t.id) AS member_count
      FROM trips t
      WHERE t.deleted_at IS NULL;`,

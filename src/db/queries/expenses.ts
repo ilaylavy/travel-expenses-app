@@ -28,7 +28,7 @@ interface ExpenseRow {
   expense_date: string;
   expense_time: string;
   is_refund: number;
-  is_excluded_from_metrics: number;
+  is_excluded_from_daily_metrics: number;
   spread_start_date: string | null;
   spread_end_date: string | null;
   created_at: string;
@@ -61,7 +61,7 @@ export interface CreateExpenseInput {
   expenseDate: string;
   expenseTime: string;
   isRefund: boolean;
-  isExcludedFromMetrics: boolean;
+  isExcludedFromDailyMetrics: boolean;
   spreadStartDate: string | null;
   spreadEndDate: string | null;
   photos?: Array<{ localUri: string }>;
@@ -82,7 +82,7 @@ export interface UpdateExpenseInput {
   expenseDate?: string;
   expenseTime?: string;
   isRefund?: boolean;
-  isExcludedFromMetrics?: boolean;
+  isExcludedFromDailyMetrics?: boolean;
   spreadStartDate?: string | null;
   spreadEndDate?: string | null;
 }
@@ -105,7 +105,7 @@ function rowToExpense(row: ExpenseRow): Expense {
     expenseDate: row.expense_date,
     expenseTime: row.expense_time,
     isRefund: row.is_refund === 1,
-    isExcludedFromMetrics: row.is_excluded_from_metrics === 1,
+    isExcludedFromDailyMetrics: row.is_excluded_from_daily_metrics === 1,
     spreadStartDate: row.spread_start_date,
     spreadEndDate: row.spread_end_date,
     createdAt: row.created_at,
@@ -143,7 +143,7 @@ function expenseToPayload(e: Expense): Record<string, unknown> {
     expense_date: e.expenseDate,
     expense_time: e.expenseTime,
     is_refund: e.isRefund,
-    is_excluded_from_metrics: e.isExcludedFromMetrics,
+    is_excluded_from_daily_metrics: e.isExcludedFromDailyMetrics,
     spread_start_date: e.spreadStartDate,
     spread_end_date: e.spreadEndDate,
     created_at: e.createdAt,
@@ -224,7 +224,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
     expenseDate: input.expenseDate,
     expenseTime: input.expenseTime,
     isRefund: input.isRefund,
-    isExcludedFromMetrics: input.isExcludedFromMetrics,
+    isExcludedFromDailyMetrics: input.isExcludedFromDailyMetrics,
     spreadStartDate: input.spreadStartDate,
     spreadEndDate: input.spreadEndDate,
     createdAt: now,
@@ -273,7 +273,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
     expenseDate: input.expenseDate ?? existing.expenseDate,
     expenseTime: input.expenseTime ?? existing.expenseTime,
     isRefund: input.isRefund ?? existing.isRefund,
-    isExcludedFromMetrics: input.isExcludedFromMetrics ?? existing.isExcludedFromMetrics,
+    isExcludedFromDailyMetrics: input.isExcludedFromDailyMetrics ?? existing.isExcludedFromDailyMetrics,
     spreadStartDate:
       input.spreadStartDate === undefined ? existing.spreadStartDate : input.spreadStartDate,
     spreadEndDate:
@@ -287,7 +287,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
          amount = ?, currency = ?, converted_amount = ?, exchange_rate = ?,
          category_id = ?, note = ?, payment_method = ?, latitude = ?,
          longitude = ?, place_name = ?, expense_date = ?, expense_time = ?,
-         is_refund = ?, is_excluded_from_metrics = ?,
+         is_refund = ?, is_excluded_from_daily_metrics = ?,
          spread_start_date = ?, spread_end_date = ?, updated_at = ?
        WHERE id = ?;`,
       [
@@ -304,7 +304,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
         next.expenseDate,
         next.expenseTime,
         next.isRefund ? 1 : 0,
-        next.isExcludedFromMetrics ? 1 : 0,
+        next.isExcludedFromDailyMetrics ? 1 : 0,
         next.spreadStartDate,
         next.spreadEndDate,
         next.updatedAt,
@@ -396,7 +396,7 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
     `INSERT INTO expenses
        (id, trip_id, user_id, amount, currency, converted_amount, exchange_rate,
         category_id, note, payment_method, latitude, longitude, place_name,
-        expense_date, expense_time, is_refund, is_excluded_from_metrics,
+        expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
         spread_start_date, spread_end_date, created_at, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
@@ -416,7 +416,7 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
       e.expenseDate,
       e.expenseTime,
       e.isRefund ? 1 : 0,
-      e.isExcludedFromMetrics ? 1 : 0,
+      e.isExcludedFromDailyMetrics ? 1 : 0,
       e.spreadStartDate,
       e.spreadEndDate,
       e.createdAt,

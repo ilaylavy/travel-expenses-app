@@ -233,7 +233,7 @@ export default function ExpenseDetailScreen() {
                 </Text>
               </View>
             ) : null}
-            {expense.isExcludedFromMetrics ? (
+            {expense.isExcludedFromDailyMetrics ? (
               <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
                 <Text style={[styles.badgeText, { color: theme.textMuted }]}>
                   {t('expenseDetail.badgeExcluded')}

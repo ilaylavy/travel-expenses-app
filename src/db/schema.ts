@@ -73,7 +73,7 @@ export const V1_STATEMENTS: readonly string[] = [
     expense_date TEXT NOT NULL,
     expense_time TEXT NOT NULL,
     is_refund INTEGER NOT NULL DEFAULT 0,
-    is_excluded_from_metrics INTEGER NOT NULL DEFAULT 0,
+    is_excluded_from_daily_metrics INTEGER NOT NULL DEFAULT 0,
     spread_start_date TEXT,
     spread_end_date TEXT,
     created_at TEXT NOT NULL,

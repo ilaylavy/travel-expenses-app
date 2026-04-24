@@ -177,7 +177,7 @@ export default function AddExpenseScreen() {
       setPlaceName(existing.placeName);
       setLocationStatus(existing.latitude != null ? 'captured' : 'none');
       setIsRefund(existing.isRefund);
-      setIsExcluded(existing.isExcludedFromMetrics);
+      setIsExcluded(existing.isExcludedFromDailyMetrics);
       if (existing.spreadStartDate && existing.spreadEndDate) {
         setIsSpread(true);
         setSpreadStart(existing.spreadStartDate);
@@ -348,7 +348,7 @@ export default function AddExpenseScreen() {
             expenseDate,
             expenseTime: normalizeTime(expenseTime),
             isRefund,
-            isExcludedFromMetrics: isExcluded,
+            isExcludedFromDailyMetrics: isExcluded,
             spreadStartDate: isSpread ? spreadStart : null,
             spreadEndDate: isSpread ? spreadEnd : null,
           });
@@ -369,7 +369,7 @@ export default function AddExpenseScreen() {
             expenseDate,
             expenseTime: normalizeTime(expenseTime),
             isRefund,
-            isExcludedFromMetrics: isExcluded,
+            isExcludedFromDailyMetrics: isExcluded,
             spreadStartDate: isSpread ? spreadStart : null,
             spreadEndDate: isSpread ? spreadEnd : null,
             photos: photos.map((p) => ({ localUri: p.uri })),

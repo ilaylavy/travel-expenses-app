@@ -17,7 +17,7 @@ export interface Expense {
   expenseDate: string;
   expenseTime: string;
   isRefund: boolean;
-  isExcludedFromMetrics: boolean;
+  isExcludedFromDailyMetrics: boolean;
   spreadStartDate: string | null;
   spreadEndDate: string | null;
   createdAt: string;

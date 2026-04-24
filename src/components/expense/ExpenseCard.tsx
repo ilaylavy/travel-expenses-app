@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
@@ -17,6 +18,7 @@ interface ExpenseCardProps {
 
 function ExpenseCardInner({ expense, category, homeCurrency, onPress }: ExpenseCardProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const color = category ? getCategoryColor(category.color, theme) : theme.accent;
   const softColor = category ? getCategorySoftColor(category.color, theme) : theme.accentSoft;
 
@@ -49,7 +51,7 @@ function ExpenseCardInner({ expense, category, homeCurrency, onPress }: ExpenseC
           style={[
             styles.title,
             { color: theme.text },
-            expense.isExcludedFromMetrics && { color: theme.textMuted },
+            expense.isExcludedFromDailyMetrics && { color: theme.textMuted },
           ]}
           numberOfLines={1}
         >
@@ -77,17 +79,23 @@ function ExpenseCardInner({ expense, category, homeCurrency, onPress }: ExpenseC
           ) : null}
           {expense.isRefund ? (
             <View style={[styles.badge, { backgroundColor: theme.greenSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.green }]}>REFUND</Text>
+              <Text style={[styles.badgeText, { color: theme.green }]}>
+                {t('expenseDetail.badgeRefund')}
+              </Text>
             </View>
           ) : null}
           {expense.spreadStartDate && expense.spreadEndDate ? (
             <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>MULTI-DAY</Text>
+              <Text style={[styles.badgeText, { color: theme.accent }]}>
+                {t('expenseDetail.badgeMultiDay')}
+              </Text>
             </View>
           ) : null}
-          {expense.isExcludedFromMetrics ? (
+          {expense.isExcludedFromDailyMetrics ? (
             <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.textMuted }]}>EXCLUDED</Text>
+              <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+                {t('expenseDetail.badgeExcluded')}
+              </Text>
             </View>
           ) : null}
         </View>

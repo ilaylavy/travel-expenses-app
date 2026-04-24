@@ -265,5 +265,30 @@
       "save": "",
       "auto": ""
     }
+  },
+  "stats": {
+    "title": "",
+    "totalSpent": "",
+    "dailyAverage": "",
+    "daysElapsed": "",
+    "daysRemaining": "",
+    "budgetRemaining": "",
+    "safeDailySpend": "",
+    "categoryBreakdown": "",
+    "dailySpending": "",
+    "average": "",
+    "splitBalance": "",
+    "paymentMethods": "",
+    "topExpenses": "",
+    "otherCategory": "",
+    "evenSplit": "",
+    "xOwesY": "",
+    "you": "",
+    "noExpensesTitle": "",
+    "noExpensesBody": "",
+    "paymentCash": "",
+    "paymentCredit": "",
+    "paymentDebit": "",
+    "paymentOther": ""
   }
 }

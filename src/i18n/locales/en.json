@@ -183,8 +183,8 @@
     "advancedSection": "More options",
     "refundToggle": "Refund",
     "refundHint": "Adds as a credit, reducing totals",
-    "excludeToggle": "Exclude from metrics",
-    "excludeHint": "Shown in list, not counted in totals",
+    "excludeToggle": "Exclude from daily metrics",
+    "excludeHint": "Counted in totals but not in daily average or daily chart",
     "spreadToggle": "Spread over multiple days",
     "spreadHint": "Divide evenly across the date range in daily charts",
     "spreadStart": "Start date",
@@ -231,7 +231,7 @@
     "deleteFailedTitle": "Could not delete",
     "notFound": "Expense not found.",
     "badgeRefund": "REFUND",
-    "badgeExcluded": "EXCLUDED FROM METRICS",
+    "badgeExcluded": "NOT IN DAILY METRICS",
     "badgeMultiDay": "MULTI-DAY"
   },
   "language": {
@@ -265,5 +265,30 @@
       "save": "Save",
       "auto": "Auto"
     }
+  },
+  "stats": {
+    "title": "Stats",
+    "totalSpent": "Total spent",
+    "dailyAverage": "Daily average",
+    "daysElapsed": "Days elapsed",
+    "daysRemaining": "Days left",
+    "budgetRemaining": "Budget left",
+    "safeDailySpend": "Safe per day",
+    "categoryBreakdown": "Category breakdown",
+    "dailySpending": "Daily spending",
+    "average": "Avg",
+    "splitBalance": "Split balance",
+    "paymentMethods": "Payment methods",
+    "topExpenses": "Top 5 expenses",
+    "otherCategory": "Other",
+    "evenSplit": "All square",
+    "xOwesY": "{{from}} owes {{to}} {{amount}}",
+    "you": "you",
+    "noExpensesTitle": "No stats yet",
+    "noExpensesBody": "Log your first expense to see this trip in numbers.",
+    "paymentCash": "Cash",
+    "paymentCredit": "Credit",
+    "paymentDebit": "Debit",
+    "paymentOther": "Other"
   }
 }

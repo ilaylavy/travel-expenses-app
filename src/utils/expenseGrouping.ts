@@ -65,7 +65,7 @@ function singleItem(e: ExpenseWithPhotos): ExpenseListItem {
   };
 }
 
-function expandExpense(e: ExpenseWithPhotos): ExpenseListItem[] {
+export function expandExpense(e: ExpenseWithPhotos): ExpenseListItem[] {
   const start = e.spreadStartDate;
   const end = e.spreadEndDate;
   if (

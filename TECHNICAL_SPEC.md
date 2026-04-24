@@ -235,7 +235,7 @@ CREATE TABLE public.expenses (
     expense_date DATE NOT NULL,
     expense_time TIME NOT NULL,
     is_refund BOOLEAN NOT NULL DEFAULT false,
-    is_excluded_from_metrics BOOLEAN NOT NULL DEFAULT false,
+    is_excluded_from_daily_metrics BOOLEAN NOT NULL DEFAULT false,
     spread_start_date DATE,  -- NULL = no spread
     spread_end_date DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
