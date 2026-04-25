@@ -65,6 +65,17 @@ export function subscribeToRealtime(
   };
 }
 
+// Tables whose contract is hard-delete on the server. A realtime DELETE event
+// on any other table (trips, expenses) is treated as noise: those tables use
+// soft-delete (deleted_at), so a real DELETE would only come from out-of-band
+// cleanup, and acting on it would cascade-wipe children locally without ever
+// being able to recover them from a cursor-based pull.
+const HARD_DELETE_TABLES: ReadonlySet<PullTable> = new Set([
+  'trip_members',
+  'categories',
+  'expense_photos',
+]);
+
 async function handleEvent(
   db: SQLiteDatabase,
   table: PullTable,
@@ -72,10 +83,13 @@ async function handleEvent(
 ): Promise<void> {
   try {
     if (payload.eventType === 'DELETE') {
+      if (!HARD_DELETE_TABLES.has(table)) {
+        console.warn(`sync: ignoring unexpected realtime DELETE on ${table}`);
+        return;
+      }
       // Realtime DELETE payloads only carry the primary key under REPLICA
       // IDENTITY DEFAULT — feeding that into applyRemote would clobber the
-      // row with NULLs. For the few tables that hard-delete (expense_photos,
-      // trip_members, categories), just remove the local row directly.
+      // row with NULLs. For the tables above we just remove the local row.
       const rawId = payload.old?.id;
       if (rawId == null) return;
       const id = String(rawId);

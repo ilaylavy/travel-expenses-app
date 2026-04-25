@@ -71,12 +71,31 @@ async function applyProfile(db: SQLiteDatabase, r: Remote): Promise<void> {
   );
 }
 
+// IMPORTANT: parent tables (trips, categories, expenses) must use UPSERT, not
+// INSERT OR REPLACE. SQLite implements REPLACE as DELETE-then-INSERT of the
+// conflicting row, which fires ON DELETE CASCADE on every child FK. For trips
+// that means trip_members, categories, and expenses get wiped locally every
+// time a trip's updated_at advances and pull re-applies the row. The cursor-
+// based pull never re-fetches the now-missing children, so the trip
+// permanently looks empty until a full resync.
 async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
   await db.runAsync(
-    `INSERT OR REPLACE INTO trips
+    `INSERT INTO trips
        (id, name, emoji, start_date, end_date, base_currency, home_currency,
         budget, owner_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       emoji = excluded.emoji,
+       start_date = excluded.start_date,
+       end_date = excluded.end_date,
+       base_currency = excluded.base_currency,
+       home_currency = excluded.home_currency,
+       budget = excluded.budget,
+       owner_id = excluded.owner_id,
+       created_at = excluded.created_at,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at;`,
     [
       asString(r.id),
       asString(r.name) ?? '',
@@ -127,11 +146,22 @@ async function applyTripMember(db: SQLiteDatabase, r: Remote): Promise<void> {
 }
 
 async function applyCategory(db: SQLiteDatabase, r: Remote): Promise<void> {
+  // UPSERT (not REPLACE) — expenses.category_id references this row.
   await db.runAsync(
-    `INSERT OR REPLACE INTO categories
+    `INSERT INTO categories
        (id, name, emoji, color, sort_order, trip_id, created_by,
         is_archived, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       emoji = excluded.emoji,
+       color = excluded.color,
+       sort_order = excluded.sort_order,
+       trip_id = excluded.trip_id,
+       created_by = excluded.created_by,
+       is_archived = excluded.is_archived,
+       created_at = excluded.created_at,
+       updated_at = excluded.updated_at;`,
     [
       asString(r.id),
       asString(r.name) ?? '',
@@ -148,14 +178,39 @@ async function applyCategory(db: SQLiteDatabase, r: Remote): Promise<void> {
 }
 
 async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
+  // UPSERT (not REPLACE) — expense_photos.expense_id cascade-deletes when this
+  // row is REPLACE'd, wiping local photos every time the expense is re-pulled.
   await db.runAsync(
-    `INSERT OR REPLACE INTO expenses
+    `INSERT INTO expenses
        (id, trip_id, user_id, amount, currency, converted_amount, exchange_rate,
         category_id, note, payment_method, latitude, longitude, place_name,
         expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
         is_private, spread_start_date, spread_end_date,
         created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       trip_id = excluded.trip_id,
+       user_id = excluded.user_id,
+       amount = excluded.amount,
+       currency = excluded.currency,
+       converted_amount = excluded.converted_amount,
+       exchange_rate = excluded.exchange_rate,
+       category_id = excluded.category_id,
+       note = excluded.note,
+       payment_method = excluded.payment_method,
+       latitude = excluded.latitude,
+       longitude = excluded.longitude,
+       place_name = excluded.place_name,
+       expense_date = excluded.expense_date,
+       expense_time = excluded.expense_time,
+       is_refund = excluded.is_refund,
+       is_excluded_from_daily_metrics = excluded.is_excluded_from_daily_metrics,
+       is_private = excluded.is_private,
+       spread_start_date = excluded.spread_start_date,
+       spread_end_date = excluded.spread_end_date,
+       created_at = excluded.created_at,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at;`,
     [
       asString(r.id),
       asString(r.trip_id),
