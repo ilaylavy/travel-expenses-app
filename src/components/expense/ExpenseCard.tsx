@@ -83,7 +83,7 @@ function ExpenseCardInner({
           {expense.photos.length > 0 ? (
             <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
               <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
-                📎 {expense.photos.length}
+                📷 {expense.photos.length}
               </Text>
             </View>
           ) : null}

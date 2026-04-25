@@ -11,10 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PhotoGalleryModal } from '@/components/expense/PhotoGalleryModal';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { getSignedPhotoUrl } from '@/services/photoService';
 import { useAuthStore } from '@/stores/authStore';
 import {
   selectCategoriesForTrip,
@@ -23,7 +25,7 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
-import type { ExpenseWithPhotos } from '@/types/expense';
+import type { ExpensePhoto, ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
 import { formatAmount } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
@@ -65,6 +67,8 @@ export default function ExpenseDetailScreen() {
   }, [tripCategories, expense]);
 
   const [loggerName, setLoggerName] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const memberCount = trip?.stats.memberCount ?? 1;
   const isShared = memberCount > 1;
@@ -350,17 +354,17 @@ export default function ExpenseDetailScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.photoRow}
             >
-              {expense.photos.map((photo) => {
-                const uri = photo.localUri ?? photo.storagePath;
-                if (!uri) return null;
-                return (
-                  <Image
-                    key={photo.id}
-                    source={{ uri }}
-                    style={[styles.photoThumb, { borderColor: theme.border }]}
-                  />
-                );
-              })}
+              {expense.photos.map((photo, index) => (
+                <PhotoThumb
+                  key={photo.id}
+                  photo={photo}
+                  borderColor={theme.border}
+                  onPress={() => {
+                    setGalleryIndex(index);
+                    setGalleryOpen(true);
+                  }}
+                />
+              ))}
             </ScrollView>
           </View>
         ) : null}
@@ -401,7 +405,55 @@ export default function ExpenseDetailScreen() {
           </Pressable>
         ) : null}
       </View>
+
+      <PhotoGalleryModal
+        visible={galleryOpen}
+        photos={expense.photos}
+        initialIndex={galleryIndex}
+        onClose={() => setGalleryOpen(false)}
+      />
     </SafeAreaView>
+  );
+}
+
+function PhotoThumb({
+  photo,
+  borderColor,
+  onPress,
+}: {
+  photo: ExpensePhoto;
+  borderColor: string;
+  onPress: () => void;
+}) {
+  const [uri, setUri] = useState<string | null>(photo.localUri ?? null);
+
+  useEffect(() => {
+    if (photo.localUri) {
+      setUri(photo.localUri);
+      return;
+    }
+    if (!photo.storagePath) return;
+    let cancelled = false;
+    (async () => {
+      const signed = await getSignedPhotoUrl(photo.storagePath);
+      if (!cancelled) setUri(signed);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [photo.localUri, photo.storagePath]);
+
+  return (
+    <Pressable onPress={onPress}>
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={[styles.photoThumb, { borderColor }]}
+        />
+      ) : (
+        <View style={[styles.photoThumb, { borderColor, backgroundColor: borderColor }]} />
+      )}
+    </Pressable>
   );
 }
 

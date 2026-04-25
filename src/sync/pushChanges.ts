@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { getPhotoById, setPhotoStoragePath } from '@/db/queries/expensePhotos';
+import {
+  deletePhotoFromStorage,
+  uploadPhotoToStorage,
+} from '@/services/photoService';
 import type { SyncQueueEntry, SyncTable } from '@/types/sync';
 
 import { formatError } from './errorUtils';
@@ -45,7 +50,57 @@ function normalizePayload(table: SyncTable, payload: Record<string, unknown>): R
   return out;
 }
 
+// Look up the parent expense's trip_id so we can build the storage object key
+// (<trip_id>/<expense_id>/<photo_id>.jpg). RLS on storage.objects keys off
+// the first path segment.
+async function getTripIdForExpense(
+  db: SQLiteDatabase,
+  expenseId: string,
+): Promise<string | null> {
+  const row = await db.getFirstAsync<{ trip_id: string }>(
+    'SELECT trip_id FROM expenses WHERE id = ?;',
+    [expenseId],
+  );
+  return row?.trip_id ?? null;
+}
+
+// For an expense_photos create entry, upload the locally-persisted file to
+// Supabase Storage before the metadata row is upserted. Stamps the resulting
+// storage_path back into the local DB and the outgoing payload. If the file
+// can't be uploaded, throw — the existing markError path will retry.
+async function uploadPhotoForEntry(
+  db: SQLiteDatabase,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const photoId = payload.id as string | undefined;
+  if (!photoId) return;
+  const photo = await getPhotoById(db, photoId);
+  if (!photo) return;
+  if (photo.storagePath) {
+    payload.storage_path = photo.storagePath;
+    return;
+  }
+  if (!photo.localUri) {
+    // No file to upload — leave storage_path empty. Trip partners won't see
+    // a thumbnail, but the metadata row still propagates so we don't block sync.
+    return;
+  }
+  const tripId = await getTripIdForExpense(db, photo.expenseId);
+  if (!tripId) {
+    throw new Error(`expense_photos: parent expense ${photo.expenseId} not found`);
+  }
+  const storagePath = await uploadPhotoToStorage({
+    tripId,
+    expenseId: photo.expenseId,
+    photoId,
+    localUri: photo.localUri,
+  });
+  await setPhotoStoragePath(db, photoId, storagePath);
+  payload.storage_path = storagePath;
+}
+
 async function pushEntry(
+  db: SQLiteDatabase,
   supabase: SupabaseClient,
   entry: SyncQueueEntry,
 ): Promise<void> {
@@ -59,6 +114,9 @@ async function pushEntry(
   }
 
   if (entry.action === 'create') {
+    if (entry.tableName === 'expense_photos') {
+      await uploadPhotoForEntry(db, payload);
+    }
     if (entry.tableName === 'trip_members') {
       // Remote trigger add_owner_to_trip_members() may have already created
       // the owner row with a different uuid; skip duplicates on (trip_id,user_id).
@@ -78,6 +136,16 @@ async function pushEntry(
   if (entry.action === 'update' || entry.action === 'delete') {
     const id = payload.id as string | undefined;
     if (!id) throw new Error(`missing id in ${entry.action} payload`);
+
+    // expense_photos: 'delete' is a real hard-delete (the row carries no
+    // deleted_at column), and the Storage object must be removed too.
+    if (entry.action === 'delete' && entry.tableName === 'expense_photos') {
+      await deletePhotoFromStorage(payload.storage_path as string | undefined);
+      const { error } = await supabase.from('expense_photos').delete().eq('id', id);
+      if (error) throw error;
+      return;
+    }
+
     const { id: _omit, ...rest } = payload;
     void _omit;
     const { error } = await supabase.from(entry.tableName).update(rest).eq('id', id);
@@ -109,7 +177,7 @@ export async function pushChanges(
     if (!tableEntries) continue;
     for (const entry of tableEntries) {
       try {
-        await pushEntry(supabase, entry);
+        await pushEntry(db, supabase, entry);
         await markSynced(db, entry.id);
         pushed += 1;
       } catch (err) {

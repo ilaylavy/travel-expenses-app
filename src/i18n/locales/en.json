@@ -219,6 +219,7 @@
     "photosSection": "Photos",
     "photosCamera": "Camera",
     "photosGallery": "Gallery",
+    "photosRemoveConfirm": "Remove this photo?",
     "shareButton": "Share",
     "errors": {
       "amountRequired": "Enter an amount",
@@ -249,6 +250,9 @@
     "loggedBy": "Logged by {{name}}",
     "you": "you",
     "photosLabel": "Photos",
+    "photoCounter": "{{current}} of {{total}}",
+    "photoCloseLabel": "Close",
+    "photoLoadFailed": "Could not load photo",
     "editButton": "Edit",
     "deleteButton": "Delete expense",
     "shareButton": "Share",

@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
+import { deleteLocalPhoto } from '@/services/photoService';
 import type {
   Expense,
   ExpensePhoto,
@@ -66,7 +67,9 @@ export interface CreateExpenseInput {
   isPrivate: boolean;
   spreadStartDate: string | null;
   spreadEndDate: string | null;
-  photos?: Array<{ localUri: string }>;
+  // id is optional; callers that persist files to disk before insertion
+  // pre-generate it so the file path can embed it.
+  photos?: Array<{ id?: string; localUri: string }>;
 }
 
 export interface UpdateExpenseInput {
@@ -238,7 +241,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
     deletedAt: null,
   };
   const photos: ExpensePhoto[] = (input.photos ?? []).map((p, index) => ({
-    id: newId(),
+    id: p.id ?? newId(),
     expenseId: expense.id,
     storagePath: '',
     localUri: p.localUri,
@@ -328,6 +331,16 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
 export async function softDeleteExpense(id: string): Promise<void> {
   const db = await getDatabase();
   const now = new Date().toISOString();
+  // Snapshot photos so we can clean up local files after commit and queue
+  // Storage deletions for the sync engine to process.
+  const photoRows = await db.getAllAsync<{
+    id: string;
+    local_uri: string | null;
+    storage_path: string;
+  }>(
+    'SELECT id, local_uri, storage_path FROM expense_photos WHERE expense_id = ?;',
+    [id],
+  );
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       'UPDATE expenses SET deleted_at = ?, updated_at = ? WHERE id = ?;',
@@ -338,7 +351,17 @@ export async function softDeleteExpense(id: string): Promise<void> {
       deleted_at: now,
       updated_at: now,
     });
+    // Hard-delete photo rows locally and queue them for remote DB + Storage
+    // cleanup. The expense row stays as a tombstone; the photos do not.
+    for (const row of photoRows) {
+      await db.runAsync('DELETE FROM expense_photos WHERE id = ?;', [row.id]);
+      await enqueueSync(db, 'expense_photos', row.id, 'delete', {
+        id: row.id,
+        storage_path: row.storage_path,
+      });
+    }
   });
+  await Promise.all(photoRows.map((row) => deleteLocalPhoto(row.local_uri)));
 }
 
 // Distinct note strings used most recently in this trip. Powers the

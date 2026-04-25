@@ -219,6 +219,7 @@
     "photosSection": "",
     "photosCamera": "",
     "photosGallery": "",
+    "photosRemoveConfirm": "",
     "shareButton": "",
     "errors": {
       "amountRequired": "",
@@ -249,6 +250,9 @@
     "loggedBy": "",
     "you": "",
     "photosLabel": "",
+    "photoCounter": "",
+    "photoCloseLabel": "",
+    "photoLoadFailed": "",
     "editButton": "",
     "deleteButton": "",
     "shareButton": "",

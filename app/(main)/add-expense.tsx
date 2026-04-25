@@ -30,7 +30,11 @@ import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { captureCurrentLocation } from '@/services/locationService';
-import { capturePhoto, pickPhotosFromLibrary } from '@/services/photoService';
+import {
+  capturePhoto,
+  pickPhotosFromLibrary,
+  processAndPersistPhoto,
+} from '@/services/photoService';
 import { useAuthStore } from '@/stores/authStore';
 import {
   selectCategoriesForTrip,
@@ -42,6 +46,7 @@ import type { PaymentMethod } from '@/types/expense';
 import type { Trip } from '@/types/trip';
 import { formatAmount, getCurrencySymbol } from '@/utils/currency';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
+import { newId } from '@/utils/id';
 import { shareExpense } from '@/utils/sharing';
 
 const PAYMENT_METHODS: PaymentMethod[] = ['credit', 'cash', 'debit'];
@@ -359,6 +364,16 @@ export default function AddExpenseScreen() {
             spreadEndDate: isSpread ? spreadEnd : null,
           });
         } else {
+          // Resize, recompress, and copy each picked photo into the document
+          // directory before persisting. Picker URIs live in the OS temp
+          // cache and can be evicted; the durable copy is what we sync.
+          const persistedPhotos = await Promise.all(
+            photos.map(async (p) => {
+              const photoId = newId();
+              const localUri = await processAndPersistPhoto(p.uri, photoId);
+              return { id: photoId, localUri };
+            }),
+          );
           const created = await createExpense({
             tripId,
             userId: user.id,
@@ -379,7 +394,7 @@ export default function AddExpenseScreen() {
             isPrivate,
             spreadStartDate: isSpread ? spreadStart : null,
             spreadEndDate: isSpread ? spreadEnd : null,
-            photos: photos.map((p) => ({ localUri: p.uri })),
+            photos: persistedPhotos,
           });
 
           if (options.thenShare) {
@@ -805,9 +820,13 @@ export default function AddExpenseScreen() {
                 <Pressable
                   key={p.uri}
                   onLongPress={() => {
-                    Alert.alert('Remove photo?', '', [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Remove', style: 'destructive', onPress: () => removePhoto(p.uri) },
+                    Alert.alert(t('expense.photosRemoveConfirm'), '', [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('common.delete'),
+                        style: 'destructive',
+                        onPress: () => removePhoto(p.uri),
+                      },
                     ]);
                   }}
                 >
