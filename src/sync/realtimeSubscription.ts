@@ -25,38 +25,59 @@ export function subscribeToRealtime(
 ): () => void {
   const channels: RealtimeChannel[] = [];
   const stuckTimers = new Map<PullTable, ReturnType<typeof setTimeout>>();
+  let cancelled = false;
 
-  for (const table of TABLES) {
-    const channel = supabase
-      .channel(`sync:${table}`)
-      .on(
-        'postgres_changes' as Parameters<RealtimeChannel['on']>[0],
-        { event: '*', schema: 'public', table },
-        (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
-          void handleEvent(db, table, payload);
-        },
-      )
-      .subscribe((status) => {
-        const existing = stuckTimers.get(table);
-        if (existing) {
-          clearTimeout(existing);
-          stuckTimers.delete(table);
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // Cold-starts and brief reconnects often emit a transient error
-          // before supabase-js retries successfully. Only surface a warning
-          // if the channel stays errored long enough to matter.
-          const timer = setTimeout(() => {
-            console.warn(`sync: realtime ${table} channel stuck in ${status}`);
+  // Push the user's JWT into the realtime client *before* subscribing.
+  // supabase-js eventually does this when auth state propagates, but the
+  // first subscribe attempt can race ahead and fail with CHANNEL_ERROR
+  // because RLS-protected tables reject anon-keyed postgres_changes joins.
+  void (async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) supabase.realtime.setAuth(token);
+    } catch (err) {
+      console.warn('sync: realtime setAuth failed', err);
+    }
+
+    if (cancelled) return;
+
+    for (const table of TABLES) {
+      const channel = supabase
+        .channel(`sync:${table}`)
+        .on(
+          'postgres_changes' as Parameters<RealtimeChannel['on']>[0],
+          { event: '*', schema: 'public', table },
+          (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+            void handleEvent(db, table, payload);
+          },
+        )
+        .subscribe((status, err) => {
+          const existing = stuckTimers.get(table);
+          if (existing) {
+            clearTimeout(existing);
             stuckTimers.delete(table);
-          }, STUCK_ERROR_DELAY_MS);
-          stuckTimers.set(table, timer);
-        }
-      });
-    channels.push(channel);
-  }
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Cold-starts and brief reconnects often emit a transient error
+            // before supabase-js retries successfully. Only surface a warning
+            // if the channel stays errored long enough to matter.
+            const detail = err instanceof Error ? `: ${err.message}` : '';
+            const timer = setTimeout(() => {
+              console.warn(
+                `sync: realtime ${table} channel stuck in ${status}${detail}`,
+              );
+              stuckTimers.delete(table);
+            }, STUCK_ERROR_DELAY_MS);
+            stuckTimers.set(table, timer);
+          }
+        });
+      channels.push(channel);
+    }
+  })();
 
   return () => {
+    cancelled = true;
     for (const timer of stuckTimers.values()) clearTimeout(timer);
     stuckTimers.clear();
     for (const channel of channels) {

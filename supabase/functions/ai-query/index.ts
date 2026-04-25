@@ -276,7 +276,7 @@ const SUMMARIZER_SYSTEM = `You are a friendly travel expense assistant. You help
 
 Respond as JSON only:
 { "answer": "...", "followUps": ["...", "...", "..."] }
-followUps: 2-3 short, naturally-phrased follow-up questions tied to what was just asked.`;
+followUps: 2-3 short, naturally-phrased follow-up questions tied to what was just asked in the user body language.`;
 
 function buildSummarizerUser(
   question: string,

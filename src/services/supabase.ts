@@ -1,3 +1,9 @@
+// Side-effect polyfill — Supabase JS realtime parses the websocket URL with
+// the WHATWG URL API, which Expo's runtime doesn't fully implement. Without
+// this, postgres_changes subscriptions fail silently with CHANNEL_ERROR.
+// Must run before createClient.
+import 'react-native-url-polyfill/auto';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
