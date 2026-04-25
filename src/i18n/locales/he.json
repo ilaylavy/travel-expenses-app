@@ -382,5 +382,20 @@
     "successBody": "",
     "errorTitle": "",
     "errorBody": ""
+  },
+  "ask": {
+    "title": "",
+    "subtitle": "",
+    "placeholder": "",
+    "thinking": "",
+    "offline": "",
+    "error": "",
+    "tryAgain": "",
+    "starterFood": "",
+    "starterExpensive": "",
+    "starterPayment": "",
+    "starterWho": "",
+    "starterBudget": "",
+    "starterWhere": ""
   }
 }

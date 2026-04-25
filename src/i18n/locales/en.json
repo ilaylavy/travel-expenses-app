@@ -382,5 +382,20 @@
     "successBody": "Your data is up to date.",
     "errorTitle": "Sync failed",
     "errorBody": "We couldn't reach the server. We'll retry automatically."
+  },
+  "ask": {
+    "title": "Ask about your trip",
+    "subtitle": "Ask anything about your spending",
+    "placeholder": "Ask a question...",
+    "thinking": "Thinking...",
+    "offline": "You need internet to ask questions. Connect and try again.",
+    "error": "Something went wrong. Try again.",
+    "tryAgain": "Try again",
+    "starterFood": "How much did I spend on food?",
+    "starterExpensive": "What was my most expensive day?",
+    "starterPayment": "Cash vs card breakdown",
+    "starterWho": "Who spent more?",
+    "starterBudget": "Am I on budget?",
+    "starterWhere": "Where did I spend the most?"
   }
 }

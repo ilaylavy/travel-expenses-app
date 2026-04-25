@@ -55,16 +55,29 @@ export default function TripDashboardScreen() {
             {trip.name}
           </Text>
         </View>
-        <Pressable
-          onPress={() => { void syncEngine.triggerSync(); }}
-          style={[
-            styles.headerButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-          ]}
-          hitSlop={8}
-        >
-          <SyncStatusDot />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push(href(`/(main)/trip/${tripId}/ask`))}
+            style={[
+              styles.headerButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            hitSlop={8}
+            accessibilityLabel={t('ask.title')}
+          >
+            <Text style={styles.headerActionEmoji}>🧠</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { void syncEngine.triggerSync(); }}
+            style={[
+              styles.headerButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            hitSlop={8}
+          >
+            <SyncStatusDot />
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -115,6 +128,8 @@ const styles = StyleSheet.create({
   headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
   headerTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerEmoji: { fontSize: 24 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerActionEmoji: { fontSize: 18 },
   headerTitle: { ...typography.itemTitle, flex: 1 },
   content: { padding: spacing.base, gap: spacing.lg },
   dates: { ...typography.body },

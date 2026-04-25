@@ -86,12 +86,14 @@ ALL reads and writes go to local SQLite first. The UI never waits for network. S
 - Soft deletes everywhere (set `deleted_at`, never hard delete)
 
 ### AI Queries
-Financial data NEVER leaves the device. The flow is:
-1. Send question + schema + trip context to Edge Function
-2. Edge Function asks OpenAI to generate a SQL query (SELECT only)
-3. SQL comes back to the app, runs on local SQLite
-4. Results sent back to Edge Function for natural language summary
-5. Summary displayed to user
+The AI query feature queries Supabase Postgres server-side via the `ai-query` Edge Function. Aggregated results are sent to OpenAI for summarization. The `is_private` field ensures users only see their own private expenses in AI answers. No expense data flows from the mobile app to OpenAI — the client only sends the question, trip id, and recent conversation history.
+
+Server-side flow inside the Edge Function:
+1. Authenticate the caller's JWT and verify trip membership.
+2. Build a structured trip-context summary (members, categories, totals, places) directly from Postgres, with `is_private` already filtered.
+3. One OpenAI call classifies intent (DATA_QUERY / CHITCHAT / CLARIFY / OUT_OF_SCOPE) and, for data queries, emits 1–3 SELECT statements.
+4. SQL is validated (SELECT-only, must scope to the trip and include the privacy filter), then executed against Postgres in a read-only transaction with a 5s statement timeout.
+5. A second OpenAI call summarizes the result rows into a friendly natural-language answer with 2–3 follow-up suggestions.
 
 ### Currency
 Exchange rates cached locally. Rate locked into each expense at creation time (stored in `exchange_rate` column). This means historical expense values don't change when rates fluctuate.

@@ -270,13 +270,20 @@ Single scrollable screen within the trip tab. Sections:
 - MVP: maximum 2 members per trip (can expand later)
 
 **Shared behavior:**
-- Both members see all expenses in the trip
+- Both members see all expenses in the trip (except private ones — see below)
 - Each expense shows who logged it
-- Both can add, edit, delete any expense (trust-based for couples/friends)
+- Each member can edit and delete only their own expenses; both can add new ones
 - Stats show individual breakdowns and balance
+
+**Private expenses:**
+- When logging or editing an expense in a shared trip, the author can mark it private
+- Private expenses are visible only to the author — they are excluded from the other member's expense list, stats, map view, AI query answers, and split-balance calculations
+- A private expense still counts toward the author's own totals, budget progress, categories, and AI answers
+- Use case: a surprise gift, a personal purchase the author doesn't want to split, or anything they'd rather not share with their travel partner
 
 **Balance:**
 - Simple calculation: (User A total - User B total) / 2 = settlement amount
+- Private expenses are excluded from balance calculations (they only affect the author's personal view)
 - Displayed in stats screen
 - No per-expense splitting in MVP (just total balance)
 

@@ -400,47 +400,68 @@ Zustand `syncStore` holds:
 
 ### Edge Function: `ai-query`
 
+The AI assistant runs entirely server-side. Postgres is the source of truth, and the Edge Function does context gathering, SQL generation, validation, execution, and summarization in a single round-trip.
+
+**Request:**
 ```
 POST /functions/v1/ai-query
+Authorization: Bearer <user JWT>
 Body: {
     question: string,
-    schema: string,        // SQLite schema (tables + columns)
-    tripContext: {
-        tripName: string,
-        startDate: string,
-        endDate: string,
-        currency: string,
-        members: string[]  // member names
-    },
-    step: 'generate_sql' | 'summarize_results',
-    sqlResults?: any[]     // only for step 2
+    tripId: string,                  // UUID
+    conversationHistory: { role: 'user' | 'assistant', content: string }[]   // last 10 max, server truncates
 }
 ```
 
-**Step 1 — Generate SQL:**
-The Edge Function sends to OpenAI:
+**Response:**
 ```
-System: You are a SQL query generator for a travel expense app.
-Given the following SQLite schema and trip context, generate a SQL
-query that answers the user's question. Return ONLY the SQL query,
-no explanation. The query must be safe (SELECT only, no mutations).
-
-Schema: {schema}
-Trip context: {tripContext}
-
-User: {question}
+{
+    answer: string,                                                         // natural-language reply
+    followUps: string[],                                                    // 2-3 suggested follow-up questions
+    intent: 'DATA_QUERY' | 'CHITCHAT' | 'CLARIFY' | 'OUT_OF_SCOPE' | 'error',
+    error?: string                                                          // present when validation/SQL failed but we still returned a friendly answer
+}
 ```
 
-**Step 2 — Summarize Results:**
-```
-System: You are a helpful travel expense assistant. Given the user's
-question and the query results, provide a concise, friendly answer.
-Include specific numbers. Keep it to 2-3 sentences.
+**Internal flow:**
 
-User question: {question}
-Query results: {sqlResults}
-Trip context: {tripContext}
-```
+1. **Auth + membership gate.** Verify the JWT via a user-scoped Supabase client, then check `trip_members` for `(tripId, callerId)` with `joined_at IS NOT NULL`. Pending invites are not members. Returns 404 on miss.
+
+2. **Build trip context** (service-role client, no LLM). All expense aggregates filter `(is_private = false OR user_id = '<callerId>')` so members never see private rows from other members in their own context summary. Context includes:
+   - `trips` row (name, dates, currencies, budget)
+   - `trip_members` JOIN `profiles` (member names + roles, joined only)
+   - distinct category names used in the trip
+   - aggregate stats (count, total in base currency, total in home currency, first/last expense date), excluding refunds and excluded-from-metrics rows
+   - distinct payment methods and place names (capped)
+   - boolean flags: `has_refunds`, `has_excluded_expenses`, `has_spread_expenses`
+
+3. **Intent + SQL generation.** One call to `gpt-4o-mini` with `response_format: 'json_object'`. The system prompt embeds the static schema and 12 critical query rules; the user prompt embeds the trip context, conversation history, and current question. Output:
+   ```
+   {
+       intent: 'DATA_QUERY' | 'CHITCHAT' | 'CLARIFY' | 'OUT_OF_SCOPE',
+       reasoning: string,
+       directResponse: string,        // non-empty for non-DATA_QUERY
+       queries: [{ sql: string, purpose: string }],   // 1-3 for DATA_QUERY
+       explanation: string
+   }
+   ```
+   For non-DATA_QUERY intents, the function short-circuits and returns `directResponse` as the answer with generic follow-ups.
+
+4. **SQL validation** (programmatic). Each query must:
+   - start with `SELECT` or `WITH`
+   - contain no mutating keywords (`INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|COPY|MERGE|...`)
+   - include the literal `tripId` UUID
+   - include `deleted_at IS NULL`
+   - include a `LIMIT`
+   - if the query references the `expenses` table, also include both `is_private = false` and the literal caller-id UUID (i.e. the privacy filter `(is_private = false OR user_id = '<callerId>')`)
+
+   Validation failure returns a friendly "couldn't process that question" answer with `error` set.
+
+5. **SQL execution.** Each query runs in its own transaction via the `postgresjs` Deno module against `SUPABASE_DB_URL`, with `SET LOCAL statement_timeout = '5s'`, `SET LOCAL idle_in_transaction_session_timeout = '5s'`, and `SET LOCAL default_transaction_read_only = on`. Per-query errors are captured and passed to the summarizer rather than crashing the function.
+
+6. **Summarize.** Second call to `gpt-4o-mini` (`response_format: 'json_object'`, temperature 0.3). The system prompt instructs casual/friendly tone, proper currency symbols, percentages where meaningful, budget comparisons, and graceful handling of empty results / SQL errors. Output `{ answer, followUps }`.
+
+**Privacy.** No expense data leaves the device through this function. Aggregated trip context (member names, totals, place names) and the result rows of the model-generated SQL are sent to OpenAI for summarization. Per-row `is_private` enforcement happens at every step (context build, validator, generated SQL).
 
 ---
 
