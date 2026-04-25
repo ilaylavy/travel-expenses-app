@@ -187,7 +187,7 @@ Food 🍽️, Transport 🚗, Hotel 🏨, Flight ✈️, Coffee ☕, Shopping �
 - Currency selector in expense entry shows common currencies first, then full list with search
 
 **Quick converter:**
-- Accessible from trip dashboard or settings
+- Accessible from the trips list screen
 - Input amount in any currency, see conversion to trip currency and home currency
 - Uses latest cached rate
 
@@ -338,13 +338,12 @@ App
 │   ├── [Settings] (app settings)
 │   ├── [Pencil icon on trip card] → Edit Trip (settings screen)
 │   └── [Tap a trip card] → Trip View
-│       ├── Bottom Nav
-│       │   ├── Dashboard (home icon)
-│       │   ├── Expenses (list icon)
-│       │   ├── [+] Add Expense (FAB, center)
-│       │   ├── Map (map icon)
-│       │   └── Stats (chart icon)
-│       ├── Ask AI (brain icon in header)
+│       ├── Bottom Nav (4 evenly-spaced tabs)
+│       │   ├── Expenses (📋, default tab) — list + stats strip + multi-filter
+│       │   ├── Map (📍)
+│       │   ├── Ask (🧠) — AI chat
+│       │   └── Stats (📊)
+│       ├── [+] Add Expense (floating FAB, bottom-right of Expenses tab only)
 │       ├── Categories (from Edit Trip screen)
 │       └── Add/Edit Expense (modal overlay)
 └── New Trip (from trip list)

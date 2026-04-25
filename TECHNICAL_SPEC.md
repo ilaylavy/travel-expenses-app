@@ -51,9 +51,9 @@ TRAVEL-EXPENSES-APP/
 │           ├── settings.tsx      # Edit-trip screen (opened from pencil icon on trip card)
 │           ├── (tabs)/           # Bottom tab navigator for the active trip
 │           │   ├── _layout.tsx
-│           │   ├── index.tsx     # Dashboard tab
-│           │   ├── expenses.tsx  # Expenses list tab
+│           │   ├── index.tsx     # Expenses tab (default) — list, stats strip, multi-filter, FAB
 │           │   ├── map.tsx       # Map tab
+│           │   ├── ask.tsx       # AI chat tab
 │           │   └── stats.tsx     # Stats tab
 │           └── categories/       # Category management stack (per-trip)
 │               ├── _layout.tsx

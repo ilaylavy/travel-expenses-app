@@ -1,40 +1,454 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  I18nManager,
+  Pressable,
+  ScrollView,
+  SectionList,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SwipeableExpenseCard } from '@/components/expense/SwipeableExpenseCard';
+import { ExpenseStatsStrip } from '@/components/expense/ExpenseStatsStrip';
+import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
+import { getProfileName } from '@/db/queries/profiles';
+import { listTripMembers } from '@/db/queries/trips';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/stores/authStore';
+import {
+  selectCategoriesForTrip,
+  useCategoryStore,
+} from '@/stores/categoryStore';
+import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
-import { formatAmount } from '@/utils/currency';
-import { formatDateRange } from '@/utils/date';
+import type { ExpenseWithPhotos } from '@/types/expense';
+import { formatAmount, todayDateString } from '@/utils/currency';
+import { formatDayWithYear } from '@/utils/date';
+import { groupExpensesByDate, type ExpenseDateGroup } from '@/utils/expenseGrouping';
 import { href } from '@/utils/nav';
+import { aggregate } from '@/utils/statsAggregations';
 
-export default function TripDashboardScreen() {
+const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+function formatYearMonth(ym: string): string {
+  const [yStr, mStr] = ym.split('-');
+  const m = Number(mStr) - 1;
+  if (m < 0 || m > 11) return ym;
+  return `${MONTH_SHORT[m]} ${yStr}`;
+}
+
+function extractCity(placeName: string | null): string | null {
+  if (!placeName) return null;
+  const parts = placeName.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  return parts[parts.length - 1];
+}
+
+function titleCase(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+type FilterKey = 'category' | 'payment' | 'member' | 'place' | 'month';
+
+export default function TripExpensesScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
   const params = useGlobalSearchParams<{ id: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
+
   const trip = useTripStore((s) => s.trips.find((x) => x.id === tripId));
+  const expenses = useExpenseStore((s) => s.expenses);
+  const activeTripId = useExpenseStore((s) => s.activeTripId);
+  const loadForTrip = useExpenseStore((s) => s.loadForTrip);
+  const deleteExpense = useExpenseStore((s) => s.deleteExpense);
+  const allCategories = useCategoryStore((s) => s.categories);
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+
+  const [query, setQuery] = useState('');
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(() => new Set());
+  const [selectedPayments, setSelectedPayments] = useState<Set<string>>(() => new Set());
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(() => new Set());
+  const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(() => new Set());
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(() => new Set());
+  const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
+
+  const isSharedTrip = Object.keys(memberNames).length > 1;
+
+  useEffect(() => {
+    if (tripId && activeTripId !== tripId) void loadForTrip(tripId);
+  }, [tripId, activeTripId, loadForTrip]);
+
+  useEffect(() => {
+    if (!tripId) return;
+    let cancelled = false;
+    (async () => {
+      const members = await listTripMembers(tripId);
+      if (cancelled) return;
+      const entries = await Promise.all(
+        members.map(
+          async (m) => [m.userId, (await getProfileName(m.userId)) ?? ''] as const,
+        ),
+      );
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      for (const [id, name] of entries) if (name) map[id] = name;
+      setMemberNames(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  const tripCategories = useMemo(
+    () => selectCategoriesForTrip(allCategories, tripId ?? null),
+    [allCategories, tripId],
+  );
+  const categoryById = useMemo(
+    () => new Map(tripCategories.map((c) => [c.id, c])),
+    [tripCategories],
+  );
+
+  const stats = useMemo(() => {
+    if (!trip) return null;
+    return aggregate({ expenses, trip, today: todayDateString() });
+  }, [expenses, trip]);
+
+  const expenseCount = useMemo(
+    () => expenses.filter((e) => e.deletedAt === null && !e.isRefund).length,
+    [expenses],
+  );
+
+  // ----- Filter option lists derived from current expenses -----
+
+  const categoryOptions = useMemo<FilterOption[]>(() => {
+    const tally = new Map<string, number>();
+    for (const e of expenses) {
+      tally.set(e.categoryId, (tally.get(e.categoryId) ?? 0) + 1);
+    }
+    return tripCategories
+      .filter((c) => tally.has(c.id))
+      .map((c) => ({
+        id: c.id,
+        label: c.name,
+        emoji: c.emoji,
+        count: tally.get(c.id) ?? 0,
+      }));
+  }, [expenses, tripCategories]);
+
+  const paymentOptions = useMemo<FilterOption[]>(() => {
+    const tally = new Map<string, number>();
+    for (const e of expenses) {
+      const m = e.paymentMethod;
+      if (!m) continue;
+      tally.set(m, (tally.get(m) ?? 0) + 1);
+    }
+    return Array.from(tally.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([id, count]) => ({ id, label: titleCase(id), count }));
+  }, [expenses]);
+
+  const memberOptions = useMemo<FilterOption[]>(() => {
+    const tally = new Map<string, number>();
+    for (const e of expenses) {
+      tally.set(e.userId, (tally.get(e.userId) ?? 0) + 1);
+    }
+    return Array.from(tally.entries())
+      .map(([id, count]) => ({
+        id,
+        label: memberNames[id] ?? '—',
+        count,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [expenses, memberNames]);
+
+  const placeOptions = useMemo<FilterOption[]>(() => {
+    // Dedup case-insensitively but preserve first-seen casing for display.
+    const seen = new Map<string, { display: string; count: number }>();
+    for (const e of expenses) {
+      const city = extractCity(e.placeName);
+      if (!city) continue;
+      const key = city.toLowerCase();
+      const existing = seen.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        seen.set(key, { display: city, count: 1 });
+      }
+    }
+    return Array.from(seen.entries())
+      .map(([id, v]) => ({ id, label: v.display, count: v.count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [expenses]);
+
+  const monthOptions = useMemo<FilterOption[]>(() => {
+    const tally = new Map<string, number>();
+    for (const e of expenses) {
+      const ym = e.expenseDate.slice(0, 7);
+      tally.set(ym, (tally.get(ym) ?? 0) + 1);
+    }
+    return Array.from(tally.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, count]) => ({ id, label: formatYearMonth(id), count }));
+  }, [expenses]);
+
+  // ----- Filtering -----
+
+  const filteredExpenses = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return expenses.filter((e) => {
+      if (selectedCategoryIds.size > 0 && !selectedCategoryIds.has(e.categoryId)) return false;
+      if (selectedPayments.size > 0) {
+        if (!e.paymentMethod || !selectedPayments.has(e.paymentMethod)) return false;
+      }
+      if (selectedMembers.size > 0 && !selectedMembers.has(e.userId)) return false;
+      if (selectedPlaces.size > 0) {
+        const city = extractCity(e.placeName);
+        if (!city || !selectedPlaces.has(city.toLowerCase())) return false;
+      }
+      if (selectedMonths.size > 0 && !selectedMonths.has(e.expenseDate.slice(0, 7))) return false;
+      if (q !== '') {
+        const note = (e.note ?? '').toLowerCase();
+        const place = (e.placeName ?? '').toLowerCase();
+        if (!note.includes(q) && !place.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [
+    expenses,
+    query,
+    selectedCategoryIds,
+    selectedPayments,
+    selectedMembers,
+    selectedPlaces,
+    selectedMonths,
+  ]);
+
+  const sections = useMemo<ExpenseDateGroup[]>(
+    () => groupExpensesByDate(filteredExpenses),
+    [filteredExpenses],
+  );
+
+  // ----- Toggle helpers -----
+
+  const toggleIn = useCallback(
+    (set: Set<string>, setter: (s: Set<string>) => void) => (id: string) => {
+      const next = new Set(set);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setter(next);
+    },
+    [],
+  );
+
+  const handleClearAll = useCallback(() => {
+    setSelectedCategoryIds(new Set());
+    setSelectedPayments(new Set());
+    setSelectedMembers(new Set());
+    setSelectedPlaces(new Set());
+    setSelectedMonths(new Set());
+  }, []);
+
+  const anyFilterActive =
+    selectedCategoryIds.size > 0 ||
+    selectedPayments.size > 0 ||
+    selectedMembers.size > 0 ||
+    selectedPlaces.size > 0 ||
+    selectedMonths.size > 0;
+
+  const handlePressRow = useCallback(
+    (expense: ExpenseWithPhotos) => {
+      router.push(href(`/trip/${tripId}/expense/${expense.id}`));
+    },
+    [router, tripId],
+  );
+
+  const handleDelete = useCallback(
+    async (expense: ExpenseWithPhotos) => {
+      try {
+        await deleteExpense(expense.id);
+      } catch (error) {
+        console.warn('Failed to delete expense:', error);
+        Alert.alert(t('expensesList.deleteFailedTitle'));
+      }
+    },
+    [deleteExpense, t],
+  );
+
+  const labelForGroup = useCallback(
+    (group: ExpenseDateGroup): string => {
+      if (group.kind === 'today') return t('expensesList.dateToday');
+      if (group.kind === 'yesterday') return t('expensesList.dateYesterday');
+      return formatDayWithYear(group.date);
+    },
+    [t],
+  );
 
   if (!trip || !tripId) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
         <View style={styles.missing}>
           <Text style={{ color: theme.textSecondary }}>{t('trips.notFound')}</Text>
-          <Pressable
-            onPress={() => router.replace(href('/(main)'))}
-            style={[styles.linkButton, { backgroundColor: theme.accent }]}
-          >
-            <Text style={styles.linkButtonText}>{t('trips.backToTrips')}</Text>
-          </Pressable>
         </View>
       </SafeAreaView>
     );
   }
+
+  const hasExpenses = expenses.length > 0;
+  const filteredAway = hasExpenses && sections.length === 0;
+
+  // ----- Pill summary helpers -----
+
+  function summarize(
+    selected: Set<string>,
+    options: FilterOption[],
+    fallback: string,
+    countKey: 'expenses.filterNCategories' | 'expenses.filterNSelected',
+  ): string {
+    if (selected.size === 0) return fallback;
+    if (selected.size <= 2) {
+      const labels = options.filter((o) => selected.has(o.id)).map((o) => o.label);
+      return labels.join(', ');
+    }
+    return t(countKey, { count: selected.size });
+  }
+
+  const categorySummary = summarize(
+    selectedCategoryIds,
+    categoryOptions,
+    t('expenses.filterAll'),
+    'expenses.filterNCategories',
+  );
+  const paymentSummary = summarize(
+    selectedPayments,
+    paymentOptions,
+    t('expenses.filterAllPayments'),
+    'expenses.filterNSelected',
+  );
+  const memberSummary = summarize(
+    selectedMembers,
+    memberOptions,
+    t('expenses.filterEveryone'),
+    'expenses.filterNSelected',
+  );
+  const placeSummary = summarize(
+    selectedPlaces,
+    placeOptions,
+    t('expenses.filterAllPlaces'),
+    'expenses.filterNSelected',
+  );
+  const monthSummary = summarize(
+    selectedMonths,
+    monthOptions,
+    t('expenses.filterAllTime'),
+    'expenses.filterNSelected',
+  );
+
+  const listHeader = (
+    <View>
+      {stats ? (
+        <ExpenseStatsStrip
+          trip={trip}
+          totalSpent={stats.totalSpent}
+          dailyAverage={stats.dailyAverage}
+          daysElapsed={stats.daysElapsed}
+          budgetHome={stats.budgetHome}
+          budgetRemaining={stats.budgetRemaining}
+          expenseCount={expenseCount}
+        />
+      ) : null}
+
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder={t('expensesList.searchPlaceholder')}
+        placeholderTextColor={theme.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+        style={[
+          styles.searchInput,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            color: theme.text,
+          },
+        ]}
+      />
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.pillRow}
+      >
+        <FilterPill
+          label={t('expenses.filterCategory')}
+          summary={categorySummary}
+          active={selectedCategoryIds.size > 0}
+          onPress={() => setOpenFilter('category')}
+          theme={theme}
+        />
+        <FilterPill
+          label={t('expenses.filterPayment')}
+          summary={paymentSummary}
+          active={selectedPayments.size > 0}
+          onPress={() => setOpenFilter('payment')}
+          theme={theme}
+        />
+        {isSharedTrip ? (
+          <FilterPill
+            label={t('expenses.filterMember')}
+            summary={memberSummary}
+            active={selectedMembers.size > 0}
+            onPress={() => setOpenFilter('member')}
+            theme={theme}
+          />
+        ) : null}
+        <FilterPill
+          label={t('expenses.filterLocation')}
+          summary={placeSummary}
+          active={selectedPlaces.size > 0}
+          onPress={() => setOpenFilter('place')}
+          theme={theme}
+        />
+        <FilterPill
+          label={t('expenses.filterMonth')}
+          summary={monthSummary}
+          active={selectedMonths.size > 0}
+          onPress={() => setOpenFilter('month')}
+          theme={theme}
+        />
+        {anyFilterActive ? (
+          <Pressable
+            onPress={handleClearAll}
+            style={[
+              styles.clearButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            accessibilityLabel={t('expenses.filterClearAll')}
+            hitSlop={6}
+          >
+            <Text style={[styles.clearButtonText, { color: theme.textSecondary }]}>✕</Text>
+          </Pressable>
+        ) : null}
+      </ScrollView>
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
@@ -50,60 +464,197 @@ export default function TripDashboardScreen() {
           <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
         </Pressable>
         <View style={styles.headerTitleWrap}>
-          <Text style={[styles.headerEmoji]}>{trip.emoji}</Text>
+          <Text style={styles.headerEmoji}>{trip.emoji}</Text>
           <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
             {trip.name}
           </Text>
         </View>
-        <View style={styles.headerActions}>
-          <Pressable
-            onPress={() => router.push(href(`/(main)/trip/${tripId}/ask`))}
-            style={[
-              styles.headerButton,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-            hitSlop={8}
-            accessibilityLabel={t('ask.title')}
-          >
-            <Text style={styles.headerActionEmoji}>🧠</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => { void syncEngine.triggerSync(); }}
-            style={[
-              styles.headerButton,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-            hitSlop={8}
-          >
-            <SyncStatusDot />
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={[styles.dates, { color: theme.textSecondary }]}>
-          {formatDateRange(trip.startDate, trip.endDate, t('common.ongoing'))}
-        </Text>
-        <View style={[styles.totalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.totalLabel, { color: theme.textMuted }]}>
-            {t('trips.totalSpent')}
-          </Text>
-          <Text style={[styles.totalAmount, { color: theme.text }]}>
-            {formatAmount(trip.stats.totalSpent, trip.homeCurrency)}
-          </Text>
-        </View>
-
         <Pressable
-          onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
-          style={({ pressed }) => [
-            styles.addButton,
-            { backgroundColor: theme.accent, opacity: pressed ? 0.8 : 1 },
+          onPress={() => {
+            void syncEngine.triggerSync();
+          }}
+          style={[
+            styles.headerButton,
+            { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
+          hitSlop={8}
         >
-          <Text style={styles.addButtonText}>＋ {t('tripView.addExpense')}</Text>
+          <SyncStatusDot />
         </Pressable>
       </View>
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.key}
+        stickySectionHeadersEnabled
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={hasExpenses ? listHeader : null}
+        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+        renderSectionHeader={({ section }) => (
+          <View
+            style={[
+              styles.sectionHeader,
+              { backgroundColor: theme.bg, borderBottomColor: theme.borderLight },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              {labelForGroup(section)}
+            </Text>
+            <Text style={[styles.sectionSubtotal, { color: theme.textSecondary }]}>
+              {formatAmount(section.subtotal, trip.homeCurrency)}
+            </Text>
+          </View>
+        )}
+        renderItem={({ item }) => {
+          const loggedById = item.expense.userId;
+          const isSelfLogged = loggedById === currentUserId;
+          const loggedByName = isSharedTrip ? memberNames[loggedById] ?? null : null;
+          return (
+            <SwipeableExpenseCard
+              expense={item.displayExpense}
+              category={categoryById.get(item.expense.categoryId) ?? null}
+              homeCurrency={trip.homeCurrency}
+              onPress={() => handlePressRow(item.expense)}
+              onDelete={() => handleDelete(item.expense)}
+              confirmTitle={t('expensesList.deleteConfirmTitle')}
+              confirmBody={t('expensesList.deleteConfirmBody')}
+              confirmLabel={t('common.delete')}
+              cancelLabel={t('common.cancel')}
+              deleteLabel={t('expensesList.deleteAction')}
+              loggedByName={loggedByName}
+              isSelfLogged={isSelfLogged}
+              canDelete={isSelfLogged}
+            />
+          );
+        }}
+        ListEmptyComponent={
+          filteredAway ? (
+            <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+              <Text style={styles.emptyEmoji}>🔍</Text>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {t('expensesList.emptyFilteredTitle')}
+              </Text>
+              <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
+                {t('expensesList.emptyFilteredBody')}
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+              <Text style={styles.emptyEmoji}>💸</Text>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {t('tripView.emptyExpensesTitle')}
+              </Text>
+              <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
+                {t('tripView.emptyExpensesBody')}
+              </Text>
+            </View>
+          )
+        }
+      />
+
+      <Pressable
+        onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
+        style={({ pressed }) => [
+          styles.fab,
+          I18nManager.isRTL ? styles.fabLeft : styles.fabRight,
+          { shadowColor: theme.accent, transform: [{ scale: pressed ? 0.96 : 1 }] },
+        ]}
+        accessibilityLabel={t('tripView.addExpense')}
+      >
+        <LinearGradient
+          colors={theme.fabGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fabInner}
+        >
+          <Text style={styles.fabPlus}>＋</Text>
+        </LinearGradient>
+      </Pressable>
+
+      <FilterModal
+        visible={openFilter === 'category'}
+        title={t('expenses.filterCategory')}
+        options={categoryOptions}
+        selectedIds={selectedCategoryIds}
+        onToggle={toggleIn(selectedCategoryIds, setSelectedCategoryIds)}
+        onSelectAll={() => setSelectedCategoryIds(new Set(categoryOptions.map((o) => o.id)))}
+        onClear={() => setSelectedCategoryIds(new Set())}
+        onDone={() => setOpenFilter(null)}
+      />
+      <FilterModal
+        visible={openFilter === 'payment'}
+        title={t('expenses.filterPayment')}
+        options={paymentOptions}
+        selectedIds={selectedPayments}
+        onToggle={toggleIn(selectedPayments, setSelectedPayments)}
+        onSelectAll={() => setSelectedPayments(new Set(paymentOptions.map((o) => o.id)))}
+        onClear={() => setSelectedPayments(new Set())}
+        onDone={() => setOpenFilter(null)}
+      />
+      <FilterModal
+        visible={openFilter === 'member'}
+        title={t('expenses.filterMember')}
+        options={memberOptions}
+        selectedIds={selectedMembers}
+        onToggle={toggleIn(selectedMembers, setSelectedMembers)}
+        onSelectAll={() => setSelectedMembers(new Set(memberOptions.map((o) => o.id)))}
+        onClear={() => setSelectedMembers(new Set())}
+        onDone={() => setOpenFilter(null)}
+      />
+      <FilterModal
+        visible={openFilter === 'place'}
+        title={t('expenses.filterLocation')}
+        options={placeOptions}
+        selectedIds={selectedPlaces}
+        onToggle={toggleIn(selectedPlaces, setSelectedPlaces)}
+        onSelectAll={() => setSelectedPlaces(new Set(placeOptions.map((o) => o.id)))}
+        onClear={() => setSelectedPlaces(new Set())}
+        onDone={() => setOpenFilter(null)}
+      />
+      <FilterModal
+        visible={openFilter === 'month'}
+        title={t('expenses.filterMonth')}
+        options={monthOptions}
+        selectedIds={selectedMonths}
+        onToggle={toggleIn(selectedMonths, setSelectedMonths)}
+        onSelectAll={() => setSelectedMonths(new Set(monthOptions.map((o) => o.id)))}
+        onClear={() => setSelectedMonths(new Set())}
+        onDone={() => setOpenFilter(null)}
+      />
     </SafeAreaView>
+  );
+}
+
+interface FilterPillProps {
+  label: string;
+  summary: string;
+  active: boolean;
+  onPress: () => void;
+  theme: ReturnType<typeof useTheme>;
+}
+
+function FilterPill({ label, summary, active, onPress, theme }: FilterPillProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.pill,
+        {
+          backgroundColor: active ? theme.accentSoft : theme.surface,
+          borderColor: active ? theme.accent : theme.border,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.pillText,
+          { color: active ? theme.accent : theme.textSecondary },
+        ]}
+        numberOfLines={1}
+      >
+        {label}: {summary} ▾
+      </Text>
+    </Pressable>
   );
 }
 
@@ -128,26 +679,79 @@ const styles = StyleSheet.create({
   headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
   headerTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerEmoji: { fontSize: 24 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerActionEmoji: { fontSize: 18 },
   headerTitle: { ...typography.itemTitle, flex: 1 },
-  content: { padding: spacing.base, gap: spacing.lg },
-  dates: { ...typography.body },
-  totalCard: {
-    borderRadius: sizing.radiusCard,
-    borderWidth: 1,
-    padding: spacing.xl,
-    gap: spacing.xs,
+  searchInput: {
+    borderRadius: sizing.radiusInput,
+    borderWidth: 1.5,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: spacing.sm,
   },
-  totalLabel: { ...typography.micro },
-  totalAmount: { ...typography.amountLarge },
-  addButton: {
-    borderRadius: sizing.radiusButton,
-    paddingVertical: 14,
+  pillRow: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.base,
     alignItems: 'center',
   },
-  addButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
-  missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.base },
-  linkButton: { borderRadius: sizing.radiusButton, paddingHorizontal: spacing.xl, paddingVertical: 12 },
-  linkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: sizing.radiusChip,
+    borderWidth: 1,
+  },
+  pillText: { fontSize: 12, fontWeight: '600', maxWidth: 200 },
+  clearButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearButtonText: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
+  list: { paddingHorizontal: spacing.base, paddingBottom: spacing.xxl },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
+    borderBottomWidth: 1,
+  },
+  sectionTitle: { ...typography.sectionTitle },
+  sectionSubtotal: { ...typography.amountSmall },
+  empty: {
+    borderRadius: sizing.radiusCard,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    padding: spacing.xxl,
+    alignItems: 'center',
+    marginTop: spacing.lg,
+  },
+  emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
+  emptyTitle: { ...typography.itemTitle, marginBottom: 4 },
+  emptyBody: { ...typography.secondary, textAlign: 'center' },
+  missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  fab: {
+    position: 'absolute',
+    bottom: 90,
+    width: 62,
+    height: 62,
+    borderRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  fabRight: { right: 20 },
+  fabLeft: { left: 20 },
+  fabInner: {
+    flex: 1,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabPlus: { color: '#FFFFFF', fontSize: 30, fontWeight: '700', lineHeight: 32 },
 });

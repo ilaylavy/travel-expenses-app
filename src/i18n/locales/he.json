@@ -155,9 +155,9 @@
     }
   },
   "tripView": {
-    "tabDashboard": "",
     "tabExpenses": "",
     "tabMap": "",
+    "tabAsk": "",
     "tabStats": "",
     "settings": "",
     "addExpense": "",
@@ -166,6 +166,28 @@
     "mapAllCategories": "",
     "mapEmptyTitle": "",
     "mapEmptyBody": ""
+  },
+  "expenses": {
+    "statsTotal": "",
+    "statsDailyAvg": "",
+    "statsBudgetLeft": "",
+    "statsExpenses": "",
+    "statsDayOf": "",
+    "statsDayN": "",
+    "filterCategory": "",
+    "filterPayment": "",
+    "filterMember": "",
+    "filterLocation": "",
+    "filterMonth": "",
+    "filterAll": "",
+    "filterAllPayments": "",
+    "filterEveryone": "",
+    "filterAllPlaces": "",
+    "filterAllTime": "",
+    "filterClearAll": "",
+    "filterDone": "",
+    "filterNCategories": "",
+    "filterNSelected": ""
   },
   "expensesList": {
     "searchPlaceholder": "",

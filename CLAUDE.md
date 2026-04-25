@@ -243,10 +243,11 @@ Each category maps to a specific color. This mapping is used everywhere: chips, 
 - Coffee → yellow, Shopping → green, Activities → coral, Other → teal
 
 ### Navigation
-- Bottom nav: 5 tabs with emoji icons (🏠 📋 ＋ 📍 📊)
+- Bottom nav: 4 evenly-spaced tabs with emoji icons (📋 📍 🧠 📊)
+- Default tab is Expenses (📋); Ask (🧠) hosts the AI chat
 - Active tab: accentSoft pill background, full-color emoji, accent-colored label
 - Inactive tab: grayscale emoji, muted label
-- Center FAB button with gradient, glow shadow, floats above nav
+- FAB floats bottom-right on the Expenses tab only — gradient background, glow shadow, 62x62, radius 20. Mirrors to bottom-left in RTL.
 
 ---
 

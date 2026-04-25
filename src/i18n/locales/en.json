@@ -155,9 +155,9 @@
     }
   },
   "tripView": {
-    "tabDashboard": "Dashboard",
     "tabExpenses": "Expenses",
     "tabMap": "Map",
+    "tabAsk": "Ask",
     "tabStats": "Stats",
     "settings": "Settings",
     "addExpense": "Add expense",
@@ -166,6 +166,28 @@
     "mapAllCategories": "All",
     "mapEmptyTitle": "No pinned expenses yet",
     "mapEmptyBody": "Log an expense with location to see it on the map."
+  },
+  "expenses": {
+    "statsTotal": "Total",
+    "statsDailyAvg": "Daily Avg",
+    "statsBudgetLeft": "Budget Left",
+    "statsExpenses": "Expenses",
+    "statsDayOf": "Day {{current}} of {{total}}",
+    "statsDayN": "Day {{current}}",
+    "filterCategory": "Category",
+    "filterPayment": "Payment",
+    "filterMember": "Member",
+    "filterLocation": "Location",
+    "filterMonth": "Month",
+    "filterAll": "All",
+    "filterAllPayments": "All payments",
+    "filterEveryone": "Everyone",
+    "filterAllPlaces": "All places",
+    "filterAllTime": "All time",
+    "filterClearAll": "Clear all",
+    "filterDone": "Done",
+    "filterNCategories": "{{count}} categories",
+    "filterNSelected": "{{count}} selected"
   },
   "expensesList": {
     "searchPlaceholder": "Search notes and places",

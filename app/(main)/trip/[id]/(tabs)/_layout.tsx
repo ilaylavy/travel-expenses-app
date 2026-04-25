@@ -37,15 +37,6 @@ export default function TripTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: t('tripView.tabDashboard'),
-          tabBarIcon: ({ focused, color }) => (
-            <TabEmoji emoji="🏠" focused={focused} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="expenses"
-        options={{
           title: t('tripView.tabExpenses'),
           tabBarIcon: ({ focused, color }) => (
             <TabEmoji emoji="📋" focused={focused} color={color} />
@@ -58,6 +49,15 @@ export default function TripTabsLayout() {
           title: t('tripView.tabMap'),
           tabBarIcon: ({ focused, color }) => (
             <TabEmoji emoji="📍" focused={focused} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="ask"
+        options={{
+          title: t('tripView.tabAsk'),
+          tabBarIcon: ({ focused, color }) => (
+            <TabEmoji emoji="🧠" focused={focused} color={color} />
           ),
         }}
       />
