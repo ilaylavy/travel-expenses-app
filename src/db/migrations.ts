@@ -2,6 +2,13 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { V1_STATEMENTS, V3_STATEMENTS } from './schema';
 
+// Migrations are append-only. Once a version has shipped, do NOT edit its SQL
+// or the baseline DDL it depends on (the Vn_STATEMENTS in schema.ts) — every
+// device that already ran it would diverge from new installs. To change the
+// schema, add a new migration with the next version number. Version numbers
+// are also append-only: a retired version (see v2 below) stays retired so its
+// number is never reused.
+
 export interface Migration {
   version: number;
   name: string;
@@ -18,15 +25,9 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
-  {
-    version: 2,
-    name: 'rename_is_excluded_from_metrics',
-    run: async (db) => {
-      await db.execAsync(
-        'ALTER TABLE expenses RENAME COLUMN is_excluded_from_metrics TO is_excluded_from_daily_metrics;',
-      );
-    },
-  },
+  // v2 (rename_is_excluded_from_metrics) was retired: the v1 baseline was
+  // edited to use the post-rename column name, leaving v2 with nothing to
+  // rename on fresh installs. Number reserved, do not reuse.
   {
     version: 3,
     name: 'add_is_private_to_expenses',
