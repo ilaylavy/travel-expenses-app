@@ -38,15 +38,22 @@ export default function RootLayout() {
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
   const isAuthInitialized = useAuthStore((s) => s.isInitialized);
   const initializeAuth = useAuthStore((s) => s.initialize);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const hydrateTrips = useTripStore((s) => s.hydrate);
   const hydrateCategories = useCategoryStore((s) => s.hydrate);
 
   useEffect(() => {
     void hydrateSettings();
     void initializeAuth();
+  }, [hydrateSettings, initializeAuth]);
+
+  // Re-run on every sign-in: sign-out resets the stores' isHydrated flag, and
+  // a one-time mount effect would never fire again to rehydrate them.
+  useEffect(() => {
+    if (!userId) return;
     void hydrateTrips();
     void hydrateCategories();
-  }, [hydrateSettings, initializeAuth, hydrateTrips, hydrateCategories]);
+  }, [userId, hydrateTrips, hydrateCategories]);
 
   const ready = isSettingsHydrated && isAuthInitialized;
 

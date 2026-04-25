@@ -6,8 +6,10 @@ import type { PullTable } from '@/types/sync';
 
 import { applyRemote, refreshStoresDebounced } from './conflictResolver';
 
+// `profiles` is intentionally absent: it is not in the supabase_realtime
+// publication, and profile changes are infrequent enough to ride the regular
+// pull cycle.
 const TABLES: PullTable[] = [
-  'profiles',
   'trips',
   'trip_members',
   'categories',
@@ -15,11 +17,14 @@ const TABLES: PullTable[] = [
   'expense_photos',
 ];
 
+const STUCK_ERROR_DELAY_MS = 10_000;
+
 export function subscribeToRealtime(
   db: SQLiteDatabase,
   supabase: SupabaseClient,
 ): () => void {
   const channels: RealtimeChannel[] = [];
+  const stuckTimers = new Map<PullTable, ReturnType<typeof setTimeout>>();
 
   for (const table of TABLES) {
     const channel = supabase
@@ -32,14 +37,28 @@ export function subscribeToRealtime(
         },
       )
       .subscribe((status) => {
+        const existing = stuckTimers.get(table);
+        if (existing) {
+          clearTimeout(existing);
+          stuckTimers.delete(table);
+        }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn(`sync: realtime ${table} channel ${status}`);
+          // Cold-starts and brief reconnects often emit a transient error
+          // before supabase-js retries successfully. Only surface a warning
+          // if the channel stays errored long enough to matter.
+          const timer = setTimeout(() => {
+            console.warn(`sync: realtime ${table} channel stuck in ${status}`);
+            stuckTimers.delete(table);
+          }, STUCK_ERROR_DELAY_MS);
+          stuckTimers.set(table, timer);
         }
       });
     channels.push(channel);
   }
 
   return () => {
+    for (const timer of stuckTimers.values()) clearTimeout(timer);
+    stuckTimers.clear();
     for (const channel of channels) {
       void supabase.removeChannel(channel);
     }

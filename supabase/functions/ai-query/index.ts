@@ -304,6 +304,27 @@ const FORBIDDEN_TOKEN_RE = /\b(insert|update|delete|drop|alter|create|truncate|a
 const EXPENSES_REF_RE = /\bexpenses\b/i;
 const AGGREGATE_FN_RE = /\b(sum|count|avg|min|max)\s*\(/i;
 const GROUP_BY_RE = /\bgroup\s+by\b/i;
+const DEFAULT_LIMIT = 500;
+
+function ensureLimit(sql: string): string {
+  if (/\blimit\b/i.test(sql)) return sql;
+  const isPureAggregate = AGGREGATE_FN_RE.test(sql) && !GROUP_BY_RE.test(sql);
+  if (isPureAggregate) return sql;
+  return sql.replace(/;?\s*$/, '') + ` LIMIT ${DEFAULT_LIMIT}`;
+}
+
+// The planner is told to embed the caller's UUID verbatim in the privacy
+// disjunction `is_private = false OR user_id = '<caller>'`. It occasionally
+// mangles the literal (truncated chars, wrong digit). Rewrite the UUID slot
+// that follows `is_private = false OR ... user_id =` so a planner typo does
+// not bounce a query that is otherwise correct. Other user_id comparisons
+// (e.g. comparing two members) are left untouched.
+function ensurePrivacyCallerId(sql: string, callerId: string): string {
+  return sql.replace(
+    /(is_private\s*=\s*false\s+OR\s+(?:\w+\.)?user_id\s*=\s*')([^']+)(')/gi,
+    (_match, prefix, _uuid, suffix) => `${prefix}${callerId}${suffix}`,
+  );
+}
 
 function validateSql(sql: string, tripId: string, callerId: string): string | null {
   const trimmed = sql.trim();
@@ -320,12 +341,6 @@ function validateSql(sql: string, tripId: string, callerId: string): string | nu
   }
   if (!/deleted_at\s+is\s+null/i.test(sql)) {
     return 'must include deleted_at IS NULL';
-  }
-  if (!/\blimit\b/i.test(sql)) {
-    const isPureAggregate = AGGREGATE_FN_RE.test(sql) && !GROUP_BY_RE.test(sql);
-    if (!isPureAggregate) {
-      return 'must include LIMIT';
-    }
   }
   if (EXPENSES_REF_RE.test(sql)) {
     if (!/is_private\s*=\s*false/i.test(sql)) {
@@ -656,6 +671,8 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const q of planner.queries) {
+      q.sql = ensurePrivacyCallerId(q.sql, callerId);
+      q.sql = ensureLimit(q.sql);
       const failure = validateSql(q.sql, tripId, callerId);
       if (failure) {
         console.error('ai-query: validator rejected SQL', failure, q.sql);
