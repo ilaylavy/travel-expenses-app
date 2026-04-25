@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SwipeableExpenseCard } from '@/components/expense/SwipeableExpenseCard';
 import { ExpenseStatsStrip } from '@/components/expense/ExpenseStatsStrip';
 import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
+import { FilterPill } from '@/components/ui/FilterPill';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
@@ -401,14 +402,12 @@ export default function TripExpensesScreen() {
           summary={categorySummary}
           active={selectedCategoryIds.size > 0}
           onPress={() => setOpenFilter('category')}
-          theme={theme}
         />
         <FilterPill
           label={t('expenses.filterPayment')}
           summary={paymentSummary}
           active={selectedPayments.size > 0}
           onPress={() => setOpenFilter('payment')}
-          theme={theme}
         />
         {isSharedTrip ? (
           <FilterPill
@@ -416,7 +415,6 @@ export default function TripExpensesScreen() {
             summary={memberSummary}
             active={selectedMembers.size > 0}
             onPress={() => setOpenFilter('member')}
-            theme={theme}
           />
         ) : null}
         <FilterPill
@@ -424,14 +422,12 @@ export default function TripExpensesScreen() {
           summary={placeSummary}
           active={selectedPlaces.size > 0}
           onPress={() => setOpenFilter('place')}
-          theme={theme}
         />
         <FilterPill
           label={t('expenses.filterMonth')}
           summary={monthSummary}
           active={selectedMonths.size > 0}
           onPress={() => setOpenFilter('month')}
-          theme={theme}
         />
         {anyFilterActive ? (
           <Pressable
@@ -625,39 +621,6 @@ export default function TripExpensesScreen() {
   );
 }
 
-interface FilterPillProps {
-  label: string;
-  summary: string;
-  active: boolean;
-  onPress: () => void;
-  theme: ReturnType<typeof useTheme>;
-}
-
-function FilterPill({ label, summary, active, onPress, theme }: FilterPillProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.pill,
-        {
-          backgroundColor: active ? theme.accentSoft : theme.surface,
-          borderColor: active ? theme.accent : theme.border,
-        },
-      ]}
-    >
-      <Text
-        style={[
-          styles.pillText,
-          { color: active ? theme.accent : theme.textSecondary },
-        ]}
-        numberOfLines={1}
-      >
-        {label}: {summary} ▾
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: {
@@ -695,13 +658,6 @@ const styles = StyleSheet.create({
     paddingRight: spacing.base,
     alignItems: 'center',
   },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: sizing.radiusChip,
-    borderWidth: 1,
-  },
-  pillText: { fontSize: 12, fontWeight: '600', maxWidth: 200 },
   clearButton: {
     width: 32,
     height: 32,

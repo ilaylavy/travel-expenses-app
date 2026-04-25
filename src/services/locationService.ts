@@ -16,6 +16,29 @@ function formatPlace(address: Location.LocationGeocodedAddress): string | null {
   return joined.length > 0 ? joined : null;
 }
 
+export interface Coordinates {
+  latitude: number;
+  longitude: number;
+}
+
+// GPS-only fix without reverse geocoding. Used by the map's "recenter on me"
+// button where a place name isn't needed.
+export async function getCurrentCoordinates(): Promise<Coordinates | null> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+
+    const position = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    const { latitude, longitude } = position.coords;
+    return { latitude, longitude };
+  } catch (error) {
+    console.warn('Location capture failed:', error);
+    return null;
+  }
+}
+
 // Capture GPS once + reverse geocode. Fails silently (returns null) on
 // permission denial or timeout so entry is never blocked by location issues.
 export async function captureCurrentLocation(): Promise<CapturedLocation | null> {

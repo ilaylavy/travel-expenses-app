@@ -167,6 +167,12 @@
     "mapEmptyTitle": "No pinned expenses yet",
     "mapEmptyBody": "Log an expense with location to see it on the map."
   },
+  "map": {
+    "myLocation": "My location",
+    "locationPermissionDenied": "Location permission is needed to show your position",
+    "expensesOnMap": "{{count}} expenses on map",
+    "expensesFiltered": "{{visible}} of {{total}} expenses (filtered)"
+  },
   "expenses": {
     "statsTotal": "Total",
     "statsDailyAvg": "Daily Avg",

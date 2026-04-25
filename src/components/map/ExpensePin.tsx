@@ -1,35 +1,65 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { sizing } from '@/constants/theme';
-import { useTheme } from '@/hooks/useTheme';
+import { useIsDark, useTheme } from '@/hooks/useTheme';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryColor } from '@/utils/categoryColor';
 
 interface CategoryPinProps {
   category: Category | null;
+  selected?: boolean;
+  amountLabel?: string | null;
 }
 
-export function CategoryPin({ category }: CategoryPinProps) {
+export function CategoryPin({ category, selected, amountLabel }: CategoryPinProps) {
   const theme = useTheme();
+  const isDark = useIsDark();
   const color = category ? getCategoryColor(category.color, theme) : theme.accent;
-  const soft = category ? getCategorySoftColor(category.color, theme) : theme.accentSoft;
+
   return (
-    <View style={styles.pinWrap}>
+    <View style={styles.wrap}>
       <View
         style={[
-          styles.pin,
-          {
-            backgroundColor: theme.surface,
-            borderColor: color,
-            shadowColor: color,
-          },
+          styles.scaleWrap,
+          selected ? styles.scaleSelected : null,
         ]}
       >
-        <View style={[styles.emojiBg, { backgroundColor: soft }]}>
+        <View
+          style={[
+            styles.rect,
+            {
+              backgroundColor: color,
+              shadowColor: color,
+              shadowOpacity: selected ? 0.5 : 0.35,
+              shadowRadius: selected ? 10 : 6,
+            },
+          ]}
+        >
           <Text style={styles.emoji}>{category?.emoji ?? '•'}</Text>
         </View>
+        <View style={[styles.tail, { borderTopColor: color }]} />
       </View>
-      <View style={[styles.tail, { borderTopColor: color }]} />
+      {amountLabel ? (
+        <View
+          style={[
+            styles.amountPill,
+            {
+              backgroundColor: isDark
+                ? 'rgba(0,0,0,0.75)'
+                : 'rgba(255,255,255,0.9)',
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.amountText,
+              { color: isDark ? '#FFFFFF' : theme.text },
+            ]}
+            numberOfLines={1}
+          >
+            {amountLabel}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -40,54 +70,50 @@ interface ClusterPinProps {
 
 export function ClusterPin({ count }: ClusterPinProps) {
   const theme = useTheme();
-  const size = count > 99 ? 54 : count > 9 ? 48 : 42;
+  const size = count > 99 ? 40 : count > 9 ? 36 : 32;
   return (
-    <View
-      style={[
-        styles.cluster,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: theme.accent,
-          shadowColor: theme.accentGlow,
-        },
-      ]}
-    >
-      <Text style={styles.count}>{count}</Text>
+    <View style={styles.wrap}>
+      <View
+        style={[
+          styles.cluster,
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: theme.accent,
+            shadowColor: theme.accent,
+          },
+        ]}
+      >
+        <Text style={styles.count}>{count}</Text>
+      </View>
+      <View style={[styles.tail, { borderTopColor: theme.accent }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pinWrap: { alignItems: 'center' },
-  pin: {
-    width: sizing.mapPin,
-    height: sizing.mapPin,
-    borderRadius: sizing.mapPin / 2,
-    borderWidth: 2.5,
+  wrap: { alignItems: 'center' },
+  scaleWrap: { alignItems: 'center' },
+  scaleSelected: { transform: [{ scale: 1.2 }] },
+  rect: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   },
-  emojiBg: {
-    width: sizing.mapPin - 12,
-    height: sizing.mapPin - 12,
-    borderRadius: (sizing.mapPin - 12) / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: { fontSize: 18 },
-  // Downward-pointing triangle anchors the pin on the coordinate.
+  emoji: { fontSize: 16, lineHeight: 18 },
   tail: {
     width: 0,
     height: 0,
-    marginTop: -2,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
+    marginTop: -1,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
     borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
@@ -95,12 +121,20 @@ const styles = StyleSheet.create({
   cluster: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
     shadowOpacity: 0.4,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     elevation: 6,
   },
   count: { color: '#FFFFFF', fontWeight: '800', fontSize: 14, letterSpacing: -0.2 },
+  amountPill: {
+    marginTop: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    maxWidth: 80,
+  },
+  amountText: { fontSize: 10, fontWeight: '700' },
 });

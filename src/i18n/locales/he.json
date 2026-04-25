@@ -167,6 +167,12 @@
     "mapEmptyTitle": "",
     "mapEmptyBody": ""
   },
+  "map": {
+    "myLocation": "",
+    "locationPermissionDenied": "",
+    "expensesOnMap": "",
+    "expensesFiltered": ""
+  },
   "expenses": {
     "statsTotal": "",
     "statsDailyAvg": "",
