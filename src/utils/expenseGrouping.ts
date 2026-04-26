@@ -3,6 +3,15 @@ import { isValidIsoDate, todayIsoDate } from '@/utils/date';
 
 export type DateLabelKind = 'today' | 'yesterday' | 'date';
 
+// Optional override that returns the user's share for an expense. When
+// provided, list amounts and daily subtotals are computed from the share
+// instead of the full expense amount.
+export interface UserShareForExpense {
+  amount: number;
+  convertedAmount: number;
+}
+export type UserShareGetter = (expenseId: string) => UserShareForExpense | null;
+
 // A single row rendered in the expense list. Non-spread expenses produce one
 // item; multi-day spreads produce one item per day with `displayExpense`
 // carrying the per-day share. The original `expense` always references the
@@ -14,6 +23,10 @@ export interface ExpenseListItem {
   isSpreadSlice: boolean;
   sliceIndex: number;
   sliceCount: number;
+  // The current user's per-row share in trip currency (and home currency).
+  // Equals displayExpense.amount/convertedAmount unless the expense is split.
+  userShareAmount: number;
+  userShareConverted: number;
 }
 
 export interface ExpenseDateGroup {
@@ -54,7 +67,11 @@ function inclusiveDayCount(startIso: string, endIso: string): number {
   return Math.round(diff / MS_PER_DAY) + 1;
 }
 
-function singleItem(e: ExpenseWithPhotos): ExpenseListItem {
+function singleItem(
+  e: ExpenseWithPhotos,
+  shareAmount: number,
+  shareConverted: number,
+): ExpenseListItem {
   return {
     key: `${e.id}:single`,
     expense: e,
@@ -62,10 +79,19 @@ function singleItem(e: ExpenseWithPhotos): ExpenseListItem {
     isSpreadSlice: false,
     sliceIndex: 0,
     sliceCount: 1,
+    userShareAmount: shareAmount,
+    userShareConverted: shareConverted,
   };
 }
 
-export function expandExpense(e: ExpenseWithPhotos): ExpenseListItem[] {
+export function expandExpense(
+  e: ExpenseWithPhotos,
+  getShare?: UserShareGetter,
+): ExpenseListItem[] {
+  const share = getShare?.(e.id) ?? null;
+  const totalShareAmount = share ? share.amount : e.amount;
+  const totalShareConverted = share ? share.convertedAmount : e.convertedAmount;
+
   const start = e.spreadStartDate;
   const end = e.spreadEndDate;
   if (
@@ -75,15 +101,17 @@ export function expandExpense(e: ExpenseWithPhotos): ExpenseListItem[] {
     !isValidIsoDate(end) ||
     end < start
   ) {
-    return [singleItem(e)];
+    return [singleItem(e, totalShareAmount, totalShareConverted)];
   }
 
   const count = inclusiveDayCount(start, end);
   // A same-day spread has no reason to split.
-  if (count <= 1) return [singleItem(e)];
+  if (count <= 1) return [singleItem(e, totalShareAmount, totalShareConverted)];
 
   const perAmount = e.amount / count;
   const perConverted = e.convertedAmount / count;
+  const perShareAmount = totalShareAmount / count;
+  const perShareConverted = totalShareConverted / count;
   const slices: ExpenseListItem[] = [];
   for (let i = 0; i < count; i += 1) {
     const date = addDaysIso(start, i);
@@ -99,6 +127,8 @@ export function expandExpense(e: ExpenseWithPhotos): ExpenseListItem[] {
       isSpreadSlice: true,
       sliceIndex: i,
       sliceCount: count,
+      userShareAmount: perShareAmount,
+      userShareConverted: perShareConverted,
     });
   }
   return slices;
@@ -106,15 +136,18 @@ export function expandExpense(e: ExpenseWithPhotos): ExpenseListItem[] {
 
 // Groups expenses by displayed date, expanding multi-day spreads into per-day
 // slices with evenly-divided amounts. Returns groups sorted by date desc.
+// When `getShare` is provided, daily subtotals and per-row shares reflect the
+// current user's share rather than the full expense amount.
 export function groupExpensesByDate(
   expenses: ExpenseWithPhotos[],
+  getShare?: UserShareGetter,
 ): ExpenseDateGroup[] {
   const today = todayIsoDate();
   const yesterday = yesterdayIsoDate();
 
   const buckets = new Map<string, ExpenseListItem[]>();
   for (const e of expenses) {
-    for (const item of expandExpense(e)) {
+    for (const item of expandExpense(e, getShare)) {
       const date = item.displayExpense.expenseDate;
       const list = buckets.get(date);
       if (list) list.push(item);
@@ -125,7 +158,7 @@ export function groupExpensesByDate(
   const groups: ExpenseDateGroup[] = [];
   for (const [date, data] of buckets) {
     let subtotal = 0;
-    for (const item of data) subtotal += item.displayExpense.convertedAmount;
+    for (const item of data) subtotal += item.userShareConverted;
     const kind: DateLabelKind =
       date === today ? 'today' : date === yesterday ? 'yesterday' : 'date';
     groups.push({ key: date, date, kind, subtotal, data });

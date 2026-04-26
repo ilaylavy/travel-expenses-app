@@ -137,12 +137,32 @@ export const V3_STATEMENTS: readonly string[] = [
   'CREATE INDEX IF NOT EXISTS idx_expenses_is_private ON expenses(is_private);',
 ] as const;
 
+// V4: add expense_splits table and is_split flag on expenses for per-expense
+// splitting in shared trips.
+export const V4_STATEMENTS: readonly string[] = [
+  'ALTER TABLE expenses ADD COLUMN is_split INTEGER NOT NULL DEFAULT 0;',
+  `CREATE TABLE IF NOT EXISTS expense_splits (
+    id TEXT PRIMARY KEY,
+    expense_id TEXT NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    amount REAL NOT NULL,
+    is_payer INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    UNIQUE (expense_id, user_id)
+  );`,
+  'CREATE INDEX IF NOT EXISTS idx_expense_splits_expense_id ON expense_splits(expense_id);',
+  'CREATE INDEX IF NOT EXISTS idx_expense_splits_user_id ON expense_splits(user_id);',
+] as const;
+
 export const ALL_TABLES = [
   'profiles',
   'trips',
   'trip_members',
   'categories',
   'expenses',
+  'expense_splits',
   'expense_photos',
   'exchange_rates',
   'sync_queue',

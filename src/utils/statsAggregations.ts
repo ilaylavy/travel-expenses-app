@@ -1,5 +1,6 @@
-import type { ExpenseWithPhotos, PaymentMethod } from '@/types/expense';
+import type { ExpenseSplit, ExpenseWithPhotos, PaymentMethod } from '@/types/expense';
 import type { Trip } from '@/types/trip';
+import { computeBalance } from '@/utils/balance';
 import { roundAmount } from '@/utils/currency';
 import { isValidIsoDate } from '@/utils/date';
 import { expandExpense } from '@/utils/expenseGrouping';
@@ -107,11 +108,12 @@ function convertBudgetToHome(
 
 export interface AggregateInput {
   expenses: ExpenseWithPhotos[];
+  splits: ExpenseSplit[];
   trip: Trip;
   today: string;
 }
 
-export function aggregate({ expenses, trip, today }: AggregateInput): TripStats {
+export function aggregate({ expenses, splits, trip, today }: AggregateInput): TripStats {
   const active = expenses.filter((e) => e.deletedAt === null);
 
   // ----- Totals (include daily-excluded, include refunds as negatives) -----
@@ -210,30 +212,18 @@ export function aggregate({ expenses, trip, today }: AggregateInput): TripStats 
     }))
     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 
-  // ----- By member -----
-  // Private expenses are the logger's own cost and are excluded from the split.
-  const memberMap = new Map<string, number>();
-  for (const e of active) {
-    if (e.isPrivate) continue;
-    memberMap.set(e.userId, (memberMap.get(e.userId) ?? 0) + e.convertedAmount);
-  }
-  const byMember: MemberTotal[] = Array.from(memberMap.entries())
-    .map(([userId, total]) => ({ userId, total: roundAmount(total) }))
-    .sort((a, b) => b.total - a.total);
-
-  // ----- Settlement (only when exactly 2 members appear) -----
-  let settlement: Settlement | null = null;
-  if (byMember.length === 2) {
-    const [a, b] = byMember;
-    const diff = a.total - b.total;
-    if (Math.abs(diff) >= 0.01) {
-      settlement = {
-        fromUserId: diff > 0 ? b.userId : a.userId,
-        toUserId: diff > 0 ? a.userId : b.userId,
-        amount: roundAmount(Math.abs(diff) / 2),
-      };
-    }
-  }
+  // ----- By member + settlement (split-aware) -----
+  // Each member's share = sum of their split rows + sum of non-split expenses
+  // they paid for. Settlement is netted pairwise across split debts.
+  // Private expenses are excluded (the logger's own cost).
+  const balance = computeBalance({ expenses: active, splits });
+  const byMember: MemberTotal[] = balance.byMember.map((m) => ({
+    userId: m.userId,
+    total: m.total,
+  }));
+  // Stats UI consumes a single `Settlement` for 2-member trips. computeBalance
+  // returns all non-zero pairs; for the MVP card we surface the largest one.
+  const settlement: Settlement | null = balance.settlements[0] ?? null;
 
   // ----- Top expenses (exclude refunds, sort by abs convertedAmount desc) -----
   const topExpenses = [...active]

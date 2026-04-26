@@ -14,6 +14,7 @@ const TABLES: PullTable[] = [
   'trip_members',
   'categories',
   'expenses',
+  'expense_splits',
   'expense_photos',
 ];
 

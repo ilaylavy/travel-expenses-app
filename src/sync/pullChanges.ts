@@ -12,6 +12,7 @@ const PULL_ORDER: PullTable[] = [
   'trip_members',
   'categories',
   'expenses',
+  'expense_splits',
   'expense_photos',
 ];
 

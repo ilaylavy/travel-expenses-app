@@ -35,6 +35,7 @@ export default function TripStatsScreen() {
 
   const trip = useTripStore((s) => s.trips.find((x) => x.id === tripId));
   const expenses = useExpenseStore((s) => s.expenses);
+  const splits = useExpenseStore((s) => s.splits);
   const activeTripId = useExpenseStore((s) => s.activeTripId);
   const loadForTrip = useExpenseStore((s) => s.loadForTrip);
   const allCategories = useCategoryStore((s) => s.categories);
@@ -81,8 +82,8 @@ export default function TripStatsScreen() {
   const today = todayIsoDate();
   const stats = useMemo(() => {
     if (!trip) return null;
-    return aggregate({ expenses, trip, today });
-  }, [expenses, trip, today]);
+    return aggregate({ expenses, splits, trip, today });
+  }, [expenses, splits, trip, today]);
 
   if (!trip || !tripId) {
     return (

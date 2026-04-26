@@ -429,5 +429,26 @@
     "starterWho": "",
     "starterBudget": "",
     "starterWhere": ""
+  },
+  "split": {
+    "toggle": "",
+    "equal": "",
+    "custom": "",
+    "paid": "",
+    "yourShare": "",
+    "assigned": "",
+    "unassigned": "",
+    "splitRest": "",
+    "amountMismatch": "",
+    "minMembers": "",
+    "betweenPeople": "",
+    "total": "",
+    "badge": ""
+  },
+  "balance": {
+    "owesYou": "",
+    "youOwe": "",
+    "even": "",
+    "netSettlement": ""
   }
 }

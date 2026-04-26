@@ -33,15 +33,35 @@ export function SplitBalanceCard({
     return memberNames[userId] ?? '—';
   };
 
-  let settlementLine: string | null = null;
-  if (settlement) {
-    settlementLine = t('stats.xOwesY', {
+  // Color and message per state.
+  let settlementText: string;
+  let bgColor = theme.accentSoft;
+  let textColor = theme.accent;
+  if (!settlement) {
+    settlementText = t('balance.even');
+  } else if (settlement.fromUserId === currentUserId) {
+    // You owe someone.
+    settlementText = t('balance.youOwe', {
+      name: resolveName(settlement.toUserId),
+      amount: formatAmount(settlement.amount, currency),
+    });
+    bgColor = theme.redSoft;
+    textColor = theme.red;
+  } else if (settlement.toUserId === currentUserId) {
+    // Someone owes you.
+    settlementText = t('balance.owesYou', {
+      name: resolveName(settlement.fromUserId),
+      amount: formatAmount(settlement.amount, currency),
+    });
+    bgColor = theme.greenSoft;
+    textColor = theme.green;
+  } else {
+    // 3+ member trips where the current user isn't part of the largest debt.
+    settlementText = t('stats.xOwesY', {
       from: resolveName(settlement.fromUserId),
       to: resolveName(settlement.toUserId),
       amount: formatAmount(settlement.amount, currency),
     });
-  } else {
-    settlementLine = t('stats.evenSplit');
   }
 
   return (
@@ -72,15 +92,14 @@ export function SplitBalanceCard({
         })}
       </View>
 
-      {settlementLine ? (
-        <View
-          style={[styles.settlement, { backgroundColor: theme.accentSoft }]}
-        >
-          <Text style={[styles.settlementText, { color: theme.accent }]}>
-            {settlementLine}
-          </Text>
-        </View>
-      ) : null}
+      <Text style={[styles.netLabel, { color: theme.textMuted }]}>
+        {t('balance.netSettlement')}
+      </Text>
+      <View style={[styles.settlement, { backgroundColor: bgColor }]}>
+        <Text style={[styles.settlementText, { color: textColor }]}>
+          {settlementText}
+        </Text>
+      </View>
     </StatsSectionCard>
   );
 }
@@ -102,8 +121,9 @@ const styles = StyleSheet.create({
   avatarText: { ...typography.micro, fontSize: 12 },
   memberName: { ...typography.body, flex: 1 },
   memberAmount: { ...typography.amountSmall },
+  netLabel: { ...typography.micro, marginTop: spacing.sm },
   settlement: {
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     borderRadius: sizing.radiusChip,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,

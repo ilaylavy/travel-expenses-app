@@ -19,8 +19,20 @@ export interface Expense {
   isRefund: boolean;
   isExcludedFromDailyMetrics: boolean;
   isPrivate: boolean;
+  isSplit: boolean;
   spreadStartDate: string | null;
   spreadEndDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface ExpenseSplit {
+  id: string;
+  expenseId: string;
+  userId: string;
+  amount: number;
+  isPayer: boolean;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;

@@ -25,6 +25,11 @@ import {
   lastUsedPaymentMethodForTrip,
   listRecentNotesForTrip,
 } from '@/db/queries/expenses';
+import {
+  getSplitsForExpense,
+  type CreateSplitInput,
+} from '@/db/queries/expenseSplits';
+import { getProfileName } from '@/db/queries/profiles';
 import { getTrip, listTripMembers } from '@/db/queries/trips';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useTheme } from '@/hooks/useTheme';
@@ -43,8 +48,8 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import type { Category } from '@/types/category';
 import type { PaymentMethod } from '@/types/expense';
-import type { Trip } from '@/types/trip';
-import { formatAmount, getCurrencySymbol } from '@/utils/currency';
+import type { Trip, TripMember } from '@/types/trip';
+import { formatAmount, getCurrencySymbol, roundAmount } from '@/utils/currency';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
 import { newId } from '@/utils/id';
 import { shareExpense } from '@/utils/sharing';
@@ -103,6 +108,8 @@ export default function AddExpenseScreen() {
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [isSharedTrip, setIsSharedTrip] = useState(false);
+  const [tripMembers, setTripMembers] = useState<TripMember[]>([]);
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [amountText, setAmountText] = useState('');
   const [currency, setCurrency] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -121,6 +128,10 @@ export default function AddExpenseScreen() {
   const [isSpread, setIsSpread] = useState(false);
   const [spreadStart, setSpreadStart] = useState('');
   const [spreadEnd, setSpreadEnd] = useState('');
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splitMode, setSplitMode] = useState<'equal' | 'custom'>('equal');
+  const [splitParticipants, setSplitParticipants] = useState<Set<string>>(new Set());
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Array<{ uri: string }>>([]);
   const [recentNotes, setRecentNotes] = useState<string[]>([]);
   const [categoryUsage, setCategoryUsage] =
@@ -157,7 +168,17 @@ export default function AddExpenseScreen() {
         setRecentNotes(notes);
         if (!isEditing && lastPayment) setPaymentMethod(lastPayment);
         setCategoryUsage(usage);
-        setIsSharedTrip(members.length > 1);
+        const joined = members.filter((m) => m.joinedAt !== null);
+        setTripMembers(joined);
+        setIsSharedTrip(joined.length > 1);
+        // Resolve names for the split UI / who-paid label.
+        const nameEntries = await Promise.all(
+          joined.map(async (m) => [m.userId, (await getProfileName(m.userId)) ?? ''] as const),
+        );
+        if (cancelled) return;
+        const namesMap: Record<string, string> = {};
+        for (const [uid, name] of nameEntries) namesMap[uid] = name;
+        setMemberNames(namesMap);
       } catch (e) {
         console.warn('Failed to load add-expense context:', e);
       }
@@ -194,6 +215,28 @@ export default function AddExpenseScreen() {
         setSpreadEnd(existing.spreadEndDate);
       }
       setLockedExchangeRate(existing.exchangeRate);
+
+      if (existing.isSplit) {
+        const splits = await getSplitsForExpense(existing.id);
+        if (cancelled) return;
+        if (splits.length > 0) {
+          setSplitEnabled(true);
+          const participants = new Set<string>(splits.map((s) => s.userId));
+          setSplitParticipants(participants);
+          // Detect equal vs custom: equal if every share is within 1 cent of total/N.
+          const total = Math.abs(existing.amount);
+          const equalShare = total / splits.length;
+          const isEqual = splits.every(
+            (s) => Math.abs(s.amount - equalShare) < 0.02,
+          );
+          setSplitMode(isEqual ? 'equal' : 'custom');
+          const amounts: Record<string, string> = {};
+          for (const s of splits) {
+            amounts[s.userId] = s.amount.toFixed(2);
+          }
+          setCustomAmounts(amounts);
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -306,6 +349,114 @@ export default function AddExpenseScreen() {
     setPhotos((prev) => prev.filter((p) => p.uri !== uri));
   }, []);
 
+  // Auto-disable the split toggle whenever an exclusive flag turns on.
+  useEffect(() => {
+    if ((isRefund || isPrivate) && splitEnabled) {
+      setSplitEnabled(false);
+      setSplitParticipants(new Set());
+      setCustomAmounts({});
+      setSplitMode('equal');
+    }
+  }, [isRefund, isPrivate, splitEnabled]);
+
+  // Default participants to "everyone" the first time the split toggle goes on.
+  useEffect(() => {
+    if (!splitEnabled) return;
+    if (splitParticipants.size === 0 && tripMembers.length > 0) {
+      setSplitParticipants(new Set(tripMembers.map((m) => m.userId)));
+    }
+  }, [splitEnabled, splitParticipants.size, tripMembers]);
+
+  // Equal-mode shares with rounding remainder absorbed by the payer.
+  const equalShares = useMemo<Record<string, number>>(() => {
+    if (!splitEnabled || splitMode !== 'equal') return {};
+    const ids = Array.from(splitParticipants);
+    if (ids.length === 0 || amountValue <= 0) return {};
+    const total = amountValue;
+    const per = Math.floor((total / ids.length) * 100) / 100;
+    const result: Record<string, number> = {};
+    for (const id of ids) result[id] = per;
+    const distributed = roundAmount(per * ids.length);
+    const remainder = roundAmount(total - distributed);
+    if (Math.abs(remainder) > 0 && user) {
+      const payerId = user.id;
+      if (result[payerId] !== undefined) {
+        result[payerId] = roundAmount(result[payerId] + remainder);
+      } else {
+        // Edge case: payer somehow isn't a participant — give it to first one.
+        result[ids[0]] = roundAmount(result[ids[0]] + remainder);
+      }
+    }
+    return result;
+  }, [splitEnabled, splitMode, splitParticipants, amountValue, user]);
+
+  // Sum of parsed custom inputs.
+  const customAssigned = useMemo(() => {
+    if (!splitEnabled || splitMode !== 'custom') return 0;
+    let sum = 0;
+    for (const member of tripMembers) {
+      const raw = customAmounts[member.userId] ?? '';
+      const n = Number(raw);
+      if (Number.isFinite(n)) sum += n;
+    }
+    return roundAmount(sum);
+  }, [splitEnabled, splitMode, tripMembers, customAmounts]);
+
+  const customMatchesTotal =
+    splitMode === 'custom' && Math.abs(customAssigned - amountValue) < 0.01;
+
+  const handleSplitRest = useCallback(() => {
+    if (!splitEnabled || splitMode !== 'custom') return;
+    const total = amountValue;
+    if (total <= 0) return;
+    const remainder = roundAmount(total - customAssigned);
+    if (remainder <= 0) return;
+    const zeroIds = tripMembers
+      .map((m) => m.userId)
+      .filter((id) => {
+        const raw = customAmounts[id] ?? '';
+        const n = Number(raw);
+        return !Number.isFinite(n) || n === 0;
+      });
+    if (zeroIds.length === 0) return;
+    const per = Math.floor((remainder / zeroIds.length) * 100) / 100;
+    const next: Record<string, string> = { ...customAmounts };
+    let distributed = 0;
+    for (const id of zeroIds) {
+      next[id] = per.toFixed(2);
+      distributed = roundAmount(distributed + per);
+    }
+    const leftover = roundAmount(remainder - distributed);
+    if (Math.abs(leftover) > 0) {
+      const last = zeroIds[zeroIds.length - 1];
+      next[last] = roundAmount(per + leftover).toFixed(2);
+    }
+    setCustomAmounts(next);
+  }, [splitEnabled, splitMode, amountValue, customAssigned, tripMembers, customAmounts]);
+
+  const buildSplitsForSave = useCallback((): CreateSplitInput[] | null => {
+    if (!splitEnabled || !user) return null;
+    if (splitMode === 'equal') {
+      const ids = Array.from(splitParticipants);
+      if (ids.length < 2) return null;
+      return ids.map((userId) => ({
+        userId,
+        amount: equalShares[userId] ?? 0,
+        isPayer: userId === user.id,
+      }));
+    }
+    // custom mode: save every listed member with their assigned amount.
+    // Zero is a valid share ("this person owes nothing") — including the row
+    // is what tells partner devices "you're a participant whose share is 0",
+    // versus a missing row which means "you're not part of this split".
+    return tripMembers.map((m) => {
+      const raw = customAmounts[m.userId] ?? '';
+      const n = Number(raw);
+      const amount = Number.isFinite(n) ? roundAmount(n) : 0;
+      return { userId: m.userId, amount, isPayer: m.userId === user.id };
+    });
+  }, [splitEnabled, splitMode, splitParticipants, equalShares, customAmounts, tripMembers, user]);
+
   const validate = useCallback((): string | null => {
     if (!amountText) return t('expense.errors.amountRequired');
     if (amountValue <= 0) return t('expense.errors.amountInvalid');
@@ -318,8 +469,29 @@ export default function AddExpenseScreen() {
       }
       if (spreadEnd < spreadStart) return t('expense.errors.spreadRangeInvalid');
     }
+    if (splitEnabled) {
+      if (splitMode === 'equal') {
+        if (splitParticipants.size < 2) return t('split.minMembers');
+      } else if (!customMatchesTotal) {
+        return t('split.amountMismatch');
+      }
+    }
     return null;
-  }, [amountText, amountValue, categoryId, expenseDate, expenseTime, isSpread, spreadEnd, spreadStart, t]);
+  }, [
+    amountText,
+    amountValue,
+    categoryId,
+    expenseDate,
+    expenseTime,
+    isSpread,
+    spreadEnd,
+    spreadStart,
+    splitEnabled,
+    splitMode,
+    splitParticipants.size,
+    customMatchesTotal,
+    t,
+  ]);
 
   const handleSave = useCallback(
     async (options: { thenShare?: boolean } = {}) => {
@@ -342,27 +514,33 @@ export default function AddExpenseScreen() {
           ? -Math.abs(convertedAmount)
           : convertedAmount;
 
+        const splitsForSave = buildSplitsForSave();
+
         if (isEditing && expenseId) {
-          await updateExpenseInStore({
-            id: expenseId,
-            amount: signedAmount,
-            currency,
-            convertedAmount: signedConverted,
-            exchangeRate,
-            categoryId: categoryId as string,
-            note: note.trim() || null,
-            paymentMethod,
-            latitude,
-            longitude,
-            placeName,
-            expenseDate,
-            expenseTime: normalizeTime(expenseTime),
-            isRefund,
-            isExcludedFromDailyMetrics: isExcluded,
-            isPrivate,
-            spreadStartDate: isSpread ? spreadStart : null,
-            spreadEndDate: isSpread ? spreadEnd : null,
-          });
+          await updateExpenseInStore(
+            {
+              id: expenseId,
+              amount: signedAmount,
+              currency,
+              convertedAmount: signedConverted,
+              exchangeRate,
+              categoryId: categoryId as string,
+              note: note.trim() || null,
+              paymentMethod,
+              latitude,
+              longitude,
+              placeName,
+              expenseDate,
+              expenseTime: normalizeTime(expenseTime),
+              isRefund,
+              isExcludedFromDailyMetrics: isExcluded,
+              isPrivate,
+              isSplit: splitEnabled && splitsForSave !== null,
+              spreadStartDate: isSpread ? spreadStart : null,
+              spreadEndDate: isSpread ? spreadEnd : null,
+            },
+            splitEnabled ? splitsForSave : null,
+          );
         } else {
           // Resize, recompress, and copy each picked photo into the document
           // directory before persisting. Picker URIs live in the OS temp
@@ -374,28 +552,32 @@ export default function AddExpenseScreen() {
               return { id: photoId, localUri };
             }),
           );
-          const created = await createExpense({
-            tripId,
-            userId: user.id,
-            amount: signedAmount,
-            currency,
-            convertedAmount: signedConverted,
-            exchangeRate,
-            categoryId: categoryId as string,
-            note: note.trim() || null,
-            paymentMethod,
-            latitude,
-            longitude,
-            placeName,
-            expenseDate,
-            expenseTime: normalizeTime(expenseTime),
-            isRefund,
-            isExcludedFromDailyMetrics: isExcluded,
-            isPrivate,
-            spreadStartDate: isSpread ? spreadStart : null,
-            spreadEndDate: isSpread ? spreadEnd : null,
-            photos: persistedPhotos,
-          });
+          const created = await createExpense(
+            {
+              tripId,
+              userId: user.id,
+              amount: signedAmount,
+              currency,
+              convertedAmount: signedConverted,
+              exchangeRate,
+              categoryId: categoryId as string,
+              note: note.trim() || null,
+              paymentMethod,
+              latitude,
+              longitude,
+              placeName,
+              expenseDate,
+              expenseTime: normalizeTime(expenseTime),
+              isRefund,
+              isExcludedFromDailyMetrics: isExcluded,
+              isPrivate,
+              isSplit: splitEnabled && splitsForSave !== null,
+              spreadStartDate: isSpread ? spreadStart : null,
+              spreadEndDate: isSpread ? spreadEnd : null,
+              photos: persistedPhotos,
+            },
+            splitEnabled ? splitsForSave : null,
+          );
 
           if (options.thenShare) {
             await shareExpense({
@@ -417,6 +599,7 @@ export default function AddExpenseScreen() {
     },
     [
       amountValue,
+      buildSplitsForSave,
       categoryId,
       convertedAmount,
       createExpense,
@@ -439,6 +622,7 @@ export default function AddExpenseScreen() {
       placeName,
       router,
       selectedCategory,
+      splitEnabled,
       spreadEnd,
       spreadStart,
       t,
@@ -785,7 +969,229 @@ export default function AddExpenseScreen() {
               />
             </View>
           ) : null}
+          {isSharedTrip ? (
+            <ToggleRow
+              label={t('split.toggle')}
+              value={splitEnabled}
+              onChange={(v) => {
+                setSplitEnabled(v);
+                if (!v) {
+                  setSplitParticipants(new Set());
+                  setCustomAmounts({});
+                  setSplitMode('equal');
+                }
+              }}
+              theme={theme}
+            />
+          ) : null}
         </Section>
+
+        {/* Split section — only when toggle is on */}
+        {isSharedTrip && splitEnabled ? (
+          <Section title={t('split.toggle')} theme={theme}>
+            <View style={styles.paymentRow}>
+              {(['equal', 'custom'] as const).map((mode) => {
+                const active = splitMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    onPress={() => setSplitMode(mode)}
+                    style={[
+                      styles.paymentChip,
+                      {
+                        backgroundColor: active ? theme.accentSoft : theme.surface,
+                        borderColor: active ? theme.accent : theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.paymentChipText,
+                        { color: active ? theme.accent : theme.textSecondary },
+                      ]}
+                    >
+                      {t(`split.${mode}`)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {splitMode === 'equal' ? (
+              <View style={{ gap: spacing.xs }}>
+                {tripMembers.map((m) => {
+                  const checked = splitParticipants.has(m.userId);
+                  const isPayer = user?.id === m.userId;
+                  const share = checked ? equalShares[m.userId] ?? 0 : 0;
+                  return (
+                    <Pressable
+                      key={m.userId}
+                      onPress={() => {
+                        setSplitParticipants((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(m.userId)) next.delete(m.userId);
+                          else next.add(m.userId);
+                          return next;
+                        });
+                      }}
+                      style={[
+                        styles.splitMemberRow,
+                        {
+                          backgroundColor: theme.surface,
+                          borderColor: checked ? theme.accent : theme.border,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.splitCheckbox,
+                          {
+                            backgroundColor: checked ? theme.accent : 'transparent',
+                            borderColor: checked ? theme.accent : theme.border,
+                          },
+                        ]}
+                      >
+                        {checked ? (
+                          <Text style={styles.splitCheckmark}>✓</Text>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={{ color: theme.text, flex: 1, fontWeight: '600' }}
+                        numberOfLines={1}
+                      >
+                        {memberNames[m.userId] || m.userId.slice(0, 6)}
+                      </Text>
+                      {isPayer ? (
+                        <View
+                          style={[
+                            styles.splitPaidBadge,
+                            { backgroundColor: theme.accentSoft },
+                          ]}
+                        >
+                          <Text
+                            style={[styles.splitPaidBadgeText, { color: theme.accent }]}
+                          >
+                            {t('split.paid')}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Text style={{ color: theme.text, fontWeight: '700' }}>
+                        {checked && currency ? formatAmount(share, currency) : '—'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {splitParticipants.size < 2 ? (
+                  <Text style={[styles.error, { color: theme.red }]}>
+                    {t('split.minMembers')}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <View style={{ gap: spacing.xs }}>
+                {tripMembers.map((m) => {
+                  const isPayer = user?.id === m.userId;
+                  const value = customAmounts[m.userId] ?? '';
+                  return (
+                    <View key={m.userId} style={styles.splitCustomRow}>
+                      <Text
+                        style={{ color: theme.text, flex: 1, fontWeight: '600' }}
+                        numberOfLines={1}
+                      >
+                        {memberNames[m.userId] || m.userId.slice(0, 6)}
+                      </Text>
+                      {isPayer ? (
+                        <View
+                          style={[
+                            styles.splitPaidBadge,
+                            { backgroundColor: theme.accentSoft },
+                          ]}
+                        >
+                          <Text
+                            style={[styles.splitPaidBadgeText, { color: theme.accent }]}
+                          >
+                            {t('split.paid')}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <TextInput
+                        value={value}
+                        onChangeText={(text) =>
+                          setCustomAmounts((prev) => ({ ...prev, [m.userId]: text }))
+                        }
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={theme.textMuted}
+                        style={[
+                          styles.splitCustomInput,
+                          {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.border,
+                            color: theme.text,
+                          },
+                        ]}
+                      />
+                    </View>
+                  );
+                })}
+                <View style={styles.splitSummaryRow}>
+                  <Text
+                    style={{
+                      color: customMatchesTotal ? theme.green : theme.red,
+                      fontWeight: '700',
+                      flex: 1,
+                    }}
+                  >
+                    {currency
+                      ? t('split.assigned', {
+                          assigned: formatAmount(customAssigned, currency),
+                          total: formatAmount(amountValue, currency),
+                        })
+                      : ''}
+                  </Text>
+                  {!customMatchesTotal && currency ? (
+                    <Text style={{ color: theme.red }}>
+                      {t('split.unassigned', {
+                        amount: formatAmount(
+                          roundAmount(amountValue - customAssigned),
+                          currency,
+                        ),
+                      })}
+                    </Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  onPress={handleSplitRest}
+                  disabled={
+                    customMatchesTotal ||
+                    amountValue <= 0 ||
+                    customAssigned >= amountValue
+                  }
+                  style={[
+                    styles.paymentChip,
+                    {
+                      alignSelf: 'flex-start',
+                      backgroundColor: theme.surface,
+                      borderColor: theme.border,
+                      opacity:
+                        customMatchesTotal ||
+                        amountValue <= 0 ||
+                        customAssigned >= amountValue
+                          ? 0.5
+                          : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.paymentChipText, { color: theme.accent }]}
+                  >
+                    {t('split.splitRest')}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </Section>
+        ) : null}
 
         {/* Photos — not editable in edit mode for now */}
         {!isEditing ? (
@@ -972,6 +1378,51 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   paymentChipText: { fontSize: 13, fontWeight: '700' },
+  splitMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1.5,
+  },
+  splitCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splitCheckmark: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  splitPaidBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: sizing.radiusChip,
+  },
+  splitPaidBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+  splitCustomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  splitCustomInput: {
+    minWidth: 100,
+    borderRadius: sizing.radiusInput,
+    borderWidth: 1.5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  splitSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingTop: spacing.xs,
+  },
   dateTimeRow: { flexDirection: 'row', gap: spacing.sm },
   dateInput: { flex: 2 },
   timeInput: { flex: 1 },

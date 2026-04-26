@@ -114,6 +114,9 @@ This is the most critical screen. Target: complete an entry in under 10 seconds.
 **Default categories:**
 Food 🍽️, Transport 🚗, Hotel 🏨, Flight ✈️, Coffee ☕, Shopping 🛍️, Activities 🎫, Other 📦
 
+**Splitting in shared trips:**
+In shared trips, users can split an expense among trip members. Split modes: Equal (divide evenly among selected members) or Custom (assign specific amounts, with a "split rest equally" option for hybrid splitting). Split expenses show the user's share in the expense list. The full amount is visible in expense detail.
+
 ### 3.4 Category Management
 
 - Global default categories (apply to all trips)
@@ -282,10 +285,10 @@ Single scrollable screen within the trip tab. Sections:
 - Use case: a surprise gift, a personal purchase the author doesn't want to split, or anything they'd rather not share with their travel partner
 
 **Balance:**
-- Simple calculation: (User A total - User B total) / 2 = settlement amount
+- Balance calculation accounts for expense splits. Non-split expenses generate no debt. Split expenses create debt from non-payers to the payer based on each person's share.
+- Each member's "share" totals their split rows (when split) plus their own non-split expenses. Pairwise debts are netted across all split expenses.
 - Private expenses are excluded from balance calculations (they only affect the author's personal view)
 - Displayed in stats screen
-- No per-expense splitting in MVP (just total balance)
 
 ### 3.12 Sync
 
@@ -374,6 +377,5 @@ Edit Trip is reached via the pencil icon on the trip card in the trip list — i
 - Bank/wallet integrations
 - Gamification (streaks, achievements)
 - Year-in-review
-- Per-expense splitting (only total balance)
 - More than 2 users per shared trip
 - Web version

@@ -5,6 +5,7 @@ export type SyncTable =
   | 'trips'
   | 'trip_members'
   | 'expenses'
+  | 'expense_splits'
   | 'expense_photos'
   | 'categories';
 

@@ -178,16 +178,17 @@ async function applyCategory(db: SQLiteDatabase, r: Remote): Promise<void> {
 }
 
 async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
-  // UPSERT (not REPLACE) — expense_photos.expense_id cascade-deletes when this
-  // row is REPLACE'd, wiping local photos every time the expense is re-pulled.
+  // UPSERT (not REPLACE) — expense_photos.expense_id and expense_splits.expense_id
+  // cascade-delete when this row is REPLACE'd, wiping local children every time
+  // the expense is re-pulled.
   await db.runAsync(
     `INSERT INTO expenses
        (id, trip_id, user_id, amount, currency, converted_amount, exchange_rate,
         category_id, note, payment_method, latitude, longitude, place_name,
         expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
-        is_private, spread_start_date, spread_end_date,
+        is_private, is_split, spread_start_date, spread_end_date,
         created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        trip_id = excluded.trip_id,
        user_id = excluded.user_id,
@@ -206,6 +207,7 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
        is_refund = excluded.is_refund,
        is_excluded_from_daily_metrics = excluded.is_excluded_from_daily_metrics,
        is_private = excluded.is_private,
+       is_split = excluded.is_split,
        spread_start_date = excluded.spread_start_date,
        spread_end_date = excluded.spread_end_date,
        created_at = excluded.created_at,
@@ -230,8 +232,38 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
       asBoolInt(r.is_refund),
       asBoolInt(r.is_excluded_from_daily_metrics),
       asBoolInt(r.is_private),
+      asBoolInt(r.is_split),
       asString(r.spread_start_date),
       asString(r.spread_end_date),
+      asString(r.created_at) ?? new Date().toISOString(),
+      asString(r.updated_at) ?? new Date().toISOString(),
+      asString(r.deleted_at),
+    ],
+  );
+}
+
+async function applyExpenseSplit(db: SQLiteDatabase, r: Remote): Promise<void> {
+  // UPSERT to keep the convention uniform with expenses, even though no child
+  // FK currently points at expense_splits.
+  await db.runAsync(
+    `INSERT INTO expense_splits
+       (id, expense_id, user_id, amount, is_payer,
+        created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       expense_id = excluded.expense_id,
+       user_id = excluded.user_id,
+       amount = excluded.amount,
+       is_payer = excluded.is_payer,
+       created_at = excluded.created_at,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at;`,
+    [
+      asString(r.id),
+      asString(r.expense_id),
+      asString(r.user_id),
+      asNumber(r.amount) ?? 0,
+      asBoolInt(r.is_payer),
       asString(r.created_at) ?? new Date().toISOString(),
       asString(r.updated_at) ?? new Date().toISOString(),
       asString(r.deleted_at),
@@ -288,6 +320,9 @@ export async function applyRemote(
       return true;
     case 'expenses':
       await applyExpense(db, remote);
+      return true;
+    case 'expense_splits':
+      await applyExpenseSplit(db, remote);
       return true;
     case 'expense_photos':
       await applyExpensePhoto(db, remote);

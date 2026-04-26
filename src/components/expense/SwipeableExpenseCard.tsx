@@ -22,6 +22,8 @@ interface SwipeableExpenseCardProps {
   loggedByName?: string | null;
   isSelfLogged?: boolean;
   canDelete?: boolean;
+  userShareAmount?: number;
+  userShareConverted?: number;
 }
 
 export function SwipeableExpenseCard({
@@ -38,6 +40,8 @@ export function SwipeableExpenseCard({
   loggedByName,
   isSelfLogged,
   canDelete = true,
+  userShareAmount,
+  userShareConverted,
 }: SwipeableExpenseCardProps) {
   const theme = useTheme();
   const ref = useRef<Swipeable>(null);
@@ -91,6 +95,8 @@ export function SwipeableExpenseCard({
         onPress={onPress}
         loggedByName={loggedByName}
         isSelfLogged={isSelfLogged}
+        userShareAmount={userShareAmount}
+        userShareConverted={userShareConverted}
       />
     </Swipeable>
   );

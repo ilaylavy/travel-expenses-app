@@ -74,6 +74,7 @@ export default function TripExpensesScreen() {
 
   const trip = useTripStore((s) => s.trips.find((x) => x.id === tripId));
   const expenses = useExpenseStore((s) => s.expenses);
+  const splits = useExpenseStore((s) => s.splits);
   const activeTripId = useExpenseStore((s) => s.activeTripId);
   const loadForTrip = useExpenseStore((s) => s.loadForTrip);
   const deleteExpense = useExpenseStore((s) => s.deleteExpense);
@@ -127,8 +128,8 @@ export default function TripExpensesScreen() {
 
   const stats = useMemo(() => {
     if (!trip) return null;
-    return aggregate({ expenses, trip, today: todayDateString() });
-  }, [expenses, trip]);
+    return aggregate({ expenses, splits, trip, today: todayDateString() });
+  }, [expenses, splits, trip]);
 
   const expenseCount = useMemo(
     () => expenses.filter((e) => e.deletedAt === null && !e.isRefund).length,
@@ -240,9 +241,41 @@ export default function TripExpensesScreen() {
     selectedMonths,
   ]);
 
+  // Share-aware getter: returns the current user's share for split expenses,
+  // null otherwise (so the grouping util uses the full amount). For split
+  // expenses without a row for this user, we keep the full amount visible
+  // and let the SPLIT badge convey that it's not their cost — but it's also
+  // not their share, so they shouldn't see it added to subtotals at all.
+  const getShareForExpense = useCallback<
+    (expenseId: string) => { amount: number; convertedAmount: number } | null
+  >(
+    (expenseId) => {
+      const expense = filteredExpenses.find((e) => e.id === expenseId);
+      if (!expense || !expense.isSplit) return null;
+      const userSplit = splits.find(
+        (s) =>
+          s.expenseId === expenseId &&
+          s.userId === currentUserId &&
+          s.deletedAt === null,
+      );
+      if (!userSplit) {
+        // User isn't a participant — show full amount but don't count toward
+        // subtotal. We achieve "don't count" by returning a 0 share here; the
+        // ExpenseCard call site will still render the full amount.
+        return { amount: 0, convertedAmount: 0 };
+      }
+      const ratio = expense.amount === 0 ? 0 : userSplit.amount / expense.amount;
+      return {
+        amount: userSplit.amount,
+        convertedAmount: expense.convertedAmount * ratio,
+      };
+    },
+    [filteredExpenses, splits, currentUserId],
+  );
+
   const sections = useMemo<ExpenseDateGroup[]>(
-    () => groupExpensesByDate(filteredExpenses),
-    [filteredExpenses],
+    () => groupExpensesByDate(filteredExpenses, getShareForExpense),
+    [filteredExpenses, getShareForExpense],
   );
 
   // ----- Toggle helpers -----
@@ -505,6 +538,15 @@ export default function TripExpensesScreen() {
           const loggedById = item.expense.userId;
           const isSelfLogged = loggedById === currentUserId;
           const loggedByName = isSharedTrip ? memberNames[loggedById] ?? null : null;
+          // Split + non-participant: don't override the displayed amount —
+          // user sees the full amount with the SPLIT badge (they owe nothing).
+          const userSplitExists = splits.some(
+            (s) =>
+              s.expenseId === item.expense.id &&
+              s.userId === currentUserId &&
+              s.deletedAt === null,
+          );
+          const skipShareOverride = item.expense.isSplit && !userSplitExists;
           return (
             <SwipeableExpenseCard
               expense={item.displayExpense}
@@ -520,6 +562,12 @@ export default function TripExpensesScreen() {
               loggedByName={loggedByName}
               isSelfLogged={isSelfLogged}
               canDelete={isSelfLogged}
+              userShareAmount={
+                skipShareOverride ? undefined : item.userShareAmount
+              }
+              userShareConverted={
+                skipShareOverride ? undefined : item.userShareConverted
+              }
             />
           );
         }}

@@ -236,11 +236,26 @@ CREATE TABLE public.expenses (
     expense_time TIME NOT NULL,
     is_refund BOOLEAN NOT NULL DEFAULT false,
     is_excluded_from_daily_metrics BOOLEAN NOT NULL DEFAULT false,
+    is_private BOOLEAN NOT NULL DEFAULT false,  -- shared-trip privacy
+    is_split BOOLEAN NOT NULL DEFAULT false,    -- decomposed via expense_splits
     spread_start_date DATE,  -- NULL = no spread
     spread_end_date DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ  -- soft delete
+);
+
+-- Expense Splits (per-expense decomposition for shared trips)
+CREATE TABLE public.expense_splits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    expense_id UUID NOT NULL REFERENCES public.expenses(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id),
+    amount DECIMAL(12,2) NOT NULL,
+    is_payer BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    UNIQUE(expense_id, user_id)
 );
 
 -- Expense Photos
@@ -272,6 +287,8 @@ CREATE INDEX idx_expenses_user_id ON public.expenses(user_id);
 CREATE INDEX idx_trip_members_trip_id ON public.trip_members(trip_id);
 CREATE INDEX idx_trip_members_user_id ON public.trip_members(user_id);
 CREATE INDEX idx_categories_trip_id ON public.categories(trip_id);
+CREATE INDEX idx_expense_splits_expense_id ON public.expense_splits(expense_id);
+CREATE INDEX idx_expense_splits_user_id ON public.expense_splits(user_id);
 ```
 
 ### 3.2 Local SQLite — Mirrors remote + sync tables
@@ -376,6 +393,14 @@ Remote change (partner adds expense in shared trip)
     → App receives the change event
     → Write to local SQLite
     → UI reactively updates (Zustand store triggers re-render)
+```
+
+### Sync Table Order
+
+Tables push and pull in dependency order so foreign-key parents land before children:
+
+```
+profiles → trips → trip_members → categories → expenses → expense_splits → expense_photos
 ```
 
 ### Conflict Resolution

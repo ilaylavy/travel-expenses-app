@@ -429,5 +429,26 @@
     "starterWho": "Who spent more?",
     "starterBudget": "Am I on budget?",
     "starterWhere": "Where did I spend the most?"
+  },
+  "split": {
+    "toggle": "Split this expense",
+    "equal": "Equal",
+    "custom": "Custom",
+    "paid": "Paid",
+    "yourShare": "Your share: {{amount}}",
+    "assigned": "{{assigned}} of {{total}} assigned",
+    "unassigned": "{{amount}} unassigned",
+    "splitRest": "Split rest equally",
+    "amountMismatch": "Split amounts must equal the expense total",
+    "minMembers": "At least 2 members needed to split",
+    "betweenPeople": "Split between {{count}} people",
+    "total": "Total: {{amount}}",
+    "badge": "SPLIT"
+  },
+  "balance": {
+    "owesYou": "{{name}} owes you {{amount}}",
+    "youOwe": "You owe {{name}} {{amount}}",
+    "even": "You're even!",
+    "netSettlement": "Net settlement"
   }
 }

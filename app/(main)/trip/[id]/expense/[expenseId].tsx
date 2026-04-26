@@ -25,7 +25,7 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
-import type { ExpensePhoto, ExpenseWithPhotos } from '@/types/expense';
+import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
 import { formatAmount } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
@@ -54,6 +54,14 @@ export default function ExpenseDetailScreen() {
   const expense = useExpenseStore((s) =>
     s.expenses.find((e) => e.id === expenseId),
   ) as ExpenseWithPhotos | undefined;
+  const allSplits = useExpenseStore((s) => s.splits);
+  const splits = useMemo(
+    () =>
+      allSplits.filter(
+        (x) => x.expenseId === expenseId && x.deletedAt === null,
+      ),
+    [allSplits, expenseId],
+  );
   const deleteExpense = useExpenseStore((s) => s.deleteExpense);
   const allCategories = useCategoryStore((s) => s.categories);
 
@@ -69,6 +77,38 @@ export default function ExpenseDetailScreen() {
   const [loggerName, setLoggerName] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [splitMemberNames, setSplitMemberNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (splits.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        splits.map(
+          async (s) => [s.userId, (await getProfileName(s.userId)) ?? ''] as const,
+        ),
+      );
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      for (const [uid, name] of entries) map[uid] = name;
+      setSplitMemberNames(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [splits]);
+
+  const sortedSplits = useMemo<ExpenseSplit[]>(() => {
+    return [...splits].sort((a, b) => {
+      if (a.isPayer !== b.isPayer) return a.isPayer ? -1 : 1;
+      return b.amount - a.amount;
+    });
+  }, [splits]);
+
+  const userSplit = useMemo(
+    () => splits.find((s) => s.userId === user?.id) ?? null,
+    [splits, user?.id],
+  );
 
   const memberCount = trip?.stats.memberCount ?? 1;
   const isShared = memberCount > 1;
@@ -163,9 +203,18 @@ export default function ExpenseDetailScreen() {
     : theme.accentSoft;
 
   const showConverted = expense.currency !== trip.homeCurrency;
-  const primaryAmount = formatAmount(Math.abs(expense.amount), expense.currency);
+  // For split expenses where the user has a share row, the hero shows the
+  // user's share (matches the expense list). The full amount is still
+  // visible in the Split section as "Total: ...".
+  const heroAmountValue =
+    expense.isSplit && userSplit ? userSplit.amount : expense.amount;
+  const heroConvertedValue =
+    expense.isSplit && userSplit && expense.amount !== 0
+      ? expense.convertedAmount * (userSplit.amount / expense.amount)
+      : expense.convertedAmount;
+  const primaryAmount = formatAmount(Math.abs(heroAmountValue), expense.currency);
   const convertedAmount = formatAmount(
-    Math.abs(expense.convertedAmount),
+    Math.abs(heroConvertedValue),
     trip.homeCurrency,
   );
 
@@ -369,6 +418,66 @@ export default function ExpenseDetailScreen() {
           </View>
         ) : null}
 
+        {/* Split breakdown */}
+        {expense.isSplit && sortedSplits.length > 0 ? (
+          <FieldCard
+            title={t('split.betweenPeople', { count: sortedSplits.length })}
+            theme={theme}
+          >
+            <Text style={[styles.fieldSub, { color: theme.textSecondary }]}>
+              {t('split.total', {
+                amount: formatAmount(Math.abs(expense.amount), expense.currency),
+              })}
+            </Text>
+            <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
+              {sortedSplits.map((s) => {
+                const name =
+                  s.userId === user?.id
+                    ? t('expenseDetail.you')
+                    : splitMemberNames[s.userId] || s.userId.slice(0, 6);
+                return (
+                  <View key={s.id} style={styles.splitRow}>
+                    <Text
+                      style={{ color: theme.text, flex: 1, fontWeight: '600' }}
+                      numberOfLines={1}
+                    >
+                      {name}
+                    </Text>
+                    {s.isPayer ? (
+                      <View
+                        style={[styles.badge, { backgroundColor: theme.greenSoft }]}
+                      >
+                        <Text style={[styles.badgeText, { color: theme.green }]}>
+                          {t('split.paid')}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text style={{ color: theme.text, fontWeight: '700' }}>
+                      {formatAmount(s.amount, expense.currency)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            {userSplit ? (
+              <Text
+                style={[
+                  styles.fieldValue,
+                  {
+                    color: theme.accent,
+                    fontWeight: '700',
+                    marginTop: spacing.sm,
+                  },
+                ]}
+              >
+                {t('split.yourShare', {
+                  amount: formatAmount(userSplit.amount, expense.currency),
+                })}
+              </Text>
+            ) : null}
+          </FieldCard>
+        ) : null}
+
         {/* Logged by (shared trips only) */}
         {isShared ? (
           <Text style={[styles.loggedBy, { color: theme.textMuted }]}>
@@ -560,6 +669,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: 'center',
     marginTop: spacing.sm,
+  },
+  splitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   footer: {
     flexDirection: 'row',

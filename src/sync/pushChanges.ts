@@ -18,6 +18,7 @@ const TABLE_ORDER: SyncTable[] = [
   'trip_members',
   'categories',
   'expenses',
+  'expense_splits',
   'expense_photos',
 ];
 
@@ -40,7 +41,8 @@ function normalizePayload(table: SyncTable, payload: Record<string, unknown>): R
     trips: [],
     trip_members: [],
     categories: ['is_archived'],
-    expenses: ['is_refund', 'is_excluded_from_daily_metrics', 'is_private'],
+    expenses: ['is_refund', 'is_excluded_from_daily_metrics', 'is_private', 'is_split'],
+    expense_splits: ['is_payer'],
     expense_photos: [],
   };
   for (const field of boolFields[table]) {

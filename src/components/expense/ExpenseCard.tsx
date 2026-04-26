@@ -17,6 +17,11 @@ interface ExpenseCardProps {
   // In shared trips, the logger's display name. Omit on solo trips.
   loggedByName?: string | null;
   isSelfLogged?: boolean;
+  // For split expenses, the current user's share. When provided, replaces
+  // the full expense amount in the right-hand column. The full amount is
+  // still visible in the expense detail screen.
+  userShareAmount?: number;
+  userShareConverted?: number;
 }
 
 function ExpenseCardInner({
@@ -26,6 +31,8 @@ function ExpenseCardInner({
   onPress,
   loggedByName,
   isSelfLogged,
+  userShareAmount,
+  userShareConverted,
 }: ExpenseCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -33,10 +40,10 @@ function ExpenseCardInner({
   const softColor = category ? getCategorySoftColor(category.color, theme) : theme.accentSoft;
 
   const showConverted = expense.currency !== homeCurrency;
-  const primary = formatAmount(expense.amount, expense.currency);
-  const secondary = showConverted
-    ? formatAmount(expense.convertedAmount, homeCurrency)
-    : null;
+  const displayAmount = userShareAmount ?? expense.amount;
+  const displayConverted = userShareConverted ?? expense.convertedAmount;
+  const primary = formatAmount(displayAmount, expense.currency);
+  const secondary = showConverted ? formatAmount(displayConverted, homeCurrency) : null;
 
   const title = expense.note?.trim() || category?.name || '—';
 
@@ -112,6 +119,13 @@ function ExpenseCardInner({
             <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
               <Text style={[styles.badgeText, { color: theme.textMuted }]}>
                 🔒 {t('expense.privateBadge')}
+              </Text>
+            </View>
+          ) : null}
+          {expense.isSplit ? (
+            <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
+              <Text style={[styles.badgeText, { color: theme.accent }]}>
+                {t('split.badge')}
               </Text>
             </View>
           ) : null}

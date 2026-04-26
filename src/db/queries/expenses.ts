@@ -31,6 +31,7 @@ interface ExpenseRow {
   is_refund: number;
   is_excluded_from_daily_metrics: number;
   is_private: number;
+  is_split: number;
   spread_start_date: string | null;
   spread_end_date: string | null;
   created_at: string;
@@ -65,6 +66,7 @@ export interface CreateExpenseInput {
   isRefund: boolean;
   isExcludedFromDailyMetrics: boolean;
   isPrivate: boolean;
+  isSplit?: boolean;
   spreadStartDate: string | null;
   spreadEndDate: string | null;
   // id is optional; callers that persist files to disk before insertion
@@ -89,6 +91,7 @@ export interface UpdateExpenseInput {
   isRefund?: boolean;
   isExcludedFromDailyMetrics?: boolean;
   isPrivate?: boolean;
+  isSplit?: boolean;
   spreadStartDate?: string | null;
   spreadEndDate?: string | null;
 }
@@ -113,6 +116,7 @@ function rowToExpense(row: ExpenseRow): Expense {
     isRefund: row.is_refund === 1,
     isExcludedFromDailyMetrics: row.is_excluded_from_daily_metrics === 1,
     isPrivate: row.is_private === 1,
+    isSplit: row.is_split === 1,
     spreadStartDate: row.spread_start_date,
     spreadEndDate: row.spread_end_date,
     createdAt: row.created_at,
@@ -152,6 +156,7 @@ function expenseToPayload(e: Expense): Record<string, unknown> {
     is_refund: e.isRefund,
     is_excluded_from_daily_metrics: e.isExcludedFromDailyMetrics,
     is_private: e.isPrivate,
+    is_split: e.isSplit,
     spread_start_date: e.spreadStartDate,
     spread_end_date: e.spreadEndDate,
     created_at: e.createdAt,
@@ -234,6 +239,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
     isRefund: input.isRefund,
     isExcludedFromDailyMetrics: input.isExcludedFromDailyMetrics,
     isPrivate: input.isPrivate,
+    isSplit: input.isSplit ?? false,
     spreadStartDate: input.spreadStartDate,
     spreadEndDate: input.spreadEndDate,
     createdAt: now,
@@ -284,6 +290,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
     isRefund: input.isRefund ?? existing.isRefund,
     isExcludedFromDailyMetrics: input.isExcludedFromDailyMetrics ?? existing.isExcludedFromDailyMetrics,
     isPrivate: input.isPrivate ?? existing.isPrivate,
+    isSplit: input.isSplit ?? existing.isSplit,
     spreadStartDate:
       input.spreadStartDate === undefined ? existing.spreadStartDate : input.spreadStartDate,
     spreadEndDate:
@@ -298,7 +305,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
          category_id = ?, note = ?, payment_method = ?, latitude = ?,
          longitude = ?, place_name = ?, expense_date = ?, expense_time = ?,
          is_refund = ?, is_excluded_from_daily_metrics = ?, is_private = ?,
-         spread_start_date = ?, spread_end_date = ?, updated_at = ?
+         is_split = ?, spread_start_date = ?, spread_end_date = ?, updated_at = ?
        WHERE id = ?;`,
       [
         next.amount,
@@ -316,6 +323,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
         next.isRefund ? 1 : 0,
         next.isExcludedFromDailyMetrics ? 1 : 0,
         next.isPrivate ? 1 : 0,
+        next.isSplit ? 1 : 0,
         next.spreadStartDate,
         next.spreadEndDate,
         next.updatedAt,
@@ -428,9 +436,9 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
        (id, trip_id, user_id, amount, currency, converted_amount, exchange_rate,
         category_id, note, payment_method, latitude, longitude, place_name,
         expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
-        is_private, spread_start_date, spread_end_date,
+        is_private, is_split, spread_start_date, spread_end_date,
         created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       e.id,
       e.tripId,
@@ -450,6 +458,7 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
       e.isRefund ? 1 : 0,
       e.isExcludedFromDailyMetrics ? 1 : 0,
       e.isPrivate ? 1 : 0,
+      e.isSplit ? 1 : 0,
       e.spreadStartDate,
       e.spreadEndDate,
       e.createdAt,

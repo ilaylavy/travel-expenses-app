@@ -98,6 +98,9 @@ Server-side flow inside the Edge Function:
 ### Currency
 Exchange rates cached locally. Rate locked into each expense at creation time (stored in `exchange_rate` column). This means historical expense values don't change when rates fluctuate.
 
+### Expense Splits
+Shared-trip expenses can be split per-expense via the `expense_splits` table — one row per participating member, with `is_payer=true` flagging the payer. The `expenses.is_split` flag mirrors "has any non-deleted split rows" and is maintained by app code. Splits store the trip-currency amount only; home-currency shares are derived by ratio against the parent expense (so historical amounts don't drift if the parent is edited). Non-split expenses generate no debt; split expenses produce a payer→non-payer debt for each non-payer's share, netted pairwise in `src/utils/balance.ts`.
+
 ---
 
 ## Coding Conventions
