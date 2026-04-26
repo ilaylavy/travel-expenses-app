@@ -22,17 +22,28 @@ export interface Coordinates {
 }
 
 // GPS-only fix without reverse geocoding. Used by the map's "recenter on me"
-// button where a place name isn't needed.
+// button where a place name isn't needed. Prefers a recent cached fix so the
+// map snaps instantly when the OS already has one.
 export async function getCurrentCoordinates(): Promise<Coordinates | null> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    let { status } = await Location.getForegroundPermissionsAsync();
+    if (status === 'undetermined') {
+      ({ status } = await Location.requestForegroundPermissionsAsync());
+    }
     if (status !== 'granted') return null;
+
+    const cached = await Location.getLastKnownPositionAsync({
+      maxAge: 60_000,
+      requiredAccuracy: 200,
+    });
+    if (cached) {
+      return { latitude: cached.coords.latitude, longitude: cached.coords.longitude };
+    }
 
     const position = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     });
-    const { latitude, longitude } = position.coords;
-    return { latitude, longitude };
+    return { latitude: position.coords.latitude, longitude: position.coords.longitude };
   } catch (error) {
     console.warn('Location capture failed:', error);
     return null;

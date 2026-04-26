@@ -428,6 +428,8 @@ export default function TripMapScreen() {
         style={StyleSheet.absoluteFillObject}
         initialRegion={initialRegion}
         onRegionChangeComplete={setRegion}
+        showsUserLocation
+        showsMyLocationButton={false}
       >
         {items.map((item) => {
           if (item.type === 'pin') {
@@ -586,28 +588,6 @@ export default function TripMapScreen() {
             onClose={() => setSelectedExpense(null)}
           />
         </SafeAreaView>
-      ) : locatedAll.length > 0 && visibleExpenses.length > 0 ? (
-        <SafeAreaView
-          style={styles.bottomOverlay}
-          edges={['bottom']}
-          pointerEvents="none"
-        >
-          <View
-            style={[
-              styles.infoCard,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-          >
-            <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-              {anyFilterActive
-                ? t('map.expensesFiltered', {
-                    visible: visibleExpenses.length,
-                    total: locatedAll.length,
-                  })
-                : t('map.expensesOnMap', { count: visibleExpenses.length })}
-            </Text>
-          </View>
-        </SafeAreaView>
       ) : null}
 
       <FilterModal
@@ -757,19 +737,6 @@ const styles = StyleSheet.create({
     right: spacing.base,
     bottom: spacing.base,
   },
-  infoCard: {
-    borderRadius: sizing.radiusCard,
-    borderWidth: 1,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  infoText: { fontSize: 13, fontWeight: '600' },
   emptyOverlay: {
     position: 'absolute',
     left: 0,

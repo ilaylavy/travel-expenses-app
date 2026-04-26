@@ -169,9 +169,7 @@
   },
   "map": {
     "myLocation": "",
-    "locationPermissionDenied": "",
-    "expensesOnMap": "",
-    "expensesFiltered": ""
+    "locationPermissionDenied": ""
   },
   "expenses": {
     "statsTotal": "",
