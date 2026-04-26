@@ -36,7 +36,7 @@ interface UiMessage extends ConversationMessage {
 export default function AskScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const params = useGlobalSearchParams<{ id: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
   const trip = useTripStore((s) => s.trips.find((x) => x.id === tripId));
@@ -79,10 +79,17 @@ export default function AskScreen() {
         content: m.content,
       }));
 
-      const result: AskResponse = await askQuestion(tripId, trimmed, historyForApi.slice(0, -1), {
-        offlineMessage: t('ask.offline'),
-        errorMessage: t('ask.error'),
-      });
+      const language: 'en' | 'he' = i18n.language === 'he' ? 'he' : 'en';
+      const result: AskResponse = await askQuestion(
+        tripId,
+        trimmed,
+        historyForApi.slice(0, -1),
+        language,
+        {
+          offlineMessage: t('ask.offline'),
+          errorMessage: t('ask.error'),
+        },
+      );
 
       const aiMsg: UiMessage = {
         role: 'assistant',
@@ -94,7 +101,7 @@ export default function AskScreen() {
       setMessages((prev) => [...prev, aiMsg]);
       setLoading(false);
     },
-    [messages, tripId, t],
+    [messages, tripId, t, i18n.language],
   );
 
   const handleSendCurrent = useCallback(() => {
