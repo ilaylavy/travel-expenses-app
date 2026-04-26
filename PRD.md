@@ -89,7 +89,7 @@ This is the most critical screen. Target: complete an entry in under 10 seconds.
 - Converted amount shown in real-time (trip currency → home currency)
 
 **Optional fields (visible by default):**
-- Note (free text with suggestions from recent notes in this trip)
+- Note (free text with suggestions from recent notes in this trip), positioned above the category grid so picking a suggestion can preview into the category below
 - Payment method (Credit / Cash / Debit / custom — remembers last used)
 
 **Optional fields (toggle to reveal):**
@@ -100,9 +100,11 @@ This is the most critical screen. Target: complete an entry in under 10 seconds.
 - Share — send this single expense as a formatted message via system share sheet (WhatsApp, SMS, etc.)
 
 **Note suggestions:**
-- Show recent notes from this trip as tappable chips below the note input
-- Ordered by most recently used
-- Disappear once user starts typing
+- Tappable chips below the note input, sourced from notes used in this trip across all members (in shared trips); other members' private expenses are excluded
+- Each chip shows the category emoji from that note's most recent use ("🍽️ Tapas dinner")
+- When the input is empty, shows up to the 10 most recent distinct notes
+- As the user types, the list filters live by case-insensitive substring (capped at 10); if no notes match, the suggestions area hides entirely
+- Tapping a suggestion fills the note and auto-selects the category from its most recent use — the user can still change the category afterwards
 
 **Category grid:**
 - 2 rows of 4 categories visible by default
