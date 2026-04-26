@@ -13,6 +13,22 @@
     "edit": "",
     "share": ""
   },
+  "calendar": {
+    "selectDate": "",
+    "selectRange": "",
+    "done": "",
+    "clear": "",
+    "today": "",
+    "days": ""
+  },
+  "datePicker": {
+    "date": "",
+    "time": "",
+    "spread": "",
+    "spreadPerDay": "",
+    "spreadNights": "",
+    "ongoing": ""
+  },
   "auth": {
     "login": {
       "heroTitle": "",

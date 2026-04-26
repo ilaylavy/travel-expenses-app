@@ -13,6 +13,22 @@
     "edit": "Edit",
     "share": "Share"
   },
+  "calendar": {
+    "selectDate": "Select date",
+    "selectRange": "Select date range",
+    "done": "Done",
+    "clear": "Clear",
+    "today": "Today",
+    "days": "days"
+  },
+  "datePicker": {
+    "date": "Date",
+    "time": "Time",
+    "spread": "Spread",
+    "spreadPerDay": "{{days}} nights · {{amount}}/night",
+    "spreadNights": "{{days}} nights",
+    "ongoing": "Ongoing (no end date)"
+  },
   "auth": {
     "login": {
       "heroTitle": "Welcome back",
