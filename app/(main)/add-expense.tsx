@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -17,7 +17,7 @@ import { CategoryGrid } from '@/components/expense/CategoryGrid';
 import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/NumPad';
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
 import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
-import { CURRENCIES, POPULAR_CURRENCIES } from '@/constants/currencies';
+import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import {
   categoryUsageForTrip,
@@ -41,6 +41,7 @@ import {
   useCategoryStore,
 } from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import type { Category } from '@/types/category';
 import type { PaymentMethod } from '@/types/expense';
 import type { Trip } from '@/types/trip';
@@ -100,6 +101,8 @@ export default function AddExpenseScreen() {
   const allCategories = useCategoryStore((s) => s.categories);
   const createExpense = useExpenseStore((s) => s.createExpense);
   const updateExpenseInStore = useExpenseStore((s) => s.updateExpense);
+  const favoriteCurrencies = useSettingsStore((s) => s.favoriteCurrencies);
+  const toggleFavoriteCurrency = useSettingsStore((s) => s.toggleFavoriteCurrency);
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [isSharedTrip, setIsSharedTrip] = useState(false);
@@ -135,6 +138,10 @@ export default function AddExpenseScreen() {
   );
   const [manualRate, setManualRate] = useState<number | null>(null);
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  // True once the user has actively picked a currency (chip or picker).
+  // Stops the async location-derived auto-pick from clobbering their choice
+  // if reverse-geocoding finishes after they already tapped something.
+  const userPickedCurrencyRef = useRef(false);
 
   // Load trip + recent-note / payment / usage data up front.
   useEffect(() => {
@@ -152,7 +159,12 @@ export default function AddExpenseScreen() {
         if (cancelled) return;
         if (loadedTrip) {
           setTrip(loadedTrip);
-          if (!isEditing) setCurrency(loadedTrip.baseCurrency);
+          // Initial fallback while waiting for location to resolve. The
+          // location-capture effect below will overwrite this with the
+          // location-derived currency unless the user picks one first.
+          if (!isEditing && !userPickedCurrencyRef.current) {
+            setCurrency((prev) => prev || loadedTrip.homeCurrency);
+          }
         }
         setRecentNotes(notes);
         if (!isEditing && lastPayment) setPaymentMethod(lastPayment);
@@ -202,6 +214,8 @@ export default function AddExpenseScreen() {
 
   // Auto-capture GPS once on mount. Non-blocking — user can proceed without it.
   // Skipped in edit mode so we don't overwrite the original pin.
+  // When location resolves, derive a currency from the country code and
+  // adopt it, unless the user has already picked one manually.
   useEffect(() => {
     if (isEditing) return;
     let cancelled = false;
@@ -214,6 +228,11 @@ export default function AddExpenseScreen() {
         setLongitude(loc.longitude);
         setPlaceName(loc.placeName);
         setLocationStatus('captured');
+        const derived = currencyForCountryCode(loc.countryCode);
+        if (derived && !userPickedCurrencyRef.current) {
+          setCurrency(derived);
+          setManualRate(null);
+        }
       } else {
         setLocationStatus('none');
       }
@@ -256,13 +275,31 @@ export default function AddExpenseScreen() {
     trip && currency && currency !== trip.homeCurrency,
   );
 
-  const popularCurrencies = useMemo(() => {
-    const codes = new Set<string>(POPULAR_CURRENCIES);
-    if (trip?.baseCurrency) codes.add(trip.baseCurrency);
-    if (trip?.homeCurrency) codes.add(trip.homeCurrency);
-    if (currency) codes.add(currency);
-    return CURRENCIES.filter((c) => codes.has(c.code));
-  }, [trip?.baseCurrency, trip?.homeCurrency, currency]);
+  // Strip = the user's favorites in their saved order, plus the current
+  // selection if it's not already favorited (so a location-derived or
+  // edit-mode currency stays visible/highlighted).
+  const stripCurrencies = useMemo(() => {
+    const seen = new Set<string>();
+    const codes: string[] = [];
+    for (const code of favoriteCurrencies) {
+      if (!seen.has(code)) {
+        seen.add(code);
+        codes.push(code);
+      }
+    }
+    if (currency && !seen.has(currency)) {
+      seen.add(currency);
+      codes.push(currency);
+    }
+    return codes
+      .map((code) => CURRENCIES.find((c) => c.code === code))
+      .filter((c): c is (typeof CURRENCIES)[number] => Boolean(c));
+  }, [favoriteCurrencies, currency]);
+
+  const favoriteCodesSet = useMemo(
+    () => new Set(favoriteCurrencies),
+    [favoriteCurrencies],
+  );
 
   const handleKey = useCallback((key: NumPadKey) => {
     setAmountText((current) => appendNumPadKey(current, key));
@@ -524,12 +561,13 @@ export default function AddExpenseScreen() {
         {/* Currency strip */}
         <Section title={t('expense.currencySection')} theme={theme}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {popularCurrencies.map((c) => {
+            {stripCurrencies.map((c) => {
               const active = c.code === currency;
               return (
                 <Pressable
                   key={c.code}
                   onPress={() => {
+                    userPickedCurrencyRef.current = true;
                     setCurrency(c.code);
                     setManualRate(null);
                     setLockedExchangeRate(null);
@@ -571,11 +609,15 @@ export default function AddExpenseScreen() {
           visible={currencyPickerOpen}
           selectedCode={currency || null}
           onSelect={(code) => {
+            userPickedCurrencyRef.current = true;
             setCurrency(code);
             setManualRate(null);
             setLockedExchangeRate(null);
           }}
           onClose={() => setCurrencyPickerOpen(false)}
+          favoriteCodes={favoriteCodesSet}
+          onToggleFavorite={toggleFavoriteCurrency}
+          homeCurrency={trip?.homeCurrency ?? ''}
         />
 
         {/* Category */}

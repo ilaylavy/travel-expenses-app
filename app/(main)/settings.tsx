@@ -59,6 +59,9 @@ export default function SettingsScreen() {
   const setLanguage = useSettingsStore((s) => s.setLanguage);
   const settingsDefaultCurrency = useSettingsStore((s) => s.defaultCurrency);
   const setSettingsDefaultCurrency = useSettingsStore((s) => s.setDefaultCurrency);
+  const favoriteCurrencies = useSettingsStore((s) => s.favoriteCurrencies);
+  const toggleFavoriteCurrency = useSettingsStore((s) => s.toggleFavoriteCurrency);
+  const favoriteCodesSet = useMemo(() => new Set(favoriteCurrencies), [favoriteCurrencies]);
 
   const syncStatus = useSyncStore((s) => s.status);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
@@ -480,6 +483,9 @@ export default function SettingsScreen() {
         selectedCode={effectiveCurrency}
         onSelect={(code) => { void handleSelectCurrency(code); }}
         onClose={() => setCurrencyPickerOpen(false)}
+        favoriteCodes={favoriteCodesSet}
+        onToggleFavorite={toggleFavoriteCurrency}
+        homeCurrency={settingsDefaultCurrency}
       />
     </SafeAreaView>
   );

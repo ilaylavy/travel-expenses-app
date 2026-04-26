@@ -303,7 +303,9 @@
     "picker": {
       "title": "Choose currency",
       "searchPlaceholder": "Search code or name",
-      "moreChip": "More…"
+      "moreChip": "More…",
+      "favoriteToggle": "Toggle favorite",
+      "homeCurrencyLocked": "Home currency is always a favorite"
     },
     "converter": {
       "title": "Quick converter",

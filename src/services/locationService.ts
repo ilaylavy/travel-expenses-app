@@ -4,6 +4,7 @@ export interface CapturedLocation {
   latitude: number;
   longitude: number;
   placeName: string | null;
+  countryCode: string | null;
 }
 
 function formatPlace(address: Location.LocationGeocodedAddress): string | null {
@@ -63,16 +64,18 @@ export async function captureCurrentLocation(): Promise<CapturedLocation | null>
 
     const { latitude, longitude } = position.coords;
     let placeName: string | null = null;
+    let countryCode: string | null = null;
     try {
       const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
       if (addresses.length > 0) {
         placeName = formatPlace(addresses[0]);
+        countryCode = addresses[0].isoCountryCode ?? null;
       }
     } catch {
       // reverse geocode is best-effort
     }
 
-    return { latitude, longitude, placeName };
+    return { latitude, longitude, placeName, countryCode };
   } catch (error) {
     console.warn('Location capture failed:', error);
     return null;

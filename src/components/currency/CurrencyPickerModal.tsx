@@ -20,6 +20,10 @@ interface Props {
   selectedCode: string | null;
   onSelect: (code: string) => void;
   onClose: () => void;
+  favoriteCodes: ReadonlySet<string>;
+  onToggleFavorite: (code: string) => void;
+  // Home currency is always a favorite — its star renders locked.
+  homeCurrency: string;
 }
 
 function filterCurrencies(query: string): readonly Currency[] {
@@ -38,6 +42,9 @@ export function CurrencyPickerModal({
   selectedCode,
   onSelect,
   onClose,
+  favoriteCodes,
+  onToggleFavorite,
+  homeCurrency,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -95,13 +102,10 @@ export function CurrencyPickerModal({
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => {
             const active = item.code === selectedCode;
+            const isFavorite = favoriteCodes.has(item.code);
+            const isHome = item.code === homeCurrency;
             return (
-              <Pressable
-                onPress={() => {
-                  onSelect(item.code);
-                  onClose();
-                  setQuery('');
-                }}
+              <View
                 style={[
                   styles.row,
                   {
@@ -110,23 +114,58 @@ export function CurrencyPickerModal({
                   },
                 ]}
               >
-                <View
+                <Pressable
+                  onPress={() => {
+                    onSelect(item.code);
+                    onClose();
+                    setQuery('');
+                  }}
+                  style={styles.rowBody}
+                >
+                  <View
+                    style={[
+                      styles.symbolWrap,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                    ]}
+                  >
+                    <Text style={[styles.symbol, { color: theme.text }]}>{item.symbol}</Text>
+                  </View>
+                  <View style={styles.rowText}>
+                    <Text style={[styles.rowCode, { color: active ? theme.accent : theme.text }]}>
+                      {item.code}
+                    </Text>
+                    <Text style={[styles.rowName, { color: theme.textSecondary }]}>
+                      {item.name}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (isHome) return;
+                    onToggleFavorite(item.code);
+                  }}
+                  disabled={isHome}
+                  hitSlop={10}
+                  accessibilityLabel={
+                    isHome
+                      ? t('currency.picker.homeCurrencyLocked')
+                      : t('currency.picker.favoriteToggle')
+                  }
                   style={[
-                    styles.symbolWrap,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
+                    styles.starButton,
+                    isHome ? { opacity: 0.5 } : null,
                   ]}
                 >
-                  <Text style={[styles.symbol, { color: theme.text }]}>{item.symbol}</Text>
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowCode, { color: active ? theme.accent : theme.text }]}>
-                    {item.code}
+                  <Text
+                    style={[
+                      styles.starIcon,
+                      { color: isFavorite ? theme.accent : theme.textMuted },
+                    ]}
+                  >
+                    {isFavorite ? '★' : '☆'}
                   </Text>
-                  <Text style={[styles.rowName, { color: theme.textSecondary }]}>
-                    {item.name}
-                  </Text>
-                </View>
-              </Pressable>
+                </Pressable>
+              </View>
             );
           }}
         />
@@ -167,11 +206,16 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
-    paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     borderRadius: sizing.radiusButton,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    paddingVertical: spacing.md,
   },
   symbolWrap: {
     width: sizing.categoryIconSmall,
@@ -185,4 +229,11 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowCode: { ...typography.itemTitle, marginBottom: 2 },
   rowName: typography.secondary,
+  starButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  starIcon: { fontSize: 22, fontWeight: '700' },
 });

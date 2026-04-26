@@ -53,10 +53,7 @@ export default function NewTripScreen() {
       <TripForm
         submitLabel={t('newTrip.submit')}
         submittingLabel={t('newTrip.submitting')}
-        initial={{
-          baseCurrency: defaultCurrency,
-          homeCurrency: defaultCurrency,
-        }}
+        displayCurrency={defaultCurrency}
         onSubmit={handleSubmit}
       />
     </SafeAreaView>
