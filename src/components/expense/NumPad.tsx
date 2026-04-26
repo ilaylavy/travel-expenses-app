@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export type NumPadKey =
   | '0'
@@ -21,18 +23,21 @@ export type NumPadKey =
 interface NumPadProps {
   onKeyPress: (key: NumPadKey) => void;
   onLongBackspace?: () => void;
+  onDone: () => void;
   disabled?: boolean;
 }
 
-const KEYS: NumPadKey[][] = [
+// null = invisible spacer cell (column 3, row 4 — the slot to the right of "0").
+const NUMBER_ROWS: (NumPadKey | null)[][] = [
   ['1', '2', '3'],
   ['4', '5', '6'],
   ['7', '8', '9'],
-  ['.', '0', 'backspace'],
+  ['.', '0', null],
 ];
 
-function NumPadInner({ onKeyPress, onLongBackspace, disabled }: NumPadProps) {
+function NumPadInner({ onKeyPress, onLongBackspace, onDone, disabled }: NumPadProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const handlePress = useCallback(
     (key: NumPadKey) => {
@@ -42,49 +47,122 @@ function NumPadInner({ onKeyPress, onLongBackspace, disabled }: NumPadProps) {
     [disabled, onKeyPress],
   );
 
+  const handleDone = useCallback(() => {
+    if (disabled) return;
+    onDone();
+  }, [disabled, onDone]);
+
   return (
     <View style={styles.pad}>
-      {KEYS.map((row, rowIndex) => (
-        <View key={rowIndex} style={styles.row}>
-          {row.map((key) => (
-            <Key
-              key={key}
-              value={key}
-              onPress={handlePress}
-              onLongPress={key === 'backspace' ? onLongBackspace : undefined}
-              textColor={theme.text}
-              bgColor={theme.surface}
-              borderColor={theme.border}
-              accentColor={theme.accent}
-            />
-          ))}
-        </View>
-      ))}
+      <View style={styles.numbersCol}>
+        {NUMBER_ROWS.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.row}>
+            {row.map((key, colIndex) =>
+              key === null ? (
+                <View key={`spacer-${rowIndex}-${colIndex}`} style={styles.spacer} />
+              ) : (
+                <NumberKey
+                  key={key}
+                  value={key}
+                  onPress={handlePress}
+                  textColor={theme.text}
+                  borderColor={theme.border}
+                  accentColor={theme.accent}
+                  gradient={theme.cardGradient}
+                />
+              ),
+            )}
+          </View>
+        ))}
+      </View>
+      <View style={styles.rightCol}>
+        <BackspaceKey
+          onPress={handlePress}
+          onLongPress={onLongBackspace}
+          textColor={theme.accent}
+          bgColor={theme.surface}
+          borderColor={theme.border}
+        />
+        <Pressable
+          onPress={handleDone}
+          android_disableSound={false}
+          style={({ pressed }) => [
+            styles.doneKey,
+            {
+              backgroundColor: theme.accentSoft,
+              borderColor: theme.accent,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.doneText, { color: theme.accent }]}>
+            {t('expense.numpadDone')}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-interface KeyProps {
+interface NumberKeyProps {
   value: NumPadKey;
+  onPress: (key: NumPadKey) => void;
+  textColor: string;
+  borderColor: string;
+  accentColor: string;
+  gradient: readonly [string, string];
+}
+
+const NumberKey = memo(function NumberKey({
+  value,
+  onPress,
+  textColor,
+  borderColor,
+  accentColor,
+  gradient,
+}: NumberKeyProps) {
+  const handlePress = useCallback(() => onPress(value), [onPress, value]);
+  return (
+    <Pressable
+      onPress={handlePress}
+      android_disableSound={false}
+      hitSlop={4}
+      style={({ pressed }) => [
+        styles.key,
+        {
+          borderColor: pressed ? accentColor : borderColor,
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+    >
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.keyGradient}
+      >
+        <Text style={[styles.keyText, { color: textColor }]}>{value}</Text>
+      </LinearGradient>
+    </Pressable>
+  );
+});
+
+interface BackspaceKeyProps {
   onPress: (key: NumPadKey) => void;
   onLongPress?: () => void;
   textColor: string;
   bgColor: string;
   borderColor: string;
-  accentColor: string;
 }
 
-// Individual key is memoized so pressing one doesn't re-render the rest.
-const Key = memo(function Key({
-  value,
+const BackspaceKey = memo(function BackspaceKey({
   onPress,
   onLongPress,
   textColor,
   bgColor,
   borderColor,
-  accentColor,
-}: KeyProps) {
-  const handlePress = useCallback(() => onPress(value), [onPress, value]);
+}: BackspaceKeyProps) {
+  const handlePress = useCallback(() => onPress('backspace'), [onPress]);
   return (
     <Pressable
       onPress={handlePress}
@@ -92,17 +170,15 @@ const Key = memo(function Key({
       android_disableSound={false}
       hitSlop={4}
       style={({ pressed }) => [
-        styles.key,
+        styles.backspaceKey,
         {
           backgroundColor: bgColor,
-          borderColor: pressed ? accentColor : borderColor,
+          borderColor: pressed ? textColor : borderColor,
           opacity: pressed ? 0.8 : 1,
         },
       ]}
     >
-      <Text style={[styles.keyText, { color: value === 'backspace' ? accentColor : textColor }]}>
-        {value === 'backspace' ? '⌫' : value}
-      </Text>
+      <Text style={[styles.backspaceText, { color: textColor }]}>⌫</Text>
     </Pressable>
   );
 });
@@ -126,16 +202,43 @@ export function appendNumPadKey(current: string, key: NumPadKey): string {
   return `${current}${key}`;
 }
 
+const KEY_HEIGHT = 50;
+
 const styles = StyleSheet.create({
-  pad: { gap: spacing.sm },
+  pad: { flexDirection: 'row', gap: spacing.sm },
+  numbersCol: { flex: 3, gap: spacing.sm },
+  rightCol: { flex: 1, gap: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm },
+  spacer: { flex: 1, minHeight: KEY_HEIGHT },
   key: {
     flex: 1,
-    minHeight: 56,
+    minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  keyGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: sizing.radiusButton,
+  },
+  keyText: { fontSize: 22, fontWeight: '600', lineHeight: 26 },
+  backspaceKey: {
+    minHeight: KEY_HEIGHT,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keyText: { ...typography.numpad, fontSize: 24, lineHeight: 28 },
+  backspaceText: { fontSize: 20, fontWeight: '600', lineHeight: 24 },
+  doneKey: {
+    flex: 1,
+    minHeight: KEY_HEIGHT,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneText: { fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
 });

@@ -4,8 +4,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { CURRENCIES, DEFAULT_CURRENCY } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -68,13 +67,11 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAwareWrapper>
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           <View style={styles.hero}>
             <LinearGradient
@@ -194,7 +191,7 @@ export default function SignupScreen() {
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareWrapper>
     </SafeAreaView>
   );
 }

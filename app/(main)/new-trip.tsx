@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -50,12 +51,14 @@ export default function NewTripScreen() {
         <View style={styles.spacer} />
       </View>
 
-      <TripForm
-        submitLabel={t('newTrip.submit')}
-        submittingLabel={t('newTrip.submitting')}
-        displayCurrency={defaultCurrency}
-        onSubmit={handleSubmit}
-      />
+      <KeyboardAwareWrapper>
+        <TripForm
+          submitLabel={t('newTrip.submit')}
+          submittingLabel={t('newTrip.submitting')}
+          displayCurrency={defaultCurrency}
+          onSubmit={handleSubmit}
+        />
+      </KeyboardAwareWrapper>
     </SafeAreaView>
   );
 }

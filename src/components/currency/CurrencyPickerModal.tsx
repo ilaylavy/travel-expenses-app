@@ -100,6 +100,7 @@ export function CurrencyPickerModal({
           keyExtractor={(c) => c.code}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           renderItem={({ item }) => {
             const active = item.code === selectedCode;
             const isFavorite = favoriteCodes.has(item.code);

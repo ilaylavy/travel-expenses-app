@@ -1,8 +1,11 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  I18nManager,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,12 +14,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CategoryGrid } from '@/components/expense/CategoryGrid';
 import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/NumPad';
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
 import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import {
@@ -141,6 +145,16 @@ export default function AddExpenseScreen() {
     useState<Map<string, { count: number; lastUsed: string }>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Which "input" owns the bottom of the screen. The custom numpad and the
+  // system keyboard must be mutually exclusive — when a TextInput gains
+  // focus we hide the numpad, and tapping the amount hero dismisses the
+  // system keyboard. Default to numpad because the amount is the typical
+  // first interaction.
+  const [activeInput, setActiveInput] = useState<'numpad' | 'text' | null>(
+    'numpad',
+  );
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const insets = useSafeAreaInsets();
   // Only relevant in edit mode: preserve the exchange rate the expense was
   // originally booked at. PRD.md — historical values must not drift with
   // live rates.
@@ -348,6 +362,19 @@ export default function AddExpenseScreen() {
     setAmountText((current) => appendNumPadKey(current, key));
   }, []);
 
+  const handleAmountPress = useCallback(() => {
+    Keyboard.dismiss();
+    setActiveInput('numpad');
+  }, []);
+
+  const handleTextFocus = useCallback(() => {
+    setActiveInput('text');
+  }, []);
+
+  const handleNumpadDone = useCallback(() => {
+    setActiveInput(null);
+  }, []);
+
   const handleLongBackspace = useCallback(() => {
     setAmountText('');
   }, []);
@@ -384,6 +411,22 @@ export default function AddExpenseScreen() {
 
   const removePhoto = useCallback((uri: string) => {
     setPhotos((prev) => prev.filter((p) => p.uri !== uri));
+  }, []);
+
+  // Track keyboard height so the floating Save FAB can sit just above it
+  // when a TextInput is focused. The KeyboardAvoidingView handles content,
+  // but the absolutely-positioned FAB needs its own offset.
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   // Auto-disable the split toggle whenever an exclusive flag turns on.
@@ -670,6 +713,21 @@ export default function AddExpenseScreen() {
     ],
   );
 
+  const formIsValid = amountValue > 0 && categoryId !== null;
+
+  // Floating Save FAB rides above whatever is at the bottom: numpad bar,
+  // system keyboard, or just the safe-area edge.
+  const fabBottomOffset = useMemo(() => {
+    if (activeInput === 'numpad') {
+      // Numpad bar height: 4 rows * 50 key + 3 gaps * 6 + paddings.
+      return NUMPAD_BAR_HEIGHT + spacing.lg;
+    }
+    if (activeInput === 'text' && keyboardHeight > 0) {
+      return keyboardHeight + spacing.lg;
+    }
+    return Math.max(insets.bottom, spacing.md) + spacing.lg;
+  }, [activeInput, keyboardHeight, insets.bottom]);
+
   if (!tripId) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]}>
@@ -696,23 +754,18 @@ export default function AddExpenseScreen() {
         <Text style={[styles.title, { color: theme.text }]}>
           {isEditing ? t('expense.editTitle') : t('expense.title')}
         </Text>
-        {isEditing ? (
-          <View style={styles.headerButton} />
-        ) : (
-          <Pressable
-            onPress={() => handleSave({ thenShare: true })}
-            disabled={saving}
-            hitSlop={8}
-            style={[styles.headerButton, { backgroundColor: theme.surface, borderColor: theme.border, opacity: saving ? 0.5 : 1 }]}
-          >
-            <Text style={[styles.headerButtonText, { color: theme.text }]}>↗</Text>
-          </Pressable>
-        )}
+        <View style={styles.headerButton} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* Amount hero */}
-        <View style={styles.amountHero}>
+      <KeyboardAwareWrapper hasFixedBottom>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {/* Amount hero — pressing it brings up the numpad and dismisses
+            the system keyboard, so the two are never visible together. */}
+        <Pressable onPress={handleAmountPress} style={styles.amountHero}>
           <Text style={[styles.amountDisplay, { color: theme.text }]}>
             {symbol}
             {amountText || '0'}
@@ -740,7 +793,7 @@ export default function AddExpenseScreen() {
               ) : null}
             </>
           ) : null}
-        </View>
+        </Pressable>
 
         {/* Currency strip */}
         <Section title={t('expense.currencySection')} theme={theme}>
@@ -818,6 +871,7 @@ export default function AddExpenseScreen() {
           <TextInput
             value={note}
             onChangeText={setNote}
+            onFocus={handleTextFocus}
             placeholder={t('expense.notePlaceholder')}
             placeholderTextColor={theme.textMuted}
             style={[
@@ -891,6 +945,7 @@ export default function AddExpenseScreen() {
             <TextInput
               value={expenseDate}
               onChangeText={setExpenseDate}
+              onFocus={handleTextFocus}
               placeholder={t('expense.datePlaceholder')}
               placeholderTextColor={theme.textMuted}
               autoCapitalize="none"
@@ -903,6 +958,7 @@ export default function AddExpenseScreen() {
             <TextInput
               value={expenseTime.slice(0, 5)}
               onChangeText={setExpenseTime}
+              onFocus={handleTextFocus}
               placeholder={t('expense.timePlaceholder')}
               placeholderTextColor={theme.textMuted}
               autoCapitalize="none"
@@ -988,6 +1044,7 @@ export default function AddExpenseScreen() {
               <TextInput
                 value={spreadStart}
                 onChangeText={setSpreadStart}
+                onFocus={handleTextFocus}
                 placeholder={t('expense.datePlaceholder')}
                 placeholderTextColor={theme.textMuted}
                 autoCapitalize="none"
@@ -1000,6 +1057,7 @@ export default function AddExpenseScreen() {
               <TextInput
                 value={spreadEnd}
                 onChangeText={setSpreadEnd}
+                onFocus={handleTextFocus}
                 placeholder={t('expense.datePlaceholder')}
                 placeholderTextColor={theme.textMuted}
                 autoCapitalize="none"
@@ -1161,6 +1219,7 @@ export default function AddExpenseScreen() {
                         onChangeText={(text) =>
                           setCustomAmounts((prev) => ({ ...prev, [m.userId]: text }))
                         }
+                        onFocus={handleTextFocus}
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={theme.textMuted}
@@ -1291,18 +1350,46 @@ export default function AddExpenseScreen() {
         ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>
-        <NumPad onKeyPress={handleKey} onLongBackspace={handleLongBackspace} disabled={saving} />
-        <Pressable
-          onPress={() => handleSave()}
-          disabled={saving}
-          style={[styles.saveButton, { backgroundColor: theme.accent, opacity: saving ? 0.7 : 1 }]}
+      {activeInput === 'numpad' ? (
+        <View
+          style={[
+            styles.numpadBar,
+            { backgroundColor: theme.bg, borderTopColor: theme.border },
+          ]}
         >
-          <Text style={styles.saveButtonText}>
-            {saving ? t('expense.saving') : t('expense.save')}
-          </Text>
-        </Pressable>
-      </View>
+          <NumPad
+            onKeyPress={handleKey}
+            onLongBackspace={handleLongBackspace}
+            onDone={handleNumpadDone}
+            disabled={saving}
+          />
+        </View>
+      ) : null}
+
+      <Pressable
+        onPress={() => handleSave()}
+        disabled={!formIsValid || saving}
+        style={[
+          styles.fab,
+          {
+            bottom: fabBottomOffset,
+            [I18nManager.isRTL ? 'left' : 'right']: spacing.lg,
+            shadowColor: theme.accentGlow,
+            opacity: !formIsValid || saving ? 0.5 : 1,
+          },
+        ]}
+        accessibilityLabel={t('expense.save')}
+      >
+        <LinearGradient
+          colors={theme.fabGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fabInner}
+        >
+          <Text style={styles.fabIcon}>{saving ? '…' : '✓'}</Text>
+        </LinearGradient>
+      </Pressable>
+      </KeyboardAwareWrapper>
     </SafeAreaView>
   );
 }
@@ -1355,6 +1442,10 @@ function ToggleRow({
   );
 }
 
+// Approx height of the numpad bar: 4 rows × 50px keys + 3 × spacing.sm gaps
+// + numpadBar paddings (top spacing.sm + bottom spacing.base).
+const NUMPAD_BAR_HEIGHT = 4 * 50 + 3 * spacing.sm + spacing.sm + spacing.base;
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -1376,7 +1467,13 @@ const styles = StyleSheet.create({
   },
   headerButtonText: { fontSize: 18, fontWeight: '600' },
   title: { ...typography.screenTitle, flex: 1, textAlign: 'center' },
-  content: { padding: spacing.base, paddingBottom: spacing.xxl, gap: spacing.base },
+  content: {
+    padding: spacing.base,
+    // Make room for the numpad bar (~260px) plus some breathing space so the
+    // last form field isn't hidden when scrolled to the bottom.
+    paddingBottom: NUMPAD_BAR_HEIGHT + spacing.xxl,
+    gap: spacing.base,
+  },
   amountHero: {
     alignItems: 'center',
     paddingVertical: spacing.md,
@@ -1493,16 +1590,28 @@ const styles = StyleSheet.create({
   photoRow: { gap: spacing.sm, paddingVertical: 4 },
   photoThumb: { width: 72, height: 72, borderRadius: sizing.radiusSmall },
   error: { ...typography.caption, textAlign: 'center' },
-  footer: {
-    padding: spacing.base,
+  numpadBar: {
+    paddingHorizontal: spacing.base,
     paddingTop: spacing.sm,
-    gap: spacing.sm,
+    paddingBottom: spacing.base,
     borderTopWidth: 1,
   },
-  saveButton: {
-    borderRadius: sizing.radiusButton,
-    paddingVertical: 14,
-    alignItems: 'center',
+  fab: {
+    position: 'absolute',
+    width: sizing.fabSize,
+    height: sizing.fabSize,
+    borderRadius: sizing.fabRadius,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 8,
+    zIndex: 10,
   },
-  saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  fabInner: {
+    flex: 1,
+    borderRadius: sizing.fabRadius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabIcon: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
 });

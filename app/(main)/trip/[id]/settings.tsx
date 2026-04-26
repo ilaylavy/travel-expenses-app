@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MembersSection } from '@/components/trip/MembersSection';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -160,6 +161,7 @@ export default function TripSettingsScreen() {
         <View style={styles.spacer} />
       </View>
 
+      <KeyboardAwareWrapper>
       <TripForm
         initial={initial}
         displayCurrency={trip.homeCurrency}
@@ -219,6 +221,7 @@ export default function TripSettingsScreen() {
           </>
         }
       />
+      </KeyboardAwareWrapper>
     </SafeAreaView>
   );
 }

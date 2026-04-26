@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
+import { NumericPadField } from '@/components/expense/NumericPadField';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -85,10 +83,7 @@ export function RateOverrideChip({
         animationType="fade"
         onRequestClose={() => setEditing(false)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.backdrop}
-        >
+        <View style={styles.backdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditing(false)} />
           <View
             style={[
@@ -108,21 +103,10 @@ export function RateOverrideChip({
                 target: targetCurrency,
               })}
             </Text>
-            <TextInput
+            <NumericPadField
               value={draft}
-              onChangeText={setDraft}
-              keyboardType="decimal-pad"
+              onChange={setDraft}
               placeholder={t('currency.override.placeholder')}
-              placeholderTextColor={theme.textMuted}
-              style={[
-                styles.input,
-                {
-                  color: theme.text,
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                },
-              ]}
-              autoFocus
             />
             <View style={styles.actions}>
               {isOverridden ? (
@@ -155,7 +139,7 @@ export function RateOverrideChip({
               </Pressable>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </>
   );
@@ -185,13 +169,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: typography.itemTitle,
   cardSubtitle: typography.secondary,
-  input: {
-    ...typography.amountMedium,
-    borderWidth: 1,
-    borderRadius: sizing.radiusInput,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
   actions: {
     flexDirection: 'row',
     gap: spacing.md,

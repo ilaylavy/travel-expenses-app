@@ -18,6 +18,7 @@ import { SwipeableExpenseCard } from '@/components/expense/SwipeableExpenseCard'
 import { ExpenseStatsStrip } from '@/components/expense/ExpenseStatsStrip';
 import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
 import { FilterPill } from '@/components/ui/FilterPill';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
@@ -518,11 +519,14 @@ export default function TripExpensesScreen() {
         </Pressable>
       </View>
 
+      <KeyboardAwareWrapper hasBottomTab style={styles.flex}>
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.key}
         stickySectionHeadersEnabled
         contentContainerStyle={styles.list}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         ListHeaderComponent={hasExpenses ? listHeader : null}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         renderSectionHeader={({ section }) => (
@@ -601,6 +605,7 @@ export default function TripExpensesScreen() {
           )
         }
       />
+      </KeyboardAwareWrapper>
 
       <Pressable
         onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
@@ -677,6 +682,7 @@ export default function TripExpensesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

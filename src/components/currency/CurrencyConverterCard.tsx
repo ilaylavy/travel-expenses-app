@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useNumericPadModal } from '@/components/expense/NumericPadField';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
@@ -180,6 +181,14 @@ function ConverterField({
   onPickCurrency,
 }: FieldProps) {
   const theme = useTheme();
+  const { openPad, padNode } = useNumericPadModal({
+    value,
+    onChange: onChangeValue,
+  });
+  const handleOpenPad = () => {
+    onFocusField();
+    openPad();
+  };
   return (
     <View
       style={[
@@ -207,18 +216,20 @@ function ConverterField({
               {currency}
             </Text>
           </Pressable>
-          <TextInput
-            value={value}
-            onChangeText={onChangeValue}
-            onFocus={onFocusField}
-            keyboardType="decimal-pad"
-            style={[styles.input, { color: theme.text }]}
-            placeholder="0"
-            placeholderTextColor={theme.textMuted}
-            selectTextOnFocus
-          />
+          <Pressable onPress={handleOpenPad} style={styles.amountPressable}>
+            <Text
+              style={[
+                styles.input,
+                { color: value !== '' ? theme.text : theme.textMuted },
+              ]}
+              numberOfLines={1}
+            >
+              {value !== '' ? value : '0'}
+            </Text>
+          </Pressable>
         </View>
       </View>
+      {padNode}
     </View>
   );
 }
@@ -258,11 +269,10 @@ const styles = StyleSheet.create({
   },
   currencyButtonSymbol: { ...typography.sectionTitle },
   currencyButtonCode: { ...typography.sectionTitle },
+  amountPressable: { flex: 1, justifyContent: 'center' },
   input: {
-    flex: 1,
     ...typography.amountMedium,
     textAlign: 'right',
-    padding: 0,
   },
   swapButton: {
     alignSelf: 'center',

@@ -66,7 +66,7 @@ TRAVEL-EXPENSES-APP is a mobile expense tracker designed primarily for travelers
 - Start date / End date (end date optional for ongoing trips like "Home 2026")
 - Trip currency (the currency you're spending in — defaults based on destination)
 - Home currency (your native currency for conversion display)
-- Budget (optional, in trip currency)
+- Budget (optional, in trip currency — entered via the custom NumPad, see §3.15)
 - Mark as "ongoing" (no end date)
 
 **Delete trip:**
@@ -79,7 +79,7 @@ TRAVEL-EXPENSES-APP is a mobile expense tracker designed primarily for travelers
 This is the most critical screen. Target: complete an entry in under 10 seconds.
 
 **Required fields:**
-- Amount (numeric keypad input)
+- Amount (entered via the app's custom NumPad — see §3.15)
 - Category (tap from icon grid)
 
 **Pre-filled / auto fields:**
@@ -329,6 +329,34 @@ Single scrollable screen within the trip tab. Sections:
 - Sync status and manual sync trigger
 - Sign out
 - About / version
+
+### 3.15 Input Behavior (Keyboard & NumPad)
+
+The app must feel consistent and predictable when the user enters data. Two rules govern every input across the app: every numeric value is entered via the same custom NumPad, and the system text keyboard never covers the field a user is editing.
+
+**Custom NumPad — used for every numeric value the user types:**
+- Layout: a 3-column number grid (1–9, ., 0) plus a fourth right-hand column that holds **⌫** at the top and a tall **Done** key spanning the rows below. Done sits next to "6" and directly under ⌫.
+- Visual style: gradient number keys, accent-colored Done key, matches the design system (DESIGN_SYSTEM.md §6 "Numpad").
+- Tapping a numeric field opens the NumPad. The system keyboard is always dismissed first so the two are never on screen simultaneously. Tapping Done (or tapping outside) dismisses the NumPad.
+- Long-press ⌫ clears the value.
+- Used for: expense amount on Add Expense, trip budget in Create/Edit Trip, manual exchange-rate override, and the Quick Converter's amount field.
+- Exception: per-row inline numeric inputs (custom-split shares for each member on a single expense) keep the system decimal-pad — the screen would have many small NumPad targets that conflict with one user-visible NumPad bar. This is the only place the system numeric keyboard is used.
+
+**System text keyboard — used for every non-numeric input (notes, names, emails, dates, search):**
+- Every screen that contains a text input wraps its content so the focused input stays visible above the keyboard on both iOS and Android.
+- Dragging a list or scroll view dismisses the keyboard (`on-drag`).
+- Tapping a row or button in a list while the keyboard is open performs the action on the first tap (no double-tap to dismiss-then-select).
+- On Android, the screen resizes when the keyboard appears (rather than the keyboard floating over content).
+
+**Add Expense screen — special interaction:**
+- The amount display at the top is a tappable area, not a text input — tapping it always shows the NumPad and dismisses the system keyboard.
+- Tapping any text field on the screen (note, date, time, etc.) hides the NumPad and shows the system keyboard.
+- The Save button is a circular floating action button at the bottom-right (mirrored to bottom-left in RTL). It rides up to sit just above the NumPad, just above the system keyboard, or just above the safe-area edge depending on which (if any) is open. The button is dimmed and disabled until both an amount and a category are present.
+
+**Add Expense — chat (Ask):**
+- The chat input bar always sits directly above the keyboard.
+- When the keyboard opens, the message list auto-scrolls to the latest message.
+- Drag-down on the message list interactively pulls the keyboard down with the gesture.
 
 ---
 

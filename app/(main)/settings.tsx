@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { deleteDatabase } from '@/db/database';
 import { getProfile, updateProfile, type Profile } from '@/db/queries/profiles';
@@ -252,7 +253,12 @@ export default function SettingsScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAwareWrapper>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {/* PROFILE */}
         <SectionHeader theme={theme} label={t('settings.profile.section')} />
         <Card theme={theme}>
@@ -477,6 +483,7 @@ export default function SettingsScreen() {
           {t('settings.about.footer')}
         </Text>
       </ScrollView>
+      </KeyboardAwareWrapper>
 
       <CurrencyPickerModal
         visible={currencyPickerOpen}

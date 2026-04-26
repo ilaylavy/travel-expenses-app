@@ -33,6 +33,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "config": {
         "googleMaps": {
           "apiKey": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"

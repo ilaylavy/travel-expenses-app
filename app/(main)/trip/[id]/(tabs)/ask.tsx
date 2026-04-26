@@ -2,8 +2,7 @@ import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import { ChatBubble } from '@/components/chat/ChatBubble';
 import { EmptyState } from '@/components/chat/EmptyState';
 import { FollowUpChips } from '@/components/chat/FollowUpChips';
 import { MessageInput } from '@/components/chat/MessageInput';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -62,6 +62,15 @@ export default function AskScreen() {
   useEffect(() => {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   }, [messages.length, loading]);
+
+  // When the keyboard opens, scroll to the latest message so the input bar
+  // and the most recent reply both stay visible above the keyboard.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => sub.remove();
+  }, []);
 
   const send = useCallback(
     async (text: string) => {
@@ -140,10 +149,7 @@ export default function AskScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAwareWrapper hasBottomTab hasFixedBottom style={styles.flex}>
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
@@ -168,6 +174,7 @@ export default function AskScreen() {
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {messages.length === 0 && !loading ? (
             <EmptyState trip={trip} onPick={handlePick} />
@@ -215,7 +222,7 @@ export default function AskScreen() {
           onSend={handleSendCurrent}
           disabled={loading}
         />
-      </KeyboardAvoidingView>
+      </KeyboardAwareWrapper>
     </SafeAreaView>
   );
 }

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryForm, type CategoryFormValues } from '@/components/expense/CategoryForm';
+import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -44,11 +45,13 @@ export default function NewCategoryScreen() {
         <View style={styles.spacer} />
       </View>
 
-      <CategoryForm
-        submitLabel={t('categories.createSubmit')}
-        submittingLabel={t('categories.creating')}
-        onSubmit={handleSubmit}
-      />
+      <KeyboardAwareWrapper>
+        <CategoryForm
+          submitLabel={t('categories.createSubmit')}
+          submittingLabel={t('categories.creating')}
+          onSubmit={handleSubmit}
+        />
+      </KeyboardAwareWrapper>
     </SafeAreaView>
   );
 }

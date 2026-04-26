@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { NumericPadField } from '@/components/expense/NumericPadField';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { getCurrencySymbol } from '@/utils/currency';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
 
 const TRIP_EMOJIS = ['✈️', '🏖️', '🏔️', '🗺️', '🏛️', '🍜', '🌴', '🎒', '🚂', '🏕️', '🌸', '🌃'];
@@ -89,7 +91,11 @@ export function TripForm({
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+    >
       <Field label={t('tripForm.emoji')} theme={theme}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiRow}>
           {TRIP_EMOJIS.map((e) => {
@@ -160,13 +166,11 @@ export function TripForm({
       )}
 
       <Field label={t('tripForm.budget', { currency: displayCurrency })} theme={theme}>
-        <TextInput
-          style={inputStyle}
+        <NumericPadField
           value={budget}
-          onChangeText={setBudget}
+          onChange={setBudget}
+          prefix={getCurrencySymbol(displayCurrency)}
           placeholder={t('tripForm.budgetPlaceholder')}
-          placeholderTextColor={theme.textMuted}
-          keyboardType="decimal-pad"
         />
       </Field>
 
