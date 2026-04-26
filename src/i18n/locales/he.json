@@ -303,7 +303,9 @@
     "picker": {
       "title": "",
       "searchPlaceholder": "",
-      "moreChip": ""
+      "moreChip": "",
+      "favoriteToggle": "",
+      "homeCurrencyLocked": ""
     },
     "converter": {
       "title": "",

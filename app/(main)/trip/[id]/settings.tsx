@@ -156,6 +156,7 @@ export default function TripSettingsScreen() {
 
       <TripForm
         initial={initial}
+        displayCurrency={trip.homeCurrency}
         submitLabel={t('tripSettings.submit')}
         submittingLabel={t('tripSettings.submitting')}
         onSubmit={handleSubmit}

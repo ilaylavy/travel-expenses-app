@@ -18,6 +18,9 @@ export function CurrencyConverterCard() {
   const theme = useTheme();
   const { t } = useTranslation();
   const defaultCurrency = useSettingsStore((s) => s.defaultCurrency);
+  const favoriteCurrencies = useSettingsStore((s) => s.favoriteCurrencies);
+  const toggleFavoriteCurrency = useSettingsStore((s) => s.toggleFavoriteCurrency);
+  const favoriteCodesSet = useMemo(() => new Set(favoriteCurrencies), [favoriteCurrencies]);
 
   const [fromCurrency, setFromCurrency] = useState<string>(defaultCurrency || DEFAULT_CURRENCY);
   const [toCurrency, setToCurrency] = useState<string>(
@@ -144,6 +147,9 @@ export function CurrencyConverterCard() {
           else if (pickerOpen === 'to') setToCurrency(code);
         }}
         onClose={() => setPickerOpen(null)}
+        favoriteCodes={favoriteCodesSet}
+        onToggleFavorite={toggleFavoriteCurrency}
+        homeCurrency={defaultCurrency}
       />
     </>
   );

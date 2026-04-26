@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { sizing, spacing, typography } from '@/constants/theme';
-import { CURRENCIES } from '@/constants/currencies';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
@@ -21,13 +20,25 @@ export interface TripFormValues {
 
 interface TripFormProps {
   initial?: Partial<TripFormValues>;
+  // Currency code displayed in the budget label. The form no longer
+  // collects currency from the user — the parent supplies the user's
+  // home currency (from settings, or the existing trip when editing) so
+  // the budget input can show the right symbol/code without any picker.
+  displayCurrency: string;
   submitLabel: string;
   submittingLabel?: string;
   onSubmit: (values: TripFormValues) => Promise<void>;
   footer?: React.ReactNode;
 }
 
-export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, footer }: TripFormProps) {
+export function TripForm({
+  initial,
+  displayCurrency,
+  submitLabel,
+  submittingLabel,
+  onSubmit,
+  footer,
+}: TripFormProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [name, setName] = useState(initial?.name ?? '');
@@ -35,11 +46,15 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
   const [startDate, setStartDate] = useState(initial?.startDate ?? todayIsoDate());
   const [endDate, setEndDate] = useState(initial?.endDate ?? '');
   const [ongoing, setOngoing] = useState(initial?.endDate == null && initial != null ? true : false);
-  const [baseCurrency, setBaseCurrency] = useState(initial?.baseCurrency ?? 'USD');
-  const [homeCurrency, setHomeCurrency] = useState(initial?.homeCurrency ?? 'USD');
   const [budget, setBudget] = useState(initial?.budget != null ? String(initial.budget) : '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // base_currency / home_currency are still stored on the trip row, but
+  // the user no longer picks them. Default both to displayCurrency for
+  // new trips; preserve the originals when editing.
+  const baseCurrency = initial?.baseCurrency ?? displayCurrency;
+  const homeCurrency = initial?.homeCurrency ?? displayCurrency;
 
   const inputStyle = useMemo(
     () => [styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }],
@@ -144,15 +159,7 @@ export function TripForm({ initial, submitLabel, submittingLabel, onSubmit, foot
         </Field>
       )}
 
-      <Field label={t('tripForm.tripCurrency')} theme={theme}>
-        <CurrencyStrip selected={baseCurrency} onSelect={setBaseCurrency} />
-      </Field>
-
-      <Field label={t('tripForm.homeCurrency')} theme={theme}>
-        <CurrencyStrip selected={homeCurrency} onSelect={setHomeCurrency} />
-      </Field>
-
-      <Field label={t('tripForm.budget', { currency: baseCurrency })} theme={theme}>
+      <Field label={t('tripForm.budget', { currency: displayCurrency })} theme={theme}>
         <TextInput
           style={inputStyle}
           value={budget}
@@ -200,45 +207,6 @@ function Field({
   );
 }
 
-function CurrencyStrip({
-  selected,
-  onSelect,
-}: {
-  selected: string;
-  onSelect: (code: string) => void;
-}) {
-  const theme = useTheme();
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.currencyRow}>
-      {CURRENCIES.map((c) => {
-        const active = c.code === selected;
-        return (
-          <Pressable
-            key={c.code}
-            onPress={() => onSelect(c.code)}
-            style={[
-              styles.currencyChip,
-              {
-                backgroundColor: active ? theme.accentSoft : theme.surface,
-                borderColor: active ? theme.accent : theme.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.currencyChipText,
-                { color: active ? theme.accent : theme.textSecondary },
-              ]}
-            >
-              {c.code}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
 const styles = StyleSheet.create({
   content: { padding: spacing.base, paddingBottom: spacing.xxl * 2, gap: spacing.base },
   field: { gap: spacing.sm },
@@ -261,14 +229,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emojiText: { fontSize: 26 },
-  currencyRow: { gap: spacing.sm, paddingVertical: 4 },
-  currencyChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
-  },
-  currencyChipText: { fontSize: 12, fontWeight: '700' },
   ongoingRow: {
     flexDirection: 'row',
     alignItems: 'center',
