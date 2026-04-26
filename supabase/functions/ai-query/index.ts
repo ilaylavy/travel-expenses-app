@@ -35,7 +35,69 @@ interface RequestBody {
   question?: unknown;
   tripId?: unknown;
   conversationHistory?: unknown;
+  language?: unknown;
 }
+
+type Language = 'en' | 'he';
+
+const SUPPORTED_LANGUAGES: readonly Language[] = ['en', 'he'];
+const LANGUAGE_NAMES: Record<Language, string> = {
+  en: 'English',
+  he: 'Hebrew',
+};
+
+function parseLanguage(raw: unknown): Language {
+  if (typeof raw !== 'string') return 'en';
+  const lower = raw.toLowerCase();
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(lower) ? (lower as Language) : 'en';
+}
+
+function languageInstruction(language: Language): string {
+  return `\n\nLanguage: write the "answer" and "followUps" in ${LANGUAGE_NAMES[language]}. Keep currency symbols, member names, place names, category names, and dates exactly as they appear in the trip context.`;
+}
+
+interface StaticFallbacks {
+  thinkingError: string;
+  chitchat: string;
+  outOfScope: string;
+  clarify: string;
+  rephrase: string;
+  noAnswer: string;
+  followUps: string[];
+}
+
+const STATIC_FALLBACKS: Record<Language, StaticFallbacks> = {
+  en: {
+    thinkingError: "I'm having trouble thinking right now. Try again in a moment.",
+    chitchat:
+      "Hey! I can help with questions about your spending on this trip — totals, categories, comparisons, you name it.",
+    outOfScope:
+      "I only help with questions about your spending on this trip. Got an expense question I can dig into?",
+    clarify: 'Could you give me a bit more detail on what you want to know?',
+    rephrase: 'I had trouble processing that question. Could you try rephrasing it?',
+    noAnswer: "I couldn't put together an answer for that. Try rephrasing?",
+    followUps: [
+      'How much have I spent so far?',
+      'What category am I spending the most on?',
+      'How am I doing against my budget?',
+    ],
+  },
+  he: {
+    thinkingError: 'יש לי קושי לחשוב כרגע. נסה שוב בעוד רגע.',
+    chitchat:
+      'היי! אני יכול לעזור בשאלות על ההוצאות בטיול — סיכומים, קטגוריות, השוואות, מה שתרצה.',
+    outOfScope:
+      'אני עוזר רק בשאלות על ההוצאות בטיול הזה. יש שאלה על הוצאות שאוכל לבדוק?',
+    clarify: 'אפשר לפרט קצת יותר מה תרצה לדעת?',
+    rephrase: 'הייתה לי בעיה לעבד את השאלה הזאת. אפשר לנסח אחרת?',
+    noAnswer: 'לא הצלחתי לבנות תשובה לזה. אפשר לנסח אחרת?',
+    followUps: [
+      'כמה הוצאתי עד עכשיו?',
+      'באיזו קטגוריה אני מוציא הכי הרבה?',
+      'איך אני עומד מול התקציב?',
+    ],
+  },
+};
 
 interface PlannedQuery {
   sql: string;
@@ -364,6 +426,10 @@ function buildPlannerSystem(tripId: string, callerId: string): string {
   return PLANNER_SYSTEM_TEMPLATE
     .replaceAll('<<TRIP_ID>>', tripId)
     .replaceAll('<<CALLER_ID>>', callerId);
+}
+
+function buildSummarizerSystem(language: Language): string {
+  return SUMMARIZER_SYSTEM + languageInstruction(language);
 }
 
 function buildPlannerUser(
@@ -746,12 +812,8 @@ async function runQueries(
   return results;
 }
 
-function genericFollowUps(): string[] {
-  return [
-    'How much have I spent so far?',
-    'What category am I spending the most on?',
-    'How am I doing against my budget?',
-  ];
+function genericFollowUps(language: Language): string[] {
+  return [...STATIC_FALLBACKS[language].followUps];
 }
 
 function clampStringArray(value: unknown, max: number): string[] {
@@ -854,6 +916,8 @@ Deno.serve(async (req: Request) => {
   if (!question) return errorResponse('Missing question');
   if (!tripId || !UUID_RE.test(tripId)) return errorResponse('Missing or invalid tripId');
   const history = sanitizeHistory(body.conversationHistory);
+  const language = parseLanguage(body.language);
+  const fallbacks = STATIC_FALLBACKS[language];
 
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false },
@@ -895,6 +959,7 @@ Deno.serve(async (req: Request) => {
     console.log('ai-query: question', JSON.stringify({
       tripId,
       callerId,
+      language,
       question,
       historyLen: history.length,
     }));
@@ -910,11 +975,7 @@ Deno.serve(async (req: Request) => {
       planner = parsePlannerResponse(raw);
     } catch (err) {
       console.error('ai-query: planner call failed', err instanceof Error ? err.message : err);
-      return chatResponse(
-        "I'm having trouble thinking right now. Try again in a moment.",
-        [],
-        'error',
-      );
+      return chatResponse(fallbacks.thinkingError, [], 'error');
     }
 
     // Diagnostic log: planner output. SQL is included because it's the most
@@ -927,20 +988,22 @@ Deno.serve(async (req: Request) => {
     }));
 
     if (planner.intent !== 'DATA_QUERY') {
-      const fallback =
+      // Always use the localized static reply rather than planner.directResponse,
+      // since the planner has no language instruction and tends to mirror the
+      // question's language (e.g. Hebrew greeting in an English app).
+      const answer =
         planner.intent === 'CHITCHAT'
-          ? "Hey! I can help with questions about your spending on this trip — totals, categories, comparisons, you name it."
+          ? fallbacks.chitchat
           : planner.intent === 'OUT_OF_SCOPE'
-            ? "I only help with questions about your spending on this trip. Got an expense question I can dig into?"
-            : 'Could you give me a bit more detail on what you want to know?';
-      const answer = planner.directResponse.trim().length > 0 ? planner.directResponse : fallback;
-      return chatResponse(answer, genericFollowUps(), planner.intent);
+            ? fallbacks.outOfScope
+            : fallbacks.clarify;
+      return chatResponse(answer, genericFollowUps(language), planner.intent);
     }
 
     if (planner.queries.length === 0) {
       return chatResponse(
-        "I had trouble processing that question. Could you try rephrasing it?",
-        genericFollowUps(),
+        fallbacks.rephrase,
+        genericFollowUps(language),
         'DATA_QUERY',
         'planner returned no queries',
       );
@@ -953,8 +1016,8 @@ Deno.serve(async (req: Request) => {
       if (failure) {
         console.error('ai-query: validator rejected SQL', failure, q.sql);
         return chatResponse(
-          "I had trouble processing that question. Could you try rephrasing it?",
-          genericFollowUps(),
+          fallbacks.rephrase,
+          genericFollowUps(language),
           'DATA_QUERY',
           `SQL validation failed: ${failure}`,
         );
@@ -967,24 +1030,20 @@ Deno.serve(async (req: Request) => {
     try {
       const raw = await callOpenAIJson(
         openaiKey,
-        SUMMARIZER_SYSTEM,
+        buildSummarizerSystem(language),
         buildSummarizerUser(question, context, history, results),
         0.3,
       );
       summary = parseSummarizerResponse(raw);
     } catch (err) {
       console.error('ai-query: summarizer call failed', err instanceof Error ? err.message : err);
-      return chatResponse(
-        "I'm having trouble thinking right now. Try again in a moment.",
-        [],
-        'error',
-      );
+      return chatResponse(fallbacks.thinkingError, [], 'error');
     }
 
-    const followUps = summary.followUps.length > 0 ? summary.followUps : genericFollowUps();
+    const followUps = summary.followUps.length > 0 ? summary.followUps : genericFollowUps(language);
     const answer = summary.answer.trim().length > 0
       ? summary.answer
-      : "I couldn't put together an answer for that. Try rephrasing?";
+      : fallbacks.noAnswer;
 
     // Diagnostic log: the user-visible answer plus the row counts that
     // produced it. This pairs with the planner log to make it easy to see
@@ -1001,11 +1060,7 @@ Deno.serve(async (req: Request) => {
     return chatResponse(answer, followUps, 'DATA_QUERY');
   } catch (err) {
     console.error('ai-query: unhandled error', err instanceof Error ? err.stack ?? err.message : err);
-    return chatResponse(
-      "I'm having trouble thinking right now. Try again in a moment.",
-      [],
-      'error',
-    );
+    return chatResponse(fallbacks.thinkingError, [], 'error');
   } finally {
     try {
       await sql.end({ timeout: 1 });

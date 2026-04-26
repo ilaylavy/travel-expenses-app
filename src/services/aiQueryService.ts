@@ -27,6 +27,7 @@ export async function askQuestion(
   tripId: string,
   question: string,
   history: ConversationMessage[],
+  language: 'en' | 'he',
   { offlineMessage, errorMessage }: AskOptions,
 ): Promise<AskResponse> {
   const net = await NetInfo.fetch();
@@ -56,6 +57,7 @@ export async function askQuestion(
         question,
         tripId,
         conversationHistory: history.slice(-HISTORY_LIMIT),
+        language,
       }),
       signal: controller.signal,
     });
