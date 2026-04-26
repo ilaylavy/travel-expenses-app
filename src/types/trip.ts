@@ -8,6 +8,9 @@ export interface Trip {
   endDate: string | null;
   baseCurrency: string;
   homeCurrency: string;
+  // The current user's personal budget for this trip, in home_currency.
+  // Sourced from trip_members.budget for the active user — null when they
+  // haven't set one. NOT the legacy trips.budget column.
   budget: number | null;
   ownerId: string;
   createdAt: string;
@@ -22,6 +25,9 @@ export interface TripMember {
   role: TripMemberRole;
   invitedAt: string;
   joinedAt: string | null;
+  // Personal budget for this trip in home_currency. Null = not set.
+  budget: number | null;
+  updatedAt: string;
 }
 
 export interface TripWithMembers extends Trip {

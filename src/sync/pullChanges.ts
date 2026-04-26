@@ -19,12 +19,11 @@ const PULL_ORDER: PullTable[] = [
 const PAGE_SIZE = 500;
 const EPOCH = '1970-01-01T00:00:00Z';
 
-// trip_members has no updated_at — only invited_at / joined_at; cursor on
-// invited_at (membership rows are near-immutable). expense_photos has no
-// updated_at either; cursor on created_at. All other tables use updated_at.
-function cursorColumn(table: PullTable): 'updated_at' | 'created_at' | 'invited_at' {
+// expense_photos has no updated_at; cursor on created_at. Every other table
+// (including trip_members since v5 — per-user budgets made it mutable) uses
+// updated_at as the cursor.
+function cursorColumn(table: PullTable): 'updated_at' | 'created_at' {
   if (table === 'expense_photos') return 'created_at';
-  if (table === 'trip_members') return 'invited_at';
   return 'updated_at';
 }
 

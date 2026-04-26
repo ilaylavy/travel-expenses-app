@@ -128,8 +128,14 @@ export default function TripExpensesScreen() {
 
   const stats = useMemo(() => {
     if (!trip) return null;
-    return aggregate({ expenses, splits, trip, today: todayDateString() });
-  }, [expenses, splits, trip]);
+    return aggregate({
+      expenses,
+      splits,
+      trip,
+      today: todayDateString(),
+      currentUserId,
+    });
+  }, [expenses, splits, trip, currentUserId]);
 
   const expenseCount = useMemo(
     () => expenses.filter((e) => e.deletedAt === null && !e.isRefund).length,

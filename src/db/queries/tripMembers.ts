@@ -11,6 +11,8 @@ interface TripMemberRow {
   role: 'owner' | 'member';
   invited_at: string;
   joined_at: string | null;
+  budget: number | null;
+  updated_at: string | null;
 }
 
 interface PendingInviteRow extends TripMemberRow {
@@ -20,7 +22,6 @@ interface PendingInviteRow extends TripMemberRow {
   trip_end_date: string | null;
   trip_base_currency: string;
   trip_home_currency: string;
-  trip_budget: number | null;
   trip_owner_id: string;
   trip_created_at: string;
   trip_updated_at: string;
@@ -39,6 +40,8 @@ function rowToMember(row: TripMemberRow): TripMember {
     role: row.role,
     invitedAt: row.invited_at,
     joinedAt: row.joined_at,
+    budget: row.budget,
+    updatedAt: row.updated_at ?? row.invited_at,
   };
 }
 
@@ -50,6 +53,8 @@ function memberToPayload(m: TripMember): Record<string, unknown> {
     role: m.role,
     invited_at: m.invitedAt,
     joined_at: m.joinedAt,
+    budget: m.budget,
+    updated_at: m.updatedAt,
   };
 }
 
@@ -73,20 +78,33 @@ export async function inviteMember(
   const existing = await getExistingMember(tripId, userId);
   if (existing) return existing;
 
+  const now = new Date().toISOString();
   const member: TripMember = {
     id: newId(),
     tripId,
     userId,
     role: 'member',
-    invitedAt: new Date().toISOString(),
+    invitedAt: now,
     joinedAt: null,
+    budget: null,
+    updatedAt: now,
   };
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      `INSERT INTO trip_members (id, trip_id, user_id, role, invited_at, joined_at)
-       VALUES (?, ?, ?, ?, ?, ?);`,
-      [member.id, member.tripId, member.userId, member.role, member.invitedAt, member.joinedAt],
+      `INSERT INTO trip_members
+         (id, trip_id, user_id, role, invited_at, joined_at, budget, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      [
+        member.id,
+        member.tripId,
+        member.userId,
+        member.role,
+        member.invitedAt,
+        member.joinedAt,
+        member.budget,
+        member.updatedAt,
+      ],
     );
     await enqueueSync(db, 'trip_members', member.id, 'create', memberToPayload(member));
   });
@@ -103,22 +121,16 @@ export async function acceptInvite(memberId: string): Promise<TripMember> {
   if (!row) throw new Error('Invite not found');
 
   const joinedAt = new Date().toISOString();
+  const next: TripMember = { ...rowToMember(row), joinedAt, updatedAt: joinedAt };
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      'UPDATE trip_members SET joined_at = ? WHERE id = ?;',
-      [joinedAt, memberId],
+      'UPDATE trip_members SET joined_at = ?, updated_at = ? WHERE id = ?;',
+      [joinedAt, joinedAt, memberId],
     );
-    await enqueueSync(db, 'trip_members', memberId, 'update', {
-      id: memberId,
-      trip_id: row.trip_id,
-      user_id: row.user_id,
-      role: row.role,
-      invited_at: row.invited_at,
-      joined_at: joinedAt,
-    });
+    await enqueueSync(db, 'trip_members', memberId, 'update', memberToPayload(next));
   });
 
-  return { ...rowToMember(row), joinedAt };
+  return next;
 }
 
 export async function removeMember(memberId: string): Promise<void> {
@@ -151,10 +163,11 @@ export async function listPendingInvitesForUser(userId: string): Promise<Pending
   const rows = await db.getAllAsync<PendingInviteRow>(
     `SELECT
        m.id, m.trip_id, m.user_id, m.role, m.invited_at, m.joined_at,
+       m.budget, m.updated_at,
        t.name AS trip_name, t.emoji AS trip_emoji,
        t.start_date AS trip_start_date, t.end_date AS trip_end_date,
        t.base_currency AS trip_base_currency, t.home_currency AS trip_home_currency,
-       t.budget AS trip_budget, t.owner_id AS trip_owner_id,
+       t.owner_id AS trip_owner_id,
        t.created_at AS trip_created_at, t.updated_at AS trip_updated_at
      FROM trip_members m
      JOIN trips t ON t.id = m.trip_id
@@ -175,7 +188,9 @@ export async function listPendingInvitesForUser(userId: string): Promise<Pending
       endDate: row.trip_end_date,
       baseCurrency: row.trip_base_currency,
       homeCurrency: row.trip_home_currency,
-      budget: row.trip_budget,
+      // The invitee hasn't set their personal budget yet; null is the right
+      // default. (The legacy trips.budget column is no longer surfaced.)
+      budget: null,
       ownerId: row.trip_owner_id,
       createdAt: row.trip_created_at,
       updatedAt: row.trip_updated_at,

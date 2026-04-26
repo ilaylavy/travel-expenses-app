@@ -36,6 +36,7 @@ export default function TripSettingsScreen() {
   const user = useAuthStore((s) => s.user);
   const trip = useTripStore((s) => s.trips.find((t) => t.id === tripId));
   const updateTrip = useTripStore((s) => s.updateTrip);
+  const updateMyBudget = useTripStore((s) => s.updateMyBudget);
   const deleteTrip = useTripStore((s) => s.deleteTrip);
   const syncStatus = useSyncStore((s) => s.status);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
@@ -99,6 +100,9 @@ export default function TripSettingsScreen() {
   })();
 
   const handleSubmit = async (values: TripFormValues): Promise<void> => {
+    // Trip metadata vs the active user's personal budget go to two different
+    // tables now (trips vs trip_members). Update both, but the budget is
+    // per-user so non-owners hitting Save still update only their own row.
     await updateTrip({
       id: trip.id,
       name: values.name,
@@ -107,8 +111,10 @@ export default function TripSettingsScreen() {
       endDate: values.endDate,
       baseCurrency: values.baseCurrency,
       homeCurrency: values.homeCurrency,
-      budget: values.budget,
     });
+    if (values.budget !== trip.budget) {
+      await updateMyBudget(trip.id, values.budget);
+    }
     router.back();
   };
 

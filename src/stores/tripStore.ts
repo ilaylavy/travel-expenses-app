@@ -4,6 +4,7 @@ import {
   createTrip as dbCreateTrip,
   listTripsWithStats,
   softDeleteTrip as dbSoftDeleteTrip,
+  updateMemberBudget as dbUpdateMemberBudget,
   updateTrip as dbUpdateTrip,
   type CreateTripInput,
   type UpdateTripInput,
@@ -22,12 +23,22 @@ interface TripState {
   setActiveTrip: (tripId: string | null) => void;
   createTrip: (input: CreateTripInput) => Promise<TripWithStats>;
   updateTrip: (input: UpdateTripInput) => Promise<void>;
+  // Per-user budget setter. Updates the active user's trip_members.budget
+  // (in home_currency). Pass null to clear.
+  updateMyBudget: (tripId: string, budget: number | null) => Promise<void>;
   deleteTrip: (tripId: string) => Promise<void>;
   reset: () => void;
 }
 
-function findTrip(trips: TripWithStats[], id: string): TripWithStats | undefined {
-  return trips.find((t) => t.id === id);
+function applyBudget(
+  trip: TripWithStats,
+  budget: number | null,
+): TripWithStats {
+  return {
+    ...trip,
+    budget,
+    stats: { ...trip.stats, budgetHome: budget },
+  };
 }
 
 export const useTripStore = create<TripState>((set, get) => ({
@@ -70,7 +81,7 @@ export const useTripStore = create<TripState>((set, get) => ({
       stats: {
         totalSpent: 0,
         memberCount: 1,
-        budgetHome: trip.baseCurrency === trip.homeCurrency ? trip.budget : null,
+        budgetHome: trip.budget,
       },
     };
     set((state) => ({ trips: [withStats, ...state.trips] }));
@@ -82,23 +93,20 @@ export const useTripStore = create<TripState>((set, get) => ({
     set((state) => ({
       trips: state.trips.map((t) => {
         if (t.id !== updated.id) return t;
-        const prev = findTrip(state.trips, updated.id)?.stats ?? {
-          totalSpent: 0,
-          memberCount: 1,
-          budgetHome: null,
-        };
-        // Recompute budgetHome locally only in the trivial single-currency case.
-        // Cross-currency recomputation needs the expense ratios — defer to refresh().
-        const budgetHome =
-          updated.baseCurrency === updated.homeCurrency
-            ? updated.budget
-            : prev.budgetHome;
-        return { ...updated, stats: { ...prev, budgetHome } };
+        return { ...updated, stats: t.stats };
       }),
     }));
-    if (input.baseCurrency !== undefined || input.budget !== undefined) {
-      await get().refresh();
-    }
+  },
+
+  updateMyBudget: async (tripId, budget) => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) throw new Error('Not signed in');
+    await dbUpdateMemberBudget(tripId, userId, budget);
+    set((state) => ({
+      trips: state.trips.map((t) =>
+        t.id === tripId ? applyBudget(t, budget) : t,
+      ),
+    }));
   },
 
   deleteTrip: async (tripId) => {

@@ -121,10 +121,14 @@ async function pushEntry(
     }
     if (entry.tableName === 'trip_members') {
       // Remote trigger add_owner_to_trip_members() may have already created
-      // the owner row with a different uuid; skip duplicates on (trip_id,user_id).
+      // the owner row with a server-side uuid. Merge-upsert on
+      // (trip_id, user_id) so any client-side fields (budget, joined_at)
+      // land on the existing row; the row's id ends up matching whichever
+      // side wrote last, which is fine because (trip_id, user_id) is the
+      // real identity.
       const { error } = await supabase
         .from('trip_members')
-        .upsert(payload, { onConflict: 'trip_id,user_id', ignoreDuplicates: true });
+        .upsert(payload, { onConflict: 'trip_id,user_id' });
       if (error) throw error;
       return;
     }

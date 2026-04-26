@@ -41,12 +41,13 @@ async function getLocalUpdatedAt(
     return row?.created_at ?? null;
   }
   if (table === 'trip_members') {
-    // No updated_at column — use invited_at as the LWW timestamp.
-    const row = await db.getFirstAsync<{ invited_at: string }>(
-      'SELECT invited_at FROM trip_members WHERE id = ?;',
+    // updated_at was added in v5; old rows might still hold a NULL value if
+    // the migration hasn't run yet, so fall back to invited_at.
+    const row = await db.getFirstAsync<{ updated_at: string | null; invited_at: string }>(
+      'SELECT updated_at, invited_at FROM trip_members WHERE id = ?;',
       [id],
     );
-    return row?.invited_at ?? null;
+    return row?.updated_at ?? row?.invited_at ?? null;
   }
   const row = await db.getFirstAsync<{ updated_at: string }>(
     `SELECT updated_at FROM ${table} WHERE id = ?;`,
@@ -132,8 +133,8 @@ async function applyTripMember(db: SQLiteDatabase, r: Remote): Promise<void> {
 
   await db.runAsync(
     `INSERT OR REPLACE INTO trip_members
-       (id, trip_id, user_id, role, invited_at, joined_at)
-     VALUES (?, ?, ?, ?, ?, ?);`,
+       (id, trip_id, user_id, role, invited_at, joined_at, budget, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       remoteId,
       tripId,
@@ -141,6 +142,8 @@ async function applyTripMember(db: SQLiteDatabase, r: Remote): Promise<void> {
       asString(r.role) ?? 'member',
       asString(r.invited_at) ?? new Date().toISOString(),
       asString(r.joined_at),
+      asNumber(r.budget),
+      asString(r.updated_at) ?? asString(r.invited_at) ?? new Date().toISOString(),
     ],
   );
 }
@@ -299,7 +302,7 @@ export async function applyRemote(
     table === 'expense_photos'
       ? remote.created_at
       : table === 'trip_members'
-        ? remote.invited_at
+        ? (remote.updated_at ?? remote.invited_at)
         : remote.updated_at,
   );
   const localUpdatedAt = await getLocalUpdatedAt(db, table, id);

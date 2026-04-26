@@ -6,14 +6,14 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
-import type { ExpenseWithPhotos } from '@/types/expense';
 import { getCategorySoftColor } from '@/utils/categoryColor';
 import { formatAmount } from '@/utils/currency';
 import { formatDay } from '@/utils/date';
 import { href } from '@/utils/nav';
+import type { TopExpense } from '@/utils/statsAggregations';
 
 interface Props {
-  expenses: ExpenseWithPhotos[];
+  expenses: TopExpense[];
   categoriesById: Record<string, Category>;
   tripId: string;
   currency: string;
@@ -29,7 +29,7 @@ export function TopExpensesCard({ expenses, categoriesById, tripId, currency }: 
   return (
     <StatsSectionCard title={t('stats.topExpenses')}>
       <View style={styles.list}>
-        {expenses.map((e) => {
+        {expenses.map(({ expense: e, userShareConverted }) => {
           const cat = categoriesById[e.categoryId];
           const emoji = cat?.emoji ?? '•';
           const soft = cat ? getCategorySoftColor(cat.color, theme) : theme.accentSoft;
@@ -57,7 +57,7 @@ export function TopExpensesCard({ expenses, categoriesById, tripId, currency }: 
                 </Text>
               </View>
               <Text style={[styles.amount, { color: theme.text }]}>
-                {formatAmount(e.convertedAmount, currency)}
+                {formatAmount(userShareConverted, currency)}
               </Text>
             </Pressable>
           );

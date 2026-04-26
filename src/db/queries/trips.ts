@@ -14,6 +14,9 @@ interface TripRow {
   end_date: string | null;
   base_currency: string;
   home_currency: string;
+  // Legacy column. The new contract puts each user's budget on their
+  // trip_members row; this stays nullable so old payloads don't break the
+  // schema, but new code never reads it.
   budget: number | null;
   owner_id: string;
   created_at: string;
@@ -28,6 +31,8 @@ interface TripMemberRow {
   role: TripMemberRole;
   invited_at: string;
   joined_at: string | null;
+  budget: number | null;
+  updated_at: string | null;
 }
 
 interface TripStatsRow {
@@ -44,6 +49,8 @@ export interface CreateTripInput {
   endDate: string | null;
   baseCurrency: string;
   homeCurrency: string;
+  // The owner's personal budget for the trip, in home_currency. Stored
+  // on the owner's trip_members row, not on the trips table.
   budget: number | null;
   ownerId: string;
 }
@@ -56,10 +63,9 @@ export interface UpdateTripInput {
   endDate?: string | null;
   baseCurrency?: string;
   homeCurrency?: string;
-  budget?: number | null;
 }
 
-function rowToTrip(row: TripRow): Trip {
+function rowToTripBase(row: TripRow): Omit<Trip, 'budget'> {
   return {
     id: row.id,
     name: row.name,
@@ -68,7 +74,6 @@ function rowToTrip(row: TripRow): Trip {
     endDate: row.end_date,
     baseCurrency: row.base_currency,
     homeCurrency: row.home_currency,
-    budget: row.budget,
     ownerId: row.owner_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -84,10 +89,14 @@ function rowToMember(row: TripMemberRow): TripMember {
     role: row.role,
     invitedAt: row.invited_at,
     joinedAt: row.joined_at,
+    budget: row.budget,
+    updatedAt: row.updated_at ?? row.invited_at,
   };
 }
 
-function tripToPayload(trip: Trip): Record<string, unknown> {
+// Trip rows are pushed without a budget column — budget lives on the member
+// row now. The legacy column stays NULL on every write so it never drifts.
+function tripToPayload(trip: Omit<Trip, 'budget'> & { deletedAt: string | null }): Record<string, unknown> {
   return {
     id: trip.id,
     name: trip.name,
@@ -96,7 +105,7 @@ function tripToPayload(trip: Trip): Record<string, unknown> {
     end_date: trip.endDate,
     base_currency: trip.baseCurrency,
     home_currency: trip.homeCurrency,
-    budget: trip.budget,
+    budget: null,
     owner_id: trip.ownerId,
     created_at: trip.createdAt,
     updated_at: trip.updatedAt,
@@ -104,12 +113,53 @@ function tripToPayload(trip: Trip): Record<string, unknown> {
   };
 }
 
-export async function listTrips(): Promise<Trip[]> {
+function memberToPayload(m: TripMember): Record<string, unknown> {
+  return {
+    id: m.id,
+    trip_id: m.tripId,
+    user_id: m.userId,
+    role: m.role,
+    invited_at: m.invitedAt,
+    joined_at: m.joinedAt,
+    budget: m.budget,
+    updated_at: m.updatedAt,
+  };
+}
+
+async function getMemberBudget(
+  db: SQLiteDatabase,
+  tripId: string,
+  userId: string | null,
+): Promise<number | null> {
+  if (!userId) return null;
+  const row = await db.getFirstAsync<{ budget: number | null }>(
+    'SELECT budget FROM trip_members WHERE trip_id = ? AND user_id = ?;',
+    [tripId, userId],
+  );
+  return row?.budget ?? null;
+}
+
+export async function listTrips(currentUserId?: string): Promise<Trip[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<TripRow>(
     'SELECT * FROM trips WHERE deleted_at IS NULL ORDER BY updated_at DESC;',
   );
-  return rows.map(rowToTrip);
+  if (rows.length === 0) return [];
+  if (!currentUserId) {
+    return rows.map((row) => ({ ...rowToTripBase(row), budget: null }));
+  }
+  const placeholders = rows.map(() => '?').join(',');
+  const memberRows = await db.getAllAsync<{ trip_id: string; budget: number | null }>(
+    `SELECT trip_id, budget FROM trip_members
+       WHERE user_id = ? AND trip_id IN (${placeholders});`,
+    [currentUserId, ...rows.map((r) => r.id)],
+  );
+  const budgetByTrip = new Map<string, number | null>();
+  for (const r of memberRows) budgetByTrip.set(r.trip_id, r.budget);
+  return rows.map((row) => ({
+    ...rowToTripBase(row),
+    budget: budgetByTrip.get(row.id) ?? null,
+  }));
 }
 
 // Hide trips where the current user is still a pending invitee (joined_at IS
@@ -139,61 +189,105 @@ export async function listTripsWithStats(
       );
   if (trips.length === 0) return [];
 
-  const statsRows = await db.getAllAsync<TripStatsRow>(
-    `SELECT
-       t.id,
-       (SELECT COALESCE(SUM(e.converted_amount), 0)
-          FROM expenses e
-          WHERE e.trip_id = t.id
-            AND e.deleted_at IS NULL) AS total_spent,
-       (SELECT COUNT(*) FROM trip_members m WHERE m.trip_id = t.id) AS member_count,
-       CASE
-         WHEN t.budget IS NULL THEN NULL
-         WHEN t.base_currency = t.home_currency THEN t.budget
-         ELSE t.budget * COALESCE(
-           (SELECT AVG(e.converted_amount * 1.0 / e.amount)
-              FROM expenses e
-              WHERE e.trip_id = t.id
-                AND e.deleted_at IS NULL
-                AND e.currency = t.base_currency
-                AND e.amount != 0),
-           1
-         )
-       END AS budget_home
-     FROM trips t
-     WHERE t.deleted_at IS NULL;`,
+  // Per-user stats: total_spent and budget come from the current user's
+  // perspective so the trip card's budget bar (personal-budget-vs-personal-
+  // spend) makes sense. memberCount is trip-wide. budget_home is the active
+  // user's trip_members.budget, already in home_currency.
+  const placeholders = trips.map(() => '?').join(',');
+  const tripIds = trips.map((t) => t.id);
+  const memberCountRows = await db.getAllAsync<{ id: string; member_count: number | null }>(
+    `SELECT t.id,
+            (SELECT COUNT(*) FROM trip_members m WHERE m.trip_id = t.id) AS member_count
+       FROM trips t WHERE t.id IN (${placeholders});`,
+    tripIds,
   );
+  const memberCountById = new Map<string, number>();
+  for (const r of memberCountRows) memberCountById.set(r.id, r.member_count ?? 0);
 
-  const statsById = new Map<
-    string,
-    { totalSpent: number; memberCount: number; budgetHome: number | null }
-  >();
-  for (const row of statsRows) {
-    statsById.set(row.id, {
-      totalSpent: row.total_spent ?? 0,
-      memberCount: row.member_count ?? 0,
-      budgetHome: row.budget_home,
-    });
+  // Personal totalSpent = (full amount for non-split expenses the user paid)
+  // + (their share of split expenses they participate in). Refunds excluded;
+  // private-by-others are filtered via the privacy disjunction on the parent.
+  const personalTotalByTrip = new Map<string, number>();
+  if (currentUserId && tripIds.length > 0) {
+    const nonSplitRows = await db.getAllAsync<{ trip_id: string; total: number | null }>(
+      `SELECT trip_id, COALESCE(SUM(converted_amount), 0) AS total
+         FROM expenses
+         WHERE trip_id IN (${placeholders})
+           AND user_id = ?
+           AND deleted_at IS NULL
+           AND is_split = 0
+           AND is_refund = 0
+         GROUP BY trip_id;`,
+      [...tripIds, currentUserId],
+    );
+    for (const r of nonSplitRows) {
+      personalTotalByTrip.set(r.trip_id, r.total ?? 0);
+    }
+    const splitRows = await db.getAllAsync<{ trip_id: string; total: number | null }>(
+      `SELECT e.trip_id,
+              COALESCE(SUM(
+                CASE WHEN e.amount = 0 THEN 0
+                     ELSE (es.amount * 1.0 / e.amount) * e.converted_amount
+                END
+              ), 0) AS total
+         FROM expense_splits es
+         JOIN expenses e ON e.id = es.expense_id
+         WHERE e.trip_id IN (${placeholders})
+           AND es.user_id = ?
+           AND es.deleted_at IS NULL
+           AND e.deleted_at IS NULL
+           AND e.is_split = 1
+           AND e.is_refund = 0
+           AND (e.is_private = 0 OR e.user_id = ?)
+         GROUP BY e.trip_id;`,
+      [...tripIds, currentUserId, currentUserId],
+    );
+    for (const r of splitRows) {
+      personalTotalByTrip.set(
+        r.trip_id,
+        (personalTotalByTrip.get(r.trip_id) ?? 0) + (r.total ?? 0),
+      );
+    }
+  }
+
+  // Pull each user's personal budget for these trips so the per-user view
+  // can populate Trip.budget and stats.budgetHome.
+  const budgetByTrip = new Map<string, number | null>();
+  if (currentUserId) {
+    const memberRows = await db.getAllAsync<{ trip_id: string; budget: number | null }>(
+      `SELECT trip_id, budget FROM trip_members
+         WHERE user_id = ? AND trip_id IN (${placeholders});`,
+      [currentUserId, ...tripIds],
+    );
+    for (const r of memberRows) budgetByTrip.set(r.trip_id, r.budget);
   }
 
   return trips.map((row) => {
-    const base = rowToTrip(row);
-    const stats = statsById.get(row.id) ?? {
-      totalSpent: 0,
-      memberCount: 0,
-      budgetHome: null,
+    const budget = budgetByTrip.get(row.id) ?? null;
+    const base: Trip = { ...rowToTripBase(row), budget };
+    return {
+      ...base,
+      stats: {
+        totalSpent: personalTotalByTrip.get(row.id) ?? 0,
+        memberCount: memberCountById.get(row.id) ?? 0,
+        budgetHome: budget,
+      },
     };
-    return { ...base, stats };
   });
 }
 
-export async function getTrip(id: string): Promise<Trip | null> {
+export async function getTrip(
+  id: string,
+  currentUserId?: string,
+): Promise<Trip | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<TripRow>(
     'SELECT * FROM trips WHERE id = ? AND deleted_at IS NULL;',
     [id],
   );
-  return row ? rowToTrip(row) : null;
+  if (!row) return null;
+  const budget = await getMemberBudget(db, id, currentUserId ?? null);
+  return { ...rowToTripBase(row), budget };
 }
 
 export async function listTripMembers(tripId: string): Promise<TripMember[]> {
@@ -208,7 +302,7 @@ export async function listTripMembers(tripId: string): Promise<TripMember[]> {
 export async function createTrip(input: CreateTripInput): Promise<Trip> {
   const db = await getDatabase();
   const now = new Date().toISOString();
-  const trip: Trip = {
+  const tripBase: Omit<Trip, 'budget'> = {
     id: newId(),
     name: input.name,
     emoji: input.emoji,
@@ -216,7 +310,6 @@ export async function createTrip(input: CreateTripInput): Promise<Trip> {
     endDate: input.endDate,
     baseCurrency: input.baseCurrency,
     homeCurrency: input.homeCurrency,
-    budget: input.budget,
     ownerId: input.ownerId,
     createdAt: now,
     updatedAt: now,
@@ -224,28 +317,23 @@ export async function createTrip(input: CreateTripInput): Promise<Trip> {
   };
   const member: TripMember = {
     id: newId(),
-    tripId: trip.id,
+    tripId: tripBase.id,
     userId: input.ownerId,
     role: 'owner',
     invitedAt: now,
     joinedAt: now,
+    budget: input.budget,
+    updatedAt: now,
   };
 
   await db.withTransactionAsync(async () => {
-    await insertTrip(db, trip);
+    await insertTrip(db, tripBase);
     await insertMember(db, member);
-    await enqueueSync(db, 'trips', trip.id, 'create', tripToPayload(trip));
-    await enqueueSync(db, 'trip_members', member.id, 'create', {
-      id: member.id,
-      trip_id: member.tripId,
-      user_id: member.userId,
-      role: member.role,
-      invited_at: member.invitedAt,
-      joined_at: member.joinedAt,
-    });
+    await enqueueSync(db, 'trips', tripBase.id, 'create', tripToPayload(tripBase));
+    await enqueueSync(db, 'trip_members', member.id, 'create', memberToPayload(member));
   });
 
-  return trip;
+  return { ...tripBase, budget: input.budget };
 }
 
 export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
@@ -253,7 +341,7 @@ export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
   const existing = await getTrip(input.id);
   if (!existing) throw new Error('Trip not found');
 
-  const next: Trip = {
+  const next: Omit<Trip, 'budget'> = {
     ...existing,
     name: input.name ?? existing.name,
     emoji: input.emoji ?? existing.emoji,
@@ -261,7 +349,6 @@ export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
     endDate: input.endDate === undefined ? existing.endDate : input.endDate,
     baseCurrency: input.baseCurrency ?? existing.baseCurrency,
     homeCurrency: input.homeCurrency ?? existing.homeCurrency,
-    budget: input.budget === undefined ? existing.budget : input.budget,
     updatedAt: new Date().toISOString(),
   };
 
@@ -269,7 +356,7 @@ export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
     await db.runAsync(
       `UPDATE trips
          SET name = ?, emoji = ?, start_date = ?, end_date = ?,
-             base_currency = ?, home_currency = ?, budget = ?, updated_at = ?
+             base_currency = ?, home_currency = ?, updated_at = ?
        WHERE id = ?;`,
       [
         next.name,
@@ -278,7 +365,6 @@ export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
         next.endDate,
         next.baseCurrency,
         next.homeCurrency,
-        next.budget,
         next.updatedAt,
         next.id,
       ],
@@ -286,7 +372,36 @@ export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
     await enqueueSync(db, 'trips', next.id, 'update', tripToPayload(next));
   });
 
-  return next;
+  return { ...next, budget: existing.budget };
+}
+
+// Update one user's personal budget for a trip. The caller must already be a
+// member of the trip — usually the active user editing their own row.
+export async function updateMemberBudget(
+  tripId: string,
+  userId: string,
+  budget: number | null,
+): Promise<void> {
+  const db = await getDatabase();
+  const existing = await db.getFirstAsync<TripMemberRow>(
+    'SELECT * FROM trip_members WHERE trip_id = ? AND user_id = ?;',
+    [tripId, userId],
+  );
+  if (!existing) throw new Error('Trip member not found');
+  const now = new Date().toISOString();
+  const next: TripMember = {
+    ...rowToMember(existing),
+    budget,
+    updatedAt: now,
+  };
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'UPDATE trip_members SET budget = ?, updated_at = ? WHERE id = ?;',
+      [budget, now, existing.id],
+    );
+    await enqueueSync(db, 'trip_members', existing.id, 'update', memberToPayload(next));
+  });
 }
 
 export async function softDeleteTrip(id: string): Promise<void> {
@@ -301,7 +416,7 @@ export async function softDeleteTrip(id: string): Promise<void> {
   });
 }
 
-async function insertTrip(db: SQLiteDatabase, trip: Trip): Promise<void> {
+async function insertTrip(db: SQLiteDatabase, trip: Omit<Trip, 'budget'>): Promise<void> {
   await db.runAsync(
     `INSERT INTO trips
        (id, name, emoji, start_date, end_date, base_currency, home_currency,
@@ -315,7 +430,10 @@ async function insertTrip(db: SQLiteDatabase, trip: Trip): Promise<void> {
       trip.endDate,
       trip.baseCurrency,
       trip.homeCurrency,
-      trip.budget,
+      // The trips.budget column is retired — every new row stores NULL so
+      // older clients that still read it just see "no budget set" until
+      // they upgrade and start reading trip_members.budget instead.
+      null,
       trip.ownerId,
       trip.createdAt,
       trip.updatedAt,
@@ -326,8 +444,18 @@ async function insertTrip(db: SQLiteDatabase, trip: Trip): Promise<void> {
 
 async function insertMember(db: SQLiteDatabase, member: TripMember): Promise<void> {
   await db.runAsync(
-    `INSERT INTO trip_members (id, trip_id, user_id, role, invited_at, joined_at)
-     VALUES (?, ?, ?, ?, ?, ?);`,
-    [member.id, member.tripId, member.userId, member.role, member.invitedAt, member.joinedAt],
+    `INSERT INTO trip_members
+       (id, trip_id, user_id, role, invited_at, joined_at, budget, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+    [
+      member.id,
+      member.tripId,
+      member.userId,
+      member.role,
+      member.invitedAt,
+      member.joinedAt,
+      member.budget,
+      member.updatedAt,
+    ],
   );
 }

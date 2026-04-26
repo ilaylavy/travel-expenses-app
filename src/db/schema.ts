@@ -156,6 +156,24 @@ export const V4_STATEMENTS: readonly string[] = [
   'CREATE INDEX IF NOT EXISTS idx_expense_splits_user_id ON expense_splits(user_id);',
 ] as const;
 
+// V5: per-user trip budgets. Budget moves off the trips table (it was a single
+// shared figure) onto trip_members so each member can keep their own personal
+// budget. Adds updated_at on trip_members so changes propagate via the cursor.
+// Resets the trip_members pull cursor so existing devices re-fetch with the
+// new column populated. The legacy trips.budget column is left in place to
+// avoid breaking older queued payloads.
+export const V5_STATEMENTS: readonly string[] = [
+  'ALTER TABLE trip_members ADD COLUMN budget REAL;',
+  'ALTER TABLE trip_members ADD COLUMN updated_at TEXT;',
+  // Initialize updated_at on existing rows so the new cursor column has a
+  // value to compare against. invited_at is the safest seed — it always
+  // exists and is never in the future.
+  'UPDATE trip_members SET updated_at = invited_at WHERE updated_at IS NULL;',
+  // Reset the pull cursor so the next sync re-fetches every membership row
+  // and picks up budgets / future updated_at values.
+  "DELETE FROM sync_metadata WHERE key = 'last_pulled_trip_members';",
+] as const;
+
 export const ALL_TABLES = [
   'profiles',
   'trips',

@@ -4,6 +4,7 @@ import { computeBalance } from '@/utils/balance';
 import { roundAmount } from '@/utils/currency';
 import { isValidIsoDate } from '@/utils/date';
 import { expandExpense } from '@/utils/expenseGrouping';
+import { userShareConverted } from '@/utils/share';
 
 export type PaymentMethodBucket = 'cash' | 'credit' | 'debit' | 'other';
 
@@ -35,8 +36,18 @@ export interface Settlement {
   amount: number;
 }
 
+export interface TopExpense {
+  expense: ExpenseWithPhotos;
+  userShareConverted: number;
+}
+
 export interface TripStats {
+  // The caller's personal share total (in home currency). Sum of their
+  // share across every active expense — see src/utils/share.ts.
   totalSpent: number;
+  // Trip-wide spend (sum of full converted amounts). Drives the budget
+  // pill so "remaining" stays meaningful in shared trips.
+  tripTotalSpent: number;
   dailyAverage: number;
   daysElapsed: number;
   daysRemaining: number | null;
@@ -47,7 +58,7 @@ export interface TripStats {
   byDay: DailyTotal[];
   byPaymentMethod: PaymentTotal[];
   byMember: MemberTotal[];
-  topExpenses: ExpenseWithPhotos[];
+  topExpenses: TopExpense[];
   settlement: Settlement | null;
 }
 
@@ -82,52 +93,66 @@ function toPaymentBucket(method: PaymentMethod | null): PaymentMethodBucket | nu
   return 'other';
 }
 
-// Convert the trip's budget (stored in baseCurrency) into home currency by
-// averaging the stored exchange rates of expenses that match the base→home
-// direction. If there are no cross-currency expenses we fall back to 1:1.
-function convertBudgetToHome(
-  budget: number,
-  trip: Trip,
-  expenses: ExpenseWithPhotos[],
-): number {
-  if (trip.baseCurrency === trip.homeCurrency) return budget;
-  let sum = 0;
-  let count = 0;
-  for (const e of expenses) {
-    if (e.deletedAt !== null) continue;
-    if (e.currency !== trip.baseCurrency) continue;
-    if (e.amount === 0) continue;
-    const ratio = e.convertedAmount / e.amount;
-    if (!Number.isFinite(ratio)) continue;
-    sum += ratio;
-    count += 1;
-  }
-  if (count === 0) return budget;
-  return roundAmount(budget * (sum / count));
-}
-
 export interface AggregateInput {
   expenses: ExpenseWithPhotos[];
   splits: ExpenseSplit[];
   trip: Trip;
   today: string;
+  // The caller's user id. All amount-based stats are weighted by this
+  // user's share (see src/utils/share.ts) — solo trips collapse to the
+  // legacy full-amount behaviour because share == full amount when the
+  // caller is the only payer.
+  currentUserId: string | null;
 }
 
-export function aggregate({ expenses, splits, trip, today }: AggregateInput): TripStats {
+export function aggregate({
+  expenses,
+  splits,
+  trip,
+  today,
+  currentUserId,
+}: AggregateInput): TripStats {
   const active = expenses.filter((e) => e.deletedAt === null);
 
-  // ----- Totals (include daily-excluded, include refunds as negatives) -----
+  // Index the caller's split rows by expenseId for O(1) lookup. Only the
+  // caller's row matters here — other members' rows feed computeBalance.
+  const callerSplitsByExpense = new Map<string, ExpenseSplit>();
+  if (currentUserId) {
+    for (const s of splits) {
+      if (s.deletedAt !== null) continue;
+      if (s.userId !== currentUserId) continue;
+      callerSplitsByExpense.set(s.expenseId, s);
+    }
+  }
+
+  const shareOf = (e: ExpenseWithPhotos): number =>
+    userShareConverted(e, callerSplitsByExpense.get(e.id), currentUserId);
+
+  // ----- Totals -----
+  // tripTotalSpent: sum of full amounts (drives the budget block).
+  // totalSpent:     caller's personal share (drives the Total Spent pill).
+  let tripTotalSpent = 0;
   let totalSpent = 0;
-  for (const e of active) totalSpent += e.convertedAmount;
+  for (const e of active) {
+    tripTotalSpent += e.convertedAmount;
+    totalSpent += shareOf(e);
+  }
+  tripTotalSpent = roundAmount(tripTotalSpent);
   totalSpent = roundAmount(totalSpent);
 
   // ----- Daily average / by-day (exclude daily-excluded, expand spreads) -----
+  // Spread expenses: the share is the caller's full-expense share divided
+  // evenly across the spread's day count, mirroring how expandExpense
+  // splits the per-day converted amount.
   const dailyContributing = active.filter((e) => !e.isExcludedFromDailyMetrics);
   const byDayMap = new Map<string, number>();
   for (const e of dailyContributing) {
-    for (const slice of expandExpense(e)) {
+    const fullShare = shareOf(e);
+    const slices = expandExpense(e);
+    const perSliceShare = slices.length > 0 ? fullShare / slices.length : fullShare;
+    for (const slice of slices) {
       const key = slice.displayExpense.expenseDate;
-      byDayMap.set(key, (byDayMap.get(key) ?? 0) + slice.displayExpense.convertedAmount);
+      byDayMap.set(key, (byDayMap.get(key) ?? 0) + perSliceShare);
     }
   }
 
@@ -163,22 +188,28 @@ export function aggregate({ expenses, splits, trip, today }: AggregateInput): Tr
     daysRemaining = Math.max(0, inclusiveDayCount(start, trip.endDate) - 1);
   }
 
-  // ----- Budget -----
+  // ----- Budget (personal) -----
+  // Each member sets their own budget on trip_members (in home_currency).
+  // Trip.budget is the active user's budget — compare against their personal
+  // totalSpent so the remaining number reflects their own situation, not
+  // the partner's spend.
   let budgetHome: number | null = null;
   let budgetRemaining: number | null = null;
   let safeDailySpend: number | null = null;
   if (trip.budget !== null && trip.budget > 0) {
-    budgetHome = convertBudgetToHome(trip.budget, trip, active);
+    budgetHome = trip.budget;
     budgetRemaining = roundAmount(budgetHome - totalSpent);
     if (daysRemaining !== null && daysRemaining > 0) {
       safeDailySpend = roundAmount(budgetRemaining / daysRemaining);
     }
   }
 
-  // ----- By category (full amount, include daily-excluded) -----
+  // ----- By category (caller's share, include daily-excluded) -----
   const categoryMap = new Map<string, number>();
   for (const e of active) {
-    categoryMap.set(e.categoryId, (categoryMap.get(e.categoryId) ?? 0) + e.convertedAmount);
+    const share = shareOf(e);
+    if (share === 0) continue;
+    categoryMap.set(e.categoryId, (categoryMap.get(e.categoryId) ?? 0) + share);
   }
   const categoryAbsSum = Array.from(categoryMap.values()).reduce(
     (acc, v) => acc + Math.abs(v),
@@ -193,12 +224,15 @@ export function aggregate({ expenses, splits, trip, today }: AggregateInput): Tr
     }))
     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 
-  // ----- By payment method -----
+  // ----- By payment method (caller's share, attributed to the actual method
+  // used at purchase time even when the caller is just a participant) -----
   const paymentMap = new Map<PaymentMethodBucket, number>();
   for (const e of active) {
     const bucket = toPaymentBucket(e.paymentMethod);
     if (bucket === null) continue;
-    paymentMap.set(bucket, (paymentMap.get(bucket) ?? 0) + e.convertedAmount);
+    const share = shareOf(e);
+    if (share === 0) continue;
+    paymentMap.set(bucket, (paymentMap.get(bucket) ?? 0) + share);
   }
   const paymentAbsSum = Array.from(paymentMap.values()).reduce(
     (acc, v) => acc + Math.abs(v),
@@ -225,14 +259,18 @@ export function aggregate({ expenses, splits, trip, today }: AggregateInput): Tr
   // returns all non-zero pairs; for the MVP card we surface the largest one.
   const settlement: Settlement | null = balance.settlements[0] ?? null;
 
-  // ----- Top expenses (exclude refunds, sort by abs convertedAmount desc) -----
-  const topExpenses = [...active]
+  // ----- Top expenses (caller's view — only expenses the caller actually
+  // contributed to, sorted by their share) -----
+  const topExpenses: TopExpense[] = active
     .filter((e) => !e.isRefund)
-    .sort((a, b) => Math.abs(b.convertedAmount) - Math.abs(a.convertedAmount))
+    .map((e) => ({ expense: e, userShareConverted: shareOf(e) }))
+    .filter((t) => Math.abs(t.userShareConverted) >= 0.01)
+    .sort((a, b) => Math.abs(b.userShareConverted) - Math.abs(a.userShareConverted))
     .slice(0, 5);
 
   return {
     totalSpent,
+    tripTotalSpent,
     dailyAverage,
     daysElapsed,
     daysRemaining,

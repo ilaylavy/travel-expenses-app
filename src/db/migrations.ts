@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { V1_STATEMENTS, V3_STATEMENTS, V4_STATEMENTS } from './schema';
+import { V1_STATEMENTS, V3_STATEMENTS, V4_STATEMENTS, V5_STATEMENTS } from './schema';
 
 // Migrations are append-only. Once a version has shipped, do NOT edit its SQL
 // or the baseline DDL it depends on (the Vn_STATEMENTS in schema.ts) — every
@@ -42,6 +42,15 @@ export const MIGRATIONS: readonly Migration[] = [
     name: 'add_expense_splits_and_is_split',
     run: async (db) => {
       for (const stmt of V4_STATEMENTS) {
+        await db.execAsync(stmt);
+      }
+    },
+  },
+  {
+    version: 5,
+    name: 'per_user_trip_budgets',
+    run: async (db) => {
+      for (const stmt of V5_STATEMENTS) {
         await db.execAsync(stmt);
       }
     },

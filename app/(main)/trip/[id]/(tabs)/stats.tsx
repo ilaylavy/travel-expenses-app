@@ -82,8 +82,8 @@ export default function TripStatsScreen() {
   const today = todayIsoDate();
   const stats = useMemo(() => {
     if (!trip) return null;
-    return aggregate({ expenses, splits, trip, today });
-  }, [expenses, splits, trip, today]);
+    return aggregate({ expenses, splits, trip, today, currentUserId });
+  }, [expenses, splits, trip, today, currentUserId]);
 
   if (!trip || !tripId) {
     return (
