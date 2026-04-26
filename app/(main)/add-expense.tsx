@@ -22,8 +22,9 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import {
   categoryUsageForTrip,
   getExpense,
+  getRecentNotes,
   lastUsedPaymentMethodForTrip,
-  listRecentNotesForTrip,
+  type RecentNoteSuggestion,
 } from '@/db/queries/expenses';
 import {
   getSplitsForExpense,
@@ -136,7 +137,7 @@ export default function AddExpenseScreen() {
   const [splitParticipants, setSplitParticipants] = useState<Set<string>>(new Set());
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Array<{ uri: string }>>([]);
-  const [recentNotes, setRecentNotes] = useState<string[]>([]);
+  const [recentNotes, setRecentNotes] = useState<RecentNoteSuggestion[]>([]);
   const [categoryUsage, setCategoryUsage] =
     useState<Map<string, { count: number; lastUsed: string }>>(new Map());
   const [error, setError] = useState<string | null>(null);
@@ -157,12 +158,14 @@ export default function AddExpenseScreen() {
   // Load trip + recent-note / payment / usage data up front.
   useEffect(() => {
     if (!tripId) return;
+    if (!user?.id) return;
     let cancelled = false;
+    const userId = user.id;
     (async () => {
       try {
         const [loadedTrip, notes, lastPayment, usage, members] = await Promise.all([
           getTrip(tripId),
-          listRecentNotesForTrip(tripId),
+          getRecentNotes(tripId, userId),
           lastUsedPaymentMethodForTrip(tripId),
           categoryUsageForTrip(tripId),
           listTripMembers(tripId),
@@ -198,7 +201,7 @@ export default function AddExpenseScreen() {
     return () => {
       cancelled = true;
     };
-  }, [tripId, isEditing]);
+  }, [tripId, isEditing, user?.id]);
 
   // Hydrate state from an existing expense when opened in edit mode.
   useEffect(() => {
@@ -343,6 +346,23 @@ export default function AddExpenseScreen() {
     () => new Set(favoriteCurrencies),
     [favoriteCurrencies],
   );
+
+  // Live-filtered suggestions: when empty, show most recent; while typing,
+  // narrow by case-insensitive substring. Capped at 10.
+  const filteredNotes = useMemo<RecentNoteSuggestion[]>(() => {
+    const q = note.trim().toLowerCase();
+    if (!q) return recentNotes.slice(0, 10);
+    return recentNotes
+      .filter((s) => s.note.toLowerCase().includes(q))
+      .slice(0, 10);
+  }, [note, recentNotes]);
+
+  // Tapping a suggestion fills the note and pre-selects the category from
+  // its most recent use. The user can still tap the grid to override.
+  const handlePickRecentNote = useCallback((s: RecentNoteSuggestion) => {
+    setNote(s.note);
+    setCategoryId(s.categoryId);
+  }, []);
 
   const handleKey = useCallback((key: NumPadKey) => {
     setAmountText((current) => appendNumPadKey(current, key));
@@ -804,16 +824,8 @@ export default function AddExpenseScreen() {
           homeCurrency={trip?.homeCurrency ?? ''}
         />
 
-        {/* Category */}
-        <Section title={t('expense.categorySection')} theme={theme}>
-          <CategoryGrid
-            categories={orderedCategories}
-            selectedId={categoryId}
-            onSelect={setCategoryId}
-          />
-        </Section>
-
-        {/* Note + recent suggestions */}
+        {/* Note + recent suggestions — placed above category so picking a
+            suggestion can auto-select the category visible in the grid below. */}
         <Section title={t('expense.noteSection')} theme={theme}>
           <TextInput
             value={note}
@@ -825,7 +837,7 @@ export default function AddExpenseScreen() {
               { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
             ]}
           />
-          {note.length === 0 && recentNotes.length > 0 ? (
+          {filteredNotes.length > 0 ? (
             <View>
               <Text style={[styles.microLabel, { color: theme.textMuted }]}>
                 {t('expense.recentNotes')}
@@ -835,23 +847,32 @@ export default function AddExpenseScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chipRow}
               >
-                {recentNotes.map((n) => (
+                {filteredNotes.map((s) => (
                   <Pressable
-                    key={n}
-                    onPress={() => setNote(n)}
+                    key={s.note}
+                    onPress={() => handlePickRecentNote(s)}
                     style={[
                       styles.noteChip,
                       { backgroundColor: theme.surface, borderColor: theme.border },
                     ]}
                   >
                     <Text style={[styles.noteChipText, { color: theme.textSecondary }]} numberOfLines={1}>
-                      {n}
+                      {s.categoryEmoji} {s.note}
                     </Text>
                   </Pressable>
                 ))}
               </ScrollView>
             </View>
           ) : null}
+        </Section>
+
+        {/* Category */}
+        <Section title={t('expense.categorySection')} theme={theme}>
+          <CategoryGrid
+            categories={orderedCategories}
+            selectedId={categoryId}
+            onSelect={setCategoryId}
+          />
         </Section>
 
         {/* Payment method */}

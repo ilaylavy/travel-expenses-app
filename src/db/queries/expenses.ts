@@ -372,24 +372,54 @@ export async function softDeleteExpense(id: string): Promise<void> {
   await Promise.all(photoRows.map((row) => deleteLocalPhoto(row.local_uri)));
 }
 
-// Distinct note strings used most recently in this trip. Powers the
-// tappable suggestion chips on the entry screen.
-export async function listRecentNotesForTrip(
+export interface RecentNoteSuggestion {
+  note: string;
+  categoryId: string;
+  categoryEmoji: string;
+}
+
+// Distinct note strings used most recently in this trip, paired with the
+// category they were last logged under. Powers the suggestion chips on the
+// entry screen, including auto-selecting the category when tapped. Notes
+// from other members' private expenses are excluded.
+export async function getRecentNotes(
   tripId: string,
-  limit = 8,
-): Promise<string[]> {
+  currentUserId: string,
+  limit = 10,
+): Promise<RecentNoteSuggestion[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<{ note: string; last_used: string }>(
-    `SELECT note, MAX(created_at) AS last_used
-       FROM expenses
-       WHERE trip_id = ? AND deleted_at IS NULL
-         AND note IS NOT NULL AND TRIM(note) <> ''
-       GROUP BY note
-       ORDER BY last_used DESC
+  const rows = await db.getAllAsync<{
+    note: string;
+    category_id: string;
+    emoji: string;
+  }>(
+    `SELECT e.note AS note, e.category_id AS category_id, c.emoji AS emoji
+       FROM expenses e
+       JOIN categories c ON c.id = e.category_id
+       WHERE e.id IN (
+         SELECT id FROM (
+           SELECT id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY LOWER(note)
+                    ORDER BY expense_date DESC, expense_time DESC, created_at DESC
+                  ) AS rn
+             FROM expenses
+             WHERE trip_id = ?
+               AND deleted_at IS NULL
+               AND note IS NOT NULL
+               AND TRIM(note) <> ''
+               AND (is_private = 0 OR user_id = ?)
+         ) WHERE rn = 1
+       )
+       ORDER BY e.expense_date DESC, e.expense_time DESC, e.created_at DESC
        LIMIT ?;`,
-    [tripId, limit],
+    [tripId, currentUserId, limit],
   );
-  return rows.map((r) => r.note);
+  return rows.map((r) => ({
+    note: r.note,
+    categoryId: r.category_id,
+    categoryEmoji: r.emoji,
+  }));
 }
 
 // Most recently used payment method — used to pre-select the selector.
