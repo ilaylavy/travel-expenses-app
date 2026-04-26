@@ -169,9 +169,7 @@
   },
   "map": {
     "myLocation": "My location",
-    "locationPermissionDenied": "Location permission is needed to show your position",
-    "expensesOnMap": "{{count}} expenses on map",
-    "expensesFiltered": "{{visible}} of {{total}} expenses (filtered)"
+    "locationPermissionDenied": "Location permission is needed to show your position"
   },
   "expenses": {
     "statsTotal": "Total",
