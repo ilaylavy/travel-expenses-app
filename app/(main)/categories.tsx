@@ -9,6 +9,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useCategoryStore } from '@/stores/categoryStore';
 import type { Category } from '@/types/category';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 
 // App-wide default (global) categories manager. Accessed from Settings.
 // Only shows categories with trip_id IS NULL. Archive toggle is local-only:
@@ -45,7 +46,7 @@ export default function DefaultCategoriesScreen() {
             ]}
             numberOfLines={1}
           >
-            {category.name}
+            {getCategoryDisplayName(category, t)}
           </Text>
           {category.isArchived ? (
             <Text style={[styles.rowMeta, { color: theme.textMuted }]}>

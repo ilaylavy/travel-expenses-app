@@ -2,8 +2,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 
 interface CategoryGridProps {
   categories: Category[];
@@ -23,6 +25,7 @@ export function CategoryGrid({
   columns = 4,
 }: CategoryGridProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const items: Array<
     { kind: 'category'; category: Category } | { kind: 'add' }
   > = categories.map((category) => ({ kind: 'category' as const, category }));
@@ -83,7 +86,7 @@ export function CategoryGrid({
                 style={[styles.name, { color: selected ? color : theme.text }]}
                 numberOfLines={1}
               >
-                {category.name}
+                {getCategoryDisplayName(category, t)}
               </Text>
             </Pressable>
           </View>

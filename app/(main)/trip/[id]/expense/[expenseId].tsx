@@ -27,6 +27,7 @@ import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
 import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -139,11 +140,11 @@ export default function ExpenseDetailScreen() {
     if (!expense || !trip) return;
     await shareExpense({
       expense,
-      categoryName: category?.name ?? null,
+      categoryName: category ? getCategoryDisplayName(category, t) : null,
       categoryEmoji: category?.emoji ?? null,
       homeCurrency: trip.homeCurrency,
     });
-  }, [expense, trip, category]);
+  }, [expense, trip, category, t]);
 
   const handleDelete = useCallback(() => {
     if (!expense) return;
@@ -267,7 +268,9 @@ export default function ExpenseDetailScreen() {
             <Text style={styles.categoryEmoji}>{category?.emoji ?? '•'}</Text>
           </View>
           {category ? (
-            <Text style={[styles.categoryName, { color }]}>{category.name}</Text>
+            <Text style={[styles.categoryName, { color }]}>
+              {getCategoryDisplayName(category, t)}
+            </Text>
           ) : null}
           <Text
             style={[

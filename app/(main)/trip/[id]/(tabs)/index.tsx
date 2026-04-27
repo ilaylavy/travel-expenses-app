@@ -34,6 +34,7 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
 import type { ExpenseWithPhotos } from '@/types/expense';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount, todayDateString } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { groupExpensesByDate, type ExpenseDateGroup } from '@/utils/expenseGrouping';
@@ -154,11 +155,11 @@ export default function TripExpensesScreen() {
       .filter((c) => tally.has(c.id))
       .map((c) => ({
         id: c.id,
-        label: c.name,
+        label: getCategoryDisplayName(c, t),
         emoji: c.emoji,
         count: tally.get(c.id) ?? 0,
       }));
-  }, [expenses, tripCategories]);
+  }, [expenses, tripCategories, t]);
 
   const paymentOptions = useMemo<FilterOption[]>(() => {
     const tally = new Map<string, number>();

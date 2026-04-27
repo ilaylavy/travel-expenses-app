@@ -39,6 +39,7 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import { getCurrentCoordinates } from '@/services/locationService';
 import type { ExpenseWithPhotos } from '@/types/expense';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount } from '@/utils/currency';
 import {
   boundsForExpenses,
@@ -164,11 +165,11 @@ export default function TripMapScreen() {
       .filter((c) => tally.has(c.id))
       .map((c) => ({
         id: c.id,
-        label: c.name,
+        label: getCategoryDisplayName(c, t),
         emoji: c.emoji,
         count: tally.get(c.id) ?? 0,
       }));
-  }, [locatedAll, tripCategories]);
+  }, [locatedAll, tripCategories, t]);
 
   const paymentOptions = useMemo<FilterOption[]>(() => {
     const tally = new Map<string, number>();

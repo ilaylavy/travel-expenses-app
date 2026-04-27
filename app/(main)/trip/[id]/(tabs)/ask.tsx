@@ -139,6 +139,12 @@ export default function AskScreen() {
     void send(input);
   }, [input, send]);
 
+  const handleReset = useCallback(() => {
+    setMessages([]);
+    setInput('');
+    setLoading(false);
+  }, []);
+
   const handlePick = useCallback(
     (question: string) => {
       void send(question);
@@ -188,7 +194,21 @@ export default function AskScreen() {
               {t('ask.title')}
             </Text>
           </View>
-          <View style={[styles.headerButton, styles.headerButtonGhost]} />
+          {messages.length > 0 || loading ? (
+            <Pressable
+              onPress={handleReset}
+              style={[
+                styles.headerButton,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+              hitSlop={8}
+              accessibilityLabel={t('ask.refreshA11yLabel')}
+            >
+              <Text style={[styles.headerButtonText, { color: theme.text }]}>↻</Text>
+            </Pressable>
+          ) : (
+            <View style={[styles.headerButton, styles.headerButtonGhost]} />
+          )}
         </View>
 
         <ScrollView
