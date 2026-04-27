@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import { getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount } from '@/utils/currency';
 import { formatDay } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -33,7 +34,11 @@ export function TopExpensesCard({ expenses, categoriesById, tripId, currency }: 
           const cat = categoriesById[e.categoryId];
           const emoji = cat?.emoji ?? '•';
           const soft = cat ? getCategorySoftColor(cat.color, theme) : theme.accentSoft;
-          const title = e.note?.trim() || e.placeName || cat?.name || '—';
+          const title =
+            e.note?.trim() ||
+            e.placeName ||
+            (cat ? getCategoryDisplayName(cat, t) : '') ||
+            '—';
           return (
             <Pressable
               key={e.id}

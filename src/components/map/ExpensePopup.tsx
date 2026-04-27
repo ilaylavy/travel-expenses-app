@@ -2,9 +2,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount } from '@/utils/currency';
 
 interface ExpensePopupProps {
@@ -23,6 +25,7 @@ export function ExpensePopup({
   onClose,
 }: ExpensePopupProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const color = category ? getCategoryColor(category.color, theme) : theme.accent;
   const soft = category ? getCategorySoftColor(category.color, theme) : theme.accentSoft;
   const showConverted = expense.currency !== homeCurrency;
@@ -30,8 +33,9 @@ export function ExpensePopup({
   const secondary = showConverted
     ? formatAmount(expense.convertedAmount, homeCurrency)
     : null;
-  const title = expense.note?.trim() || category?.name || '—';
-  const metaParts = [category?.name, expense.expenseDate].filter(Boolean);
+  const categoryName = category ? getCategoryDisplayName(category, t) : null;
+  const title = expense.note?.trim() || categoryName || '—';
+  const metaParts = [categoryName, expense.expenseDate].filter(Boolean);
 
   return (
     <Pressable

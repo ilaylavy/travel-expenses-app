@@ -121,7 +121,17 @@
     "deleteConfirmTitle": "למחוק קטגוריה?",
     "deleteConfirmBody": "להסיר את \"{{name}}\"? לא ניתן לבטל.",
     "cannotDeleteTitle": "לא ניתן למחוק",
-    "cannotDeleteBody": "לקטגוריה הזו יש הוצאות. העבר אותה לארכיון במקום."
+    "cannotDeleteBody": "לקטגוריה הזו יש הוצאות. העבר אותה לארכיון במקום.",
+    "defaultNames": {
+      "food": "אוכל",
+      "transport": "תחבורה",
+      "hotel": "מלון",
+      "flight": "טיסה",
+      "coffee": "קפה",
+      "shopping": "קניות",
+      "activities": "פעילויות",
+      "other": "אחר"
+    }
   },
   "categoryForm": {
     "name": "שם",
@@ -216,6 +226,8 @@
     "currencySection": "מטבע",
     "categorySection": "קטגוריה",
     "addCategory": "מותאם אישית",
+    "categoryShowMore": "הצג עוד",
+    "categoryShowLess": "הצג פחות",
     "noteSection": "הערה",
     "notePlaceholder": "הוסף הערה",
     "recentNotes": "אחרונות",

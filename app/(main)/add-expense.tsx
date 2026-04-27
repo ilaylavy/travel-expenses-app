@@ -56,6 +56,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import type { Category } from '@/types/category';
 import type { PaymentMethod } from '@/types/expense';
 import type { Trip, TripMember } from '@/types/trip';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount, getCurrencySymbol, roundAmount } from '@/utils/currency';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
 import {
@@ -127,6 +128,7 @@ export default function AddExpenseScreen() {
   const [amountText, setAmountText] = useState('');
   const [currency, setCurrency] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [expenseDate, setExpenseDate] = useState(todayIsoDate());
@@ -319,6 +321,12 @@ export default function AddExpenseScreen() {
     () => orderedCategories.find((c) => c.id === categoryId) ?? null,
     [orderedCategories, categoryId],
   );
+
+  const visibleCategories = useMemo(
+    () => (categoriesExpanded ? orderedCategories : orderedCategories.slice(0, 8)),
+    [orderedCategories, categoriesExpanded],
+  );
+  const hasMoreCategories = orderedCategories.length > 8;
 
   const amountValue = useMemo(() => {
     if (!amountText) return 0;
@@ -690,7 +698,7 @@ export default function AddExpenseScreen() {
           if (options.thenShare) {
             await shareExpense({
               expense: created,
-              categoryName: selectedCategory?.name ?? null,
+              categoryName: selectedCategory ? getCategoryDisplayName(selectedCategory, t) : null,
               categoryEmoji: selectedCategory?.emoji ?? null,
               homeCurrency: trip.homeCurrency,
             });
@@ -931,10 +939,29 @@ export default function AddExpenseScreen() {
         {/* Category */}
         <Section title={t('expense.categorySection')} theme={theme}>
           <CategoryGrid
-            categories={orderedCategories}
+            categories={visibleCategories}
             selectedId={categoryId}
             onSelect={setCategoryId}
           />
+          {hasMoreCategories ? (
+            <Pressable
+              onPress={() => setCategoriesExpanded((v) => !v)}
+              style={({ pressed }) => [
+                styles.categoryMoreButton,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.categoryMoreText, { color: theme.accent }]}>
+                {categoriesExpanded
+                  ? t('expense.categoryShowLess')
+                  : t('expense.categoryShowMore')}
+              </Text>
+            </Pressable>
+          ) : null}
         </Section>
 
         {/* Date / spread — unified card with calendar picker. Spread mode
@@ -1613,6 +1640,15 @@ const styles = StyleSheet.create({
   staleHint: { ...typography.caption, marginTop: 4 },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.micro, marginBottom: 2 },
+  categoryMoreButton: {
+    alignSelf: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: sizing.radiusButton,
+    borderWidth: 1,
+    marginTop: spacing.xs,
+  },
+  categoryMoreText: { ...typography.micro, fontWeight: '700' },
   chipRow: { gap: spacing.sm, paddingVertical: 4 },
   currencyChip: {
     paddingHorizontal: 14,

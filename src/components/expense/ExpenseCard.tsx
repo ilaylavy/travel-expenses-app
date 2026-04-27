@@ -7,6 +7,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount } from '@/utils/currency';
 
 interface ExpenseCardProps {
@@ -45,7 +46,8 @@ function ExpenseCardInner({
   const primary = formatAmount(displayAmount, expense.currency);
   const secondary = showConverted ? formatAmount(displayConverted, homeCurrency) : null;
 
-  const title = expense.note?.trim() || category?.name || '—';
+  const title =
+    expense.note?.trim() || (category ? getCategoryDisplayName(category, t) : '') || '—';
 
   return (
     <Pressable

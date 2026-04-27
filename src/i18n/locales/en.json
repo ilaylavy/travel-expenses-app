@@ -137,7 +137,17 @@
     "deleteConfirmTitle": "Delete category?",
     "deleteConfirmBody": "Remove \"{{name}}\"? This cannot be undone.",
     "cannotDeleteTitle": "Cannot delete",
-    "cannotDeleteBody": "This category has expenses. Archive it instead."
+    "cannotDeleteBody": "This category has expenses. Archive it instead.",
+    "defaultNames": {
+      "food": "Food",
+      "transport": "Transport",
+      "hotel": "Hotel",
+      "flight": "Flight",
+      "coffee": "Coffee",
+      "shopping": "Shopping",
+      "activities": "Activities",
+      "other": "Other"
+    }
   },
   "categoryForm": {
     "name": "Name",
@@ -232,6 +242,8 @@
     "currencySection": "Currency",
     "categorySection": "Category",
     "addCategory": "Custom",
+    "categoryShowMore": "Show more",
+    "categoryShowLess": "Show less",
     "noteSection": "Note",
     "notePlaceholder": "Add a note",
     "recentNotes": "RECENT",

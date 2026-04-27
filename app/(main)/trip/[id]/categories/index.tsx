@@ -10,6 +10,7 @@ import { selectCategoriesForTrip, useCategoryStore } from '@/stores/categoryStor
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { href } from '@/utils/nav';
 
 export default function CategoriesScreen() {
@@ -55,7 +56,7 @@ export default function CategoriesScreen() {
   const handleDelete = (category: Category) => {
     Alert.alert(
       t('categories.deleteConfirmTitle'),
-      t('categories.deleteConfirmBody', { name: category.name }),
+      t('categories.deleteConfirmBody', { name: getCategoryDisplayName(category, t) }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -98,7 +99,7 @@ export default function CategoriesScreen() {
             ]}
             numberOfLines={1}
           >
-            {category.name}
+            {getCategoryDisplayName(category, t)}
           </Text>
           {category.isArchived && (
             <Text style={[styles.rowMeta, { color: theme.textMuted }]}>

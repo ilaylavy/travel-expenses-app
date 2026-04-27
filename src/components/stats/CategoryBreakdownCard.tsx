@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryDisplayName } from '@/utils/categoryName';
 import { formatAmount } from '@/utils/currency';
 import type { CategoryTotal } from '@/utils/statsAggregations';
 
@@ -41,7 +42,7 @@ export function CategoryBreakdownCard({ byCategory, categoriesById, currency }: 
           const cat = categoriesById[c.categoryId];
           const color = cat ? getCategoryColor(cat.color, theme) : theme.accent;
           const soft = cat ? getCategorySoftColor(cat.color, theme) : theme.accentSoft;
-          const name = cat?.name ?? t('stats.otherCategory');
+          const name = cat ? getCategoryDisplayName(cat, t) : t('stats.otherCategory');
           const emoji = cat?.emoji ?? '•';
           return (
             <View key={c.categoryId} style={styles.row}>
