@@ -429,7 +429,8 @@
     "starterPayment": "Cash vs card breakdown",
     "starterWho": "Who spent more?",
     "starterBudget": "Am I on budget?",
-    "starterWhere": "Where did I spend the most?"
+    "starterWhere": "Where did I spend the most?",
+    "refreshA11yLabel": "Start a new conversation"
   },
   "split": {
     "toggle": "Split this expense",

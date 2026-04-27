@@ -429,7 +429,8 @@
     "starterPayment": "",
     "starterWho": "",
     "starterBudget": "",
-    "starterWhere": ""
+    "starterWhere": "",
+    "refreshA11yLabel": ""
   },
   "split": {
     "toggle": "",
