@@ -264,6 +264,16 @@ Each category maps to a specific color. This mapping is used everywhere: chips, 
 
 ---
 
+## Deployment
+
+App is distributed via EAS to friends as an APK (preview profile). See `DEPLOYMENT.md` for the full guide.
+
+- **Push an OTA update** (JS/TS/JSON only): `eas update --branch preview --platform android --message "..."` — `--platform android` is required, otherwise it tries to bundle for web and fails.
+- **New native build needed** when: adding/removing a native lib, changing `app.json` (icon, splash, permissions, plugins), or bumping Expo SDK. Run `eas build --platform android --profile preview`.
+- **Env vars** (`EXPO_PUBLIC_*`) are inlined at build time. They're set on EAS for `preview`/`production`/`development` — never rely on `.env` reaching EAS (it's gitignored). Add new public vars via `eas env:create`.
+
+---
+
 ## Environment Setup
 
 Required `.env` file at project root:

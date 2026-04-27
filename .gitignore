@@ -44,6 +44,7 @@ supabase/.temp/
 
 # EAS
 .eas/
+play-store-key.json
 
 #virtual environment
 .venv/
