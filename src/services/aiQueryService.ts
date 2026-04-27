@@ -22,6 +22,60 @@ interface AskOptions {
 
 const TIMEOUT_MS = 30_000;
 const HISTORY_LIMIT = 10;
+const RETRY_DELAY_MS = 1000;
+
+interface FetchOutcome {
+  ok: boolean;
+  status: number;
+  body: Partial<AskResponse> | null;
+}
+
+interface FetchInput {
+  url: string;
+  token: string;
+  payload: unknown;
+}
+
+async function fetchOnce({ url, token, payload }: FetchInput): Promise<FetchOutcome> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: config.supabase.anonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    let body: Partial<AskResponse> | null = null;
+    try {
+      body = (await res.json()) as Partial<AskResponse>;
+    } catch {
+      body = null;
+    }
+    return { ok: res.ok, status: res.status, body };
+  } catch {
+    // Network abort or fetch error — surface as a non-retryable failure
+    // (we don't want to compound timeouts by retrying on broken connections).
+    return { ok: false, status: 0, body: null };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// 503 + the SUPABASE_EDGE_RUNTIME_ERROR string are the two patterns we see
+// when the edge runtime is cold-starting or briefly OOM. Both clear within a
+// few seconds, so a single 1-second retry is enough to mask the blip without
+// turning a real outage into a retry storm.
+function isTransientFailure(r: FetchOutcome): boolean {
+  if (r.status === 503) return true;
+  const err = r.body?.error;
+  if (typeof err === 'string' && /SUPABASE_EDGE_RUNTIME_ERROR/i.test(err)) return true;
+  return false;
+}
 
 export async function askQuestion(
   tripId: string,
@@ -41,52 +95,36 @@ export async function askQuestion(
     return { answer: errorMessage, followUps: [], intent: 'error' };
   }
 
-  const url = `${config.supabase.url}/functions/v1/ai-query`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const input: FetchInput = {
+    url: `${config.supabase.url}/functions/v1/ai-query`,
+    token,
+    payload: {
+      question,
+      tripId,
+      conversationHistory: history.slice(-HISTORY_LIMIT),
+      language,
+    },
+  };
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: config.supabase.anonKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        question,
-        tripId,
-        conversationHistory: history.slice(-HISTORY_LIMIT),
-        language,
-      }),
-      signal: controller.signal,
-    });
-
-    let body: Partial<AskResponse> | null = null;
-    try {
-      body = (await res.json()) as Partial<AskResponse>;
-    } catch {
-      body = null;
-    }
-
-    if (res.ok && body && typeof body.answer === 'string') {
-      return {
-        answer: body.answer,
-        followUps: Array.isArray(body.followUps) ? body.followUps : [],
-        intent: typeof body.intent === 'string' ? body.intent : 'error',
-        error: body.error,
-      };
-    }
-
-    return {
-      answer: errorMessage,
-      followUps: [],
-      intent: 'error',
-      error: body?.error ?? String(res.status),
-    };
-  } catch {
-    return { answer: errorMessage, followUps: [], intent: 'error' };
-  } finally {
-    clearTimeout(timeoutId);
+  let outcome = await fetchOnce(input);
+  if (isTransientFailure(outcome)) {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    outcome = await fetchOnce(input);
   }
+
+  if (outcome.ok && outcome.body && typeof outcome.body.answer === 'string') {
+    return {
+      answer: outcome.body.answer,
+      followUps: Array.isArray(outcome.body.followUps) ? outcome.body.followUps : [],
+      intent: typeof outcome.body.intent === 'string' ? outcome.body.intent : 'error',
+      error: outcome.body.error,
+    };
+  }
+
+  return {
+    answer: errorMessage,
+    followUps: [],
+    intent: 'error',
+    error: outcome.body?.error ?? (outcome.status > 0 ? String(outcome.status) : undefined),
+  };
 }
