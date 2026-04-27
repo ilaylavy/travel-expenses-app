@@ -84,8 +84,11 @@ export default function TripMapScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useGlobalSearchParams<{ id: string }>();
+  const params = useGlobalSearchParams<{ id: string; focusExpenseId?: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const focusExpenseId = Array.isArray(params.focusExpenseId)
+    ? params.focusExpenseId[0]
+    : params.focusExpenseId;
 
   const trip = useTripStore((s) => s.trips.find((x) => x.id === tripId));
   const expenses = useExpenseStore((s) => s.expenses);
@@ -94,6 +97,8 @@ export default function TripMapScreen() {
   const allCategories = useCategoryStore((s) => s.categories);
 
   const mapRef = useRef<MapView | null>(null);
+  const focusHandledRef = useRef<string | null>(null);
+  const suppressVisibleFitRef = useRef(false);
 
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
@@ -272,6 +277,34 @@ export default function TripMapScreen() {
     }
   }, [expenses]);
 
+  // Focus a specific expense when navigated to with `?focusExpenseId=...`
+  // (e.g., from the location field on the expense detail screen).
+  useEffect(() => {
+    if (!focusExpenseId) return;
+    if (focusHandledRef.current === focusExpenseId) return;
+    const target = expenses.find((e) => e.id === focusExpenseId);
+    if (!target) return;
+    if (target.latitude == null || target.longitude == null) {
+      focusHandledRef.current = focusExpenseId;
+      router.setParams({ focusExpenseId: undefined });
+      return;
+    }
+    didInitialFitRef.current = true;
+    suppressVisibleFitRef.current = true;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: target.latitude,
+        longitude: target.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      },
+      400,
+    );
+    setSelectedExpense(target);
+    focusHandledRef.current = focusExpenseId;
+    router.setParams({ focusExpenseId: undefined });
+  }, [focusExpenseId, expenses, router]);
+
   // Refit on filter changes — fits to the *visible* set so the user always
   // sees the pins they care about.
   const visibleSignature = useMemo(
@@ -282,6 +315,10 @@ export default function TripMapScreen() {
     if (!didInitialFitRef.current) return;
     if (!mapRef.current) return;
     if (visibleExpenses.length === 0) return;
+    if (suppressVisibleFitRef.current) {
+      suppressVisibleFitRef.current = false;
+      return;
+    }
     const coords = visibleExpenses.map((e) => ({
       latitude: e.latitude as number,
       longitude: e.longitude as number,

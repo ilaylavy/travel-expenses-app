@@ -274,6 +274,7 @@
     "spreadRange": "{{start}} – {{end}}",
     "noteEmpty": "אין הערה",
     "locationMissing": "אין מיקום",
+    "viewOnMapHint": "",
     "loggedBy": "נרשם על ידי {{name}}",
     "you": "את/ה",
     "photosLabel": "תמונות",
