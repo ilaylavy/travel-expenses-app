@@ -290,6 +290,7 @@
     "spreadRange": "{{start}} – {{end}}",
     "noteEmpty": "No note",
     "locationMissing": "No location",
+    "viewOnMapHint": "Tap to view on map",
     "loggedBy": "Logged by {{name}}",
     "you": "you",
     "photosLabel": "Photos",

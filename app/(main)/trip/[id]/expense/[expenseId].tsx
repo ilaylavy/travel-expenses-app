@@ -353,14 +353,29 @@ export default function ExpenseDetailScreen() {
 
         {/* Location */}
         <FieldCard title={t('expenseDetail.locationLabel')} theme={theme}>
-          {expense.placeName ? (
-            <Text style={[styles.fieldValue, { color: theme.text }]}>
-              📍 {expense.placeName}
-            </Text>
-          ) : expense.latitude != null && expense.longitude != null ? (
-            <Text style={[styles.fieldValue, { color: theme.text }]}>
-              📍 {expense.latitude.toFixed(4)}, {expense.longitude.toFixed(4)}
-            </Text>
+          {expense.latitude != null && expense.longitude != null ? (
+            <Pressable
+              onPress={() =>
+                router.push(
+                  href(`/trip/${tripId}/map?focusExpenseId=${expense.id}`),
+                )
+              }
+              accessibilityRole="button"
+              accessibilityLabel={t('expenseDetail.viewOnMapHint')}
+            >
+              {({ pressed }) => (
+                <View style={{ opacity: pressed ? 0.6 : 1 }}>
+                  <Text style={[styles.fieldValue, { color: theme.text }]}>
+                    📍{' '}
+                    {expense.placeName ??
+                      `${expense.latitude!.toFixed(4)}, ${expense.longitude!.toFixed(4)}`}
+                  </Text>
+                  <Text style={[styles.fieldSub, { color: theme.accent }]}>
+                    {t('expenseDetail.viewOnMapHint')}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
           ) : (
             <Text style={[styles.fieldValue, { color: theme.textMuted }]}>
               {t('expenseDetail.locationMissing')}
