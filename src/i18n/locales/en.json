@@ -13,6 +13,22 @@
     "edit": "Edit",
     "share": "Share"
   },
+  "calendar": {
+    "selectDate": "Select date",
+    "selectRange": "Select date range",
+    "done": "Done",
+    "clear": "Clear",
+    "today": "Today",
+    "days": "days"
+  },
+  "datePicker": {
+    "date": "Date",
+    "time": "Time",
+    "spread": "Spread",
+    "spreadPerDay": "{{days}} nights · {{amount}}/night",
+    "spreadNights": "{{days}} nights",
+    "ongoing": "Ongoing (no end date)"
+  },
   "auth": {
     "login": {
       "heroTitle": "Welcome back",
@@ -421,6 +437,10 @@
     "subtitle": "Ask anything about your spending",
     "placeholder": "Ask a question...",
     "thinking": "Thinking...",
+    "thinking1": "Thinking...",
+    "thinking2": "Checking your expenses...",
+    "thinking3": "Crunching the numbers...",
+    "thinking4": "Almost there...",
     "offline": "You need internet to ask questions. Connect and try again.",
     "error": "Something went wrong. Try again.",
     "tryAgain": "Try again",

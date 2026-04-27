@@ -63,7 +63,6 @@ interface StaticFallbacks {
   clarify: string;
   rephrase: string;
   noAnswer: string;
-  followUps: string[];
 }
 
 const STATIC_FALLBACKS: Record<Language, StaticFallbacks> = {
@@ -76,11 +75,6 @@ const STATIC_FALLBACKS: Record<Language, StaticFallbacks> = {
     clarify: 'Could you give me a bit more detail on what you want to know?',
     rephrase: 'I had trouble processing that question. Could you try rephrasing it?',
     noAnswer: "I couldn't put together an answer for that. Try rephrasing?",
-    followUps: [
-      'How much have I spent so far?',
-      'What category am I spending the most on?',
-      'How am I doing against my budget?',
-    ],
   },
   he: {
     thinkingError: 'יש לי קושי לחשוב כרגע. נסה שוב בעוד רגע.',
@@ -91,11 +85,6 @@ const STATIC_FALLBACKS: Record<Language, StaticFallbacks> = {
     clarify: 'אפשר לפרט קצת יותר מה תרצה לדעת?',
     rephrase: 'הייתה לי בעיה לעבד את השאלה הזאת. אפשר לנסח אחרת?',
     noAnswer: 'לא הצלחתי לבנות תשובה לזה. אפשר לנסח אחרת?',
-    followUps: [
-      'כמה הוצאתי עד עכשיו?',
-      'באיזו קטגוריה אני מוציא הכי הרבה?',
-      'איך אני עומד מול התקציב?',
-    ],
   },
 };
 
@@ -146,6 +135,10 @@ interface TripContext {
     has_excluded_expenses: boolean;
     has_spread_expenses: boolean;
     has_splits: boolean;
+    // True when trips.budget is set OR any active member has a non-null
+    // trip_members.budget. The follow-up filter and the LLM both rely on
+    // this to decide whether budget-related questions are sensible.
+    has_any_budget: boolean;
   };
   // Pre-formatted current balance, e.g. "Maya owes Ilay €54.75". Empty
   // string when the trip is solo or has no splits. Lets the summarizer
@@ -220,207 +213,188 @@ async function callOpenAIJson(
   }
 }
 
-const PLANNER_SYSTEM_TEMPLATE = `You are the planner for a travel expense AI assistant. Decide what the user wants and, when they want data, write Postgres SELECT/WITH queries against the schema below.
+const PLANNER_SYSTEM_TEMPLATE = `You are the planner for a travel expense AI assistant. Decide what the user wants and, when they want data, write a Postgres SELECT/WITH query against the analytics views below.
 
-DATABASE SCHEMA (Postgres):
+The views have already done the hard work: splits are exploded into per-share rows, refund signs are baked in, spread expenses are split across days, balances are netted pairwise, and budget math is pre-computed. You pick the right view, apply simple filters, and let the result rows speak for themselves.
 
-expenses (each row is one spending record logged by a user)
-  - id: UUID primary key
-  - trip_id: UUID (FK → trips.id) — always filter by this
-  - user_id: UUID (FK → profiles.id) — who logged and paid for this expense
-  - amount: decimal — in the original transaction currency. NEGATIVE for refunds.
-  - currency: text — ISO currency code of the transaction (EUR, USD, ILS, etc.)
-  - converted_amount: decimal — the same expense converted to the trip's home currency
-  - exchange_rate: decimal — the rate used at time of entry (locked, doesn't change)
-  - category_id: UUID (FK → categories.id)
-  - note: text — user's description (e.g. "Tapas at La Boqueria", "Airport taxi")
-  - payment_method: text — how they paid (e.g. "Credit", "Cash", "Debit", or custom values)
-  - latitude: float, longitude: float — GPS coordinates where the expense happened
-  - place_name: text — human-readable location (e.g. "La Boqueria, Barcelona", "Sagrada Familia")
-  - expense_date: date — when the expense occurred
-  - expense_time: time — time of day
-  - is_refund: boolean — true = refund, amount is NEGATIVE
-  - is_excluded_from_daily_metrics: boolean — excluded ONLY from daily chart and daily average. Still counts in totals, budgets, category breakdowns.
-  - is_private: boolean — only visible to its author, hidden from other trip members
-  - is_split: boolean — true if this expense is divided among trip members via expense_splits
-  - spread_start_date: date (nullable) — if set, the expense cost is spread evenly across this date range for daily calculations
-  - spread_end_date: date (nullable)
-  - deleted_at: timestamptz (nullable) — soft delete. ALWAYS filter WHERE deleted_at IS NULL.
-
-expense_splits (how a split expense is divided among trip members — only exists when expenses.is_split = true)
-  - id: UUID primary key
-  - expense_id: UUID (FK → expenses.id) — the parent expense
-  - user_id: UUID (FK → profiles.id) — the person who owes this share
-  - amount: decimal — their share in the expense's original currency
-  - is_payer: boolean — true for the person who actually paid (matches expenses.user_id)
-  - deleted_at: timestamptz (nullable) — ALWAYS filter WHERE deleted_at IS NULL
-  - UNIQUE(expense_id, user_id)
-
-categories (expense categories — each has an emoji and color)
-  - id: UUID primary key
-  - name: text — display name (e.g. "Food", "Transport", "Hotel", "Flight", "Coffee", "Shopping", "Activities", "Other")
-  - emoji: text — visual icon (e.g. "🍽️", "🚗")
-  - trip_id: UUID (nullable) — NULL = global default category. Non-NULL = custom category created for a specific trip.
-  - is_archived: boolean — archived categories are hidden but still referenced by existing expenses
-
-trips (each trip is a container for expenses)
-  - id: UUID primary key
-  - name: text — trip display name
-  - emoji: text — trip icon
-  - base_currency: text — the main currency used at the destination (EUR for a Europe trip)
-  - home_currency: text — the user's native currency for seeing "how much did this cost me at home"
-  - budget: decimal (nullable) — spending limit, in base_currency. NULL = no budget set.
-  - start_date: date
-  - end_date: date (nullable) — NULL means ongoing (e.g. "Home 2026")
-  - deleted_at: timestamptz (nullable) — ALWAYS filter WHERE deleted_at IS NULL
-
-profiles (user display info)
-  - id: UUID primary key
-  - name: text — display name (e.g. "Ilay", "Maya")
-
-trip_members (who participates in a trip)
-  - trip_id: UUID (FK → trips.id)
-  - user_id: UUID (FK → profiles.id)
-  - role: text — "owner" or "member"
-  - joined_at: timestamptz (nullable) — NULL = invited but not accepted. Always filter joined_at IS NOT NULL.
-  - UNIQUE(trip_id, user_id)
-
-KEY RELATIONSHIPS:
-  expenses.category_id → categories.id (JOIN to get category name and emoji)
-  expenses.trip_id → trips.id
-  expenses.user_id → profiles.id (JOIN to get who paid/logged)
-  expense_splits.expense_id → expenses.id
-  expense_splits.user_id → profiles.id (JOIN to get who owes)
-  trip_members.trip_id → trips.id
-  trip_members.user_id → profiles.id
+NEVER query raw tables (expenses, expense_splits, trip_members, categories, profiles, trips). Use the views.
 
 ═══════════════════════════════════════
-CRITICAL QUERY RULES
+THE FOUR VIEWS
 ═══════════════════════════════════════
 
-── SAFETY (queries rejected if missing) ──
+══ expense_analysis — one row per (expense × share owner) ══
+Use for: per-expense detail, category/place/payment breakdowns, "what did X spend on Y", individual expense lookups.
 
-1. ALWAYS: WHERE deleted_at IS NULL on every table that has it (expenses, expense_splits, trips, categories).
-2. ALWAYS: WHERE trip_id = '<<TRIP_ID>>' on expense queries.
-3. PRIVACY: every query touching expenses MUST include (is_private = false OR user_id = '<<CALLER_ID>>'). Both literals must appear verbatim. Queries on expense_splits must JOIN through expenses with the same privacy filter.
-4. ALWAYS include LIMIT (default 100, lower for "top N"). EXCEPTION: pure aggregates (SUM/COUNT/AVG/MIN/MAX with no GROUP BY) return one row — no LIMIT needed.
-5. SELECT and WITH only. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE.
+  trip_id            UUID
+  expense_id         UUID
+  payer_id           UUID            — who actually paid
+  payer_name         text
+  share_owner_id     UUID            — whose share this row is
+  share_owner_name   text
+  is_payer_of_share  bool            — true when share_owner = payer
+  full_amount        decimal         — total expense, original currency
+  full_amount_home   decimal         — total expense, home currency
+  user_share         decimal         — this share owner's portion, original currency
+  user_share_home    decimal         — this share owner's portion, home currency
+  original_currency  text
+  category_id        UUID
+  category_name      text
+  category_emoji     text
+  expense_date       date
+  expense_time       time
+  place_name         text (nullable)
+  latitude, longitude  float (nullable)
+  note               text (nullable)
+  payment_method     text (nullable)
+  is_refund          bool            — refund rows have NEGATIVE user_share
+  is_excluded_from_daily_metrics  bool
+  is_private         bool
+  is_split           bool
+  spread_start_date, spread_end_date  date (nullable)
 
-── EXPENSES ──
+Per-person spending → filter share_owner_id. Trip-wide totals → no share filter; sum user_share/user_share_home over all rows (each expense splits into shares that already sum to full_amount, so the totals are correct without double counting).
 
-6. REFUNDS: is_refund = true → amount is NEGATIVE. Exclude from totals/averages with is_refund = false UNLESS the user asks about refunds or "net spending."
-7. EXCLUDED FROM DAILY: is_excluded_from_daily_metrics only affects daily-chart and daily-average queries. Do NOT filter on it for totals, budgets, or category breakdowns.
-8. SPREAD: when calculating daily spend, divide amount by (spread_end_date - spread_start_date + 1). For non-daily questions, use the full amount.
-9. CURRENCY: 'amount' = trip currency, 'converted_amount' = home currency. Default to base_currency. Never mix currencies in a SUM.
+══ daily_spending — one row per (trip, share owner, day) ══
+Use for: daily charts, daily averages of historical spend, "most expensive day", date-bounded questions.
 
-── SPLITS ──
+  trip_id, share_owner_id, share_owner_name
+  expense_date       date
+  daily_amount       decimal         — original currency
+  daily_amount_home  decimal         — home currency
+  expense_count      int
 
-10. PERSONAL & PER-MEMBER SPENDING — questions asking what one specific person spent (the caller themselves, or a named trip member):
-    Sum each expense's share for the target user. For split expenses (is_split = true) the share is the target's row in expense_splits — or 0 if no row exists for them. For non-split expenses the share is e.amount IF the target paid the expense (e.user_id = target's id), else 0. The LEFT JOIN ensures missing rows contribute 0 rather than NULL. NEVER add filters that depend on the share's value or the payer flag (e.g. excluding rows where amount = 0 or is_payer is true) — those silently drop valid shares, including the case where one participant absorbs the full split.
+Already excludes refunds and is_excluded_from_daily_metrics. Spread expenses are exploded across the date range (a 5-night hotel becomes 5 rows of 1/5 the share each).
 
-    Use the caller pattern when the question is about the caller (any first-person phrasing). Use the per-member pattern when the question names a specific member from TRIP CONTEXT.
+══ trip_summary — one row per (trip, active member) ══
+Use for: "am I on budget", "how much have I spent total", "daily average", "days elapsed/remaining". A simple SELECT, no aggregation needed.
 
-    Caller pattern — substitute '<<CALLER_ID>>' verbatim in BOTH branches and the privacy disjunction:
-      SELECT COALESCE(SUM(
-        CASE
-          WHEN e.is_split THEN COALESCE(es.amount, 0)
-          WHEN e.user_id = '<<CALLER_ID>>' THEN e.amount
-          ELSE 0
-        END
-      ), 0) AS spent
-      FROM expenses e
-      LEFT JOIN expense_splits es
-        ON es.expense_id = e.id
-        AND es.user_id = '<<CALLER_ID>>'
-        AND es.deleted_at IS NULL
-      WHERE e.trip_id = '<<TRIP_ID>>'
-        AND e.deleted_at IS NULL
-        AND (e.is_private = false OR e.user_id = '<<CALLER_ID>>')
-        AND e.is_refund = false
+  trip_id, trip_name, trip_emoji, start_date, end_date, base_currency, home_currency
+  user_id, user_name
+  per_user_budget                       (nullable, in home_currency)
+  total_spent_share, total_spent_share_home    — refunds excluded
+  total_paid, total_paid_home                  — what this user paid for, refunds excluded
+  expense_count
+  days_elapsed                          int (≥ 1)
+  days_remaining                        int (null if trip has no end_date)
+  daily_average_share, daily_average_share_home   — pre-computed
+  budget_remaining                      (nullable; null = no budget set)
+  budget_percent                        (nullable; 0–100+, where 100 = at limit)
 
-    Per-member pattern — resolve the member's id by joining profiles on the exact name from TRIP CONTEXT:
-      SELECT COALESCE(SUM(
-        CASE
-          WHEN e.is_split THEN COALESCE(es.amount, 0)
-          WHEN e.user_id = m.id THEN e.amount
-          ELSE 0
-        END
-      ), 0) AS spent
-      FROM expenses e
-      JOIN profiles m ON m.name = '<member-name-from-context>'
-      LEFT JOIN expense_splits es
-        ON es.expense_id = e.id
-        AND es.user_id = m.id
-        AND es.deleted_at IS NULL
-      WHERE e.trip_id = '<<TRIP_ID>>'
-        AND e.deleted_at IS NULL
-        AND (e.is_private = false OR e.user_id = '<<CALLER_ID>>')
-        AND e.is_refund = false
+══ balance_ledger — one row per (trip, debtor, creditor) ══
+Use for: "who owes whom", "how much do I owe", "settle up", "are we even".
 
-    Singular phrasing about one person ("I", "me", or a single member name) → personal/per-member share. Plural or trip-scoped phrasing about the group as a whole ("we", "the trip", "in total", "altogether") → rule #11. Never substitute SUM(e.amount) for a singular question.
+  trip_id
+  from_user_id, from_user_name   — debtor (owes money)
+  to_user_id, to_user_name       — creditor (is owed money)
+  net_amount                     decimal, always positive, in home_currency
+  currency                       — same as trip's home_currency
 
-11. TRIP TOTAL — questions about the whole trip's cost regardless of who paid or how it was split: use SUM(e.amount) directly with no CASE or share JOIN. Each expense contributes its full amount once.
-12. BALANCE / SETTLEMENT ("how much do I owe", "who owes whom", "settle up"): payer (is_payer = true) paid full amount. Each non-payer owes the payer their split amount. Net = debts one direction minus the other.
-13. Non-split expenses (is_split = false) generate NO debt.
+Empty rows = everyone is settled up (or the trip has no splits). NEVER do math here — the netting is already done.
 
-── CATEGORIES ──
+═══════════════════════════════════════
+RULES
+═══════════════════════════════════════
 
-14. Always JOIN categories to get name and emoji — never return raw category_id.
-15. Use exact category names from TRIP CONTEXT (case-sensitive).
-16. When grouping by category, include emoji: SELECT c.emoji, c.name, ...
-17. Ignore archived categories unless they have expenses.
+1. Only query the views above. Never reference expenses, expense_splits, trip_members, categories, profiles, trips directly.
+2. Always filter trip_id = '<<TRIP_ID>>'.
+3. Privacy filters:
+   - expense_analysis: include (is_private = false OR share_owner_id = '<<CALLER_ID>>'). Both literals must appear verbatim.
+   - daily_spending: filter share_owner_id = '<<CALLER_ID>>' for personal-daily questions. For trip-wide daily, use expense_analysis with the privacy filter and GROUP BY expense_date.
+   - trip_summary, balance_ledger: no privacy filter needed — the views handle it.
+4. "I/me/my" → share_owner_id = '<<CALLER_ID>>' (or user_id = '<<CALLER_ID>>' for trip_summary). Named members from TRIP CONTEXT → match share_owner_name (or user_name) verbatim.
+5. Trip-wide totals (no specific owner): aggregate across all rows; do NOT filter by share owner.
+6. Currency: use the _home columns when summing across multiple rows. Use original-currency columns only when displaying a single expense or when the user explicitly says "in trip currency".
+7. Settlement / balance / "who owes whom" / "are we even" → SELECT * FROM balance_ledger WHERE trip_id = '<<TRIP_ID>>'. NEVER recompute. Empty result = settled up.
+8. Budget / "on track" / daily average / days remaining → SELECT * FROM trip_summary WHERE trip_id = '<<TRIP_ID>>' AND user_id = '<<CALLER_ID>>'. Numbers are already there.
+9. Daily charts / "most expensive day" / spending on date X → use daily_spending.
+10. Percentages: compute in SQL with window functions (e.g. SUM(user_share_home) * 100.0 / SUM(SUM(user_share_home)) OVER ()). Don't ask the LLM to divide.
+11. Always include LIMIT 100 except for pure aggregates (one row, no GROUP BY) and single-row trip_summary lookups.
+12. SELECT and WITH only. No mutations.
 
-── MEMBERS ──
+═══════════════════════════════════════
+QUESTION → QUERY PATTERNS
+═══════════════════════════════════════
 
-18. Always JOIN profiles for display names — never return raw user_id.
-19. Active members only: WHERE joined_at IS NOT NULL.
-20. "Who spent more" in a trip with splits: clarify total paid vs personal share if ambiguous — show both.
-21. Use exact member names from TRIP CONTEXT.
+"How much did I spend on Food?"
+  SELECT category_emoji, category_name,
+         ROUND(SUM(user_share_home)::numeric, 2) AS spent_home
+  FROM expense_analysis
+  WHERE trip_id = '<<TRIP_ID>>' AND share_owner_id = '<<CALLER_ID>>'
+    AND category_name = 'Food' AND is_refund = false
+    AND (is_private = false OR share_owner_id = '<<CALLER_ID>>')
+  GROUP BY category_emoji, category_name LIMIT 100
 
-── LOCATIONS ──
+"What's the trip total?"
+  SELECT ROUND(SUM(user_share_home)::numeric, 2) AS total_home
+  FROM expense_analysis
+  WHERE trip_id = '<<TRIP_ID>>' AND is_refund = false
+    AND (is_private = false OR share_owner_id = '<<CALLER_ID>>')
 
-22. place_name = "venue, city" format. For city queries use LIKE '%Barcelona%' or split on comma.
-23. "Where did I spend the most" → GROUP BY place_name or extract city.
-24. Some expenses have NULL location — don't exclude them from totals unless the question is about locations/map.
+"Who owes whom?" / "Are we even?" / "How much do I owe?"
+  SELECT from_user_name, to_user_name, net_amount, currency
+  FROM balance_ledger WHERE trip_id = '<<TRIP_ID>>'
 
-── DATES ──
+"Am I on budget?"
+  SELECT * FROM trip_summary
+  WHERE trip_id = '<<TRIP_ID>>' AND user_id = '<<CALLER_ID>>'
 
-25. "Today" = CURRENT_DATE. "Yesterday" = CURRENT_DATE - 1. "This week" = last 7 days. "This month" = current calendar month (date_trunc).
-26. Monthly grouping: TO_CHAR(expense_date, 'YYYY-MM') or date_trunc('month', expense_date).
-27. "Most expensive day" → GROUP BY expense_date ORDER BY SUM(amount) DESC LIMIT 1.
-28. Days elapsed = CURRENT_DATE - start_date. Days remaining = end_date - CURRENT_DATE (NULL if ongoing).
+"What's my daily average?"
+  SELECT daily_average_share_home, total_spent_share_home, days_elapsed
+  FROM trip_summary WHERE trip_id = '<<TRIP_ID>>' AND user_id = '<<CALLER_ID>>'
 
-── PAYMENT METHODS ──
+"My most expensive day?"
+  SELECT expense_date, ROUND(daily_amount_home::numeric, 2) AS amount_home, expense_count
+  FROM daily_spending
+  WHERE trip_id = '<<TRIP_ID>>' AND share_owner_id = '<<CALLER_ID>>'
+  ORDER BY daily_amount_home DESC LIMIT 1
 
-29. GROUP BY payment_method for "cash vs card" comparisons.
-30. Use exact method values from TRIP CONTEXT — they're free text.
+"Cash vs card?"
+  SELECT payment_method,
+         ROUND(SUM(user_share_home)::numeric, 2) AS total_home,
+         COUNT(*) AS n
+  FROM expense_analysis
+  WHERE trip_id = '<<TRIP_ID>>' AND share_owner_id = '<<CALLER_ID>>'
+    AND is_refund = false
+    AND (is_private = false OR share_owner_id = '<<CALLER_ID>>')
+  GROUP BY payment_method LIMIT 100
 
-── BUDGET ──
+"What did Maya spend on?" (Maya appears in TRIP CONTEXT.members)
+  SELECT category_emoji, category_name,
+         ROUND(SUM(user_share_home)::numeric, 2) AS spent_home
+  FROM expense_analysis
+  WHERE trip_id = '<<TRIP_ID>>' AND share_owner_name = 'Maya'
+    AND is_refund = false
+    AND (is_private = false OR share_owner_id = '<<CALLER_ID>>')
+  GROUP BY category_emoji, category_name
+  ORDER BY spent_home DESC LIMIT 100
 
-31. Budget is in base_currency. Compare against SUM(amount) WHERE is_refund = false.
-32. "Am I on budget" → spent vs budget AND daily rate vs (remaining budget / remaining days).
-33. If budget is NULL → say "no budget set", don't invent one.
+"How long is the trip?"
+  SELECT trip_name, start_date, end_date, days_elapsed, days_remaining
+  FROM trip_summary WHERE trip_id = '<<TRIP_ID>>' AND user_id = '<<CALLER_ID>>'
 
-── CONVERSATION ──
+═══════════════════════════════════════
+INTENT
+═══════════════════════════════════════
 
-34. Resolve references: "and transport?" after food → "how much did I spend on transport?"
-35. "Compare that to..." → look at previous question to know what to compare against.
+Default to DATA_QUERY. Pick a non-DATA_QUERY intent only when clearly warranted.
 
-OUTPUT FORMAT (always valid JSON, no prose outside JSON):
+DATA_QUERY: any expense-related word (food, transport, hotel, spend, cost, budget, paid, owe, balance, settle, even, category, cash, card, day, location, place, member name, currency, refund, average, total, days). Member comparisons. Trip metadata. Yes/no questions about state.
+  - Empty result is fine: a non-existent category, settlement on a no-split trip, etc. — emit the query, the summarizer explains.
+  - Some questions are answerable from TRIP CONTEXT alone (e.g. "what currency does this trip use?", "who's on this trip?", "what categories do we have?"). For those, set queries: [] — the summarizer will read TRIP CONTEXT and answer directly. Use sparingly; default to a query.
+
+CHITCHAT: pure greetings, thanks, casual chatter. directResponse, queries: [].
+CLARIFY: about expenses but truly ambiguous (rare). Ask ONE specific clarifying question. queries: [].
+OUT_OF_SCOPE: completely unrelated to spending (weather, code, philosophy). queries: [].
+
+OUTPUT (JSON only):
 {
   "intent": "DATA_QUERY" | "CHITCHAT" | "CLARIFY" | "OUT_OF_SCOPE",
   "reasoning": "one sentence",
   "directResponse": "non-empty only for CHITCHAT/CLARIFY/OUT_OF_SCOPE",
   "queries": [{ "sql": "SELECT ...", "purpose": "what this answers" }],
-  "explanation": "what the combined results show (DATA_QUERY only)"
-}
-
-INTENT RULES:
-- DATA_QUERY: answerable from the database → emit 1-3 SQL queries.
-- CHITCHAT: greetings, thanks, casual → warm reply mentioning you help with expense questions. queries: [].
-- CLARIFY: about expenses but ambiguous → ask ONE specific clarifying question. queries: [].
-- OUT_OF_SCOPE: nothing to do with spending → politely explain. queries: [].
-- Resolve coreference from conversation history.`;
+  "explanation": "one sentence on what the combined results show (DATA_QUERY only)"
+}`;
 
 function buildPlannerSystem(tripId: string, callerId: string): string {
   return PLANNER_SYSTEM_TEMPLATE
@@ -450,43 +424,42 @@ function buildPlannerUser(
   return lines.join('\n');
 }
 
-const SUMMARIZER_SYSTEM = `You are a friendly travel expense assistant helping a traveler understand their spending.
+const SUMMARIZER_SYSTEM = `You are a friendly travel expense assistant. You receive query results from pre-computed analytics views and report them to the user. The numbers you receive are already correct — DO NOT recompute them.
 
-FORMATTING RULES:
-- Use the correct currency symbol from trip context (€, ₪, $, £, ¥, etc.). If unsure, use the ISO code.
-- Format large numbers with commas: €1,247 not €1247.
-- Round to 2 decimal places for amounts, 0 for percentages.
+ANSWER:
+- 2-4 sentences, casual and friendly.
+- Use the correct currency symbol from trip context (€, ₪, $, £, ¥). Format with commas: €1,247, not €1247.
+- 2 decimals for amounts, 0 decimals for percentages.
+- Quote pre-computed values verbatim from the result rows:
+  · Settlement: "Maya owes you €54.75" — straight from balance_ledger.net_amount.
+  · Budget: "You're at 65% of your €5,000 budget — €1,750 left, 8 days remaining" — straight from trip_summary.
+  · Daily average: "Your daily average is €87.50" — from trip_summary.daily_average_share_home.
+  · Comparisons: state both numbers and the difference.
+  · Category breakdowns: list top 3-4 categories with amount and percentage from the result rows.
 
-ANSWER RULES:
-- Be concise: 2-4 sentences max.
-- Include percentages where meaningful ("that's 32% of your total").
-- Compare to budget when relevant ("you're at 65% of your €5,000 budget with 8 days left").
-- For member comparisons: show both amounts, the difference, and who's ahead.
-- For category breakdowns: list top 3-4 categories with amounts and percentages.
-- For daily questions: mention the specific date(s) and amounts.
-- For location questions: use the place name, not coordinates.
-- For balance/settlement: be specific — "Maya owes you €54.75" not "there's a difference."
-- For split expenses: when showing personal spending, clarify it's the user's share if relevant ("Your share of food is €120 out of €180 total").
+NEVER COMPUTE:
+- No mental math: don't sum across rows, don't divide for percentages, don't average. The SQL did all of that.
+- If a number isn't in the result rows, don't make one up.
 
-EMPTY / ERROR HANDLING:
-- Empty results: "I don't see any [X] expenses on this trip yet" — don't say "no data found."
+EMPTY RESULTS:
+- Empty balance_ledger: "Everyone's settled up on this trip — nothing to settle." If the trip has no splits per TRIP CONTEXT, say "No split expenses yet, so there's nothing to settle."
+- Empty category/payment/place result: "I don't see any [X] expenses logged yet on this trip."
+- Other empty: "I don't see any expenses matching that yet."
+- If results are empty AND the question is answerable from TRIP CONTEXT (e.g. "what currency?", "who's on the trip?", "what categories do we use?"), answer directly from context.
+
+ERRORS:
 - Query error: "I had trouble looking that up. Try rephrasing or ask something different."
-- Partially failed: answer from what worked, mention what didn't.
+- Partial failure: answer from what worked, briefly note what didn't.
 
-FOLLOW-UPS:
-- Always suggest 2-3 follow-up questions.
-- Make them contextual to what was just asked — not generic.
-- Phrase them naturally, like a friend would ask: "What about transport?" not "Query transport category expenses."
-- If the user asked about a category, suggest another category or a comparison.
-- If about a member, suggest balance or the other member's spending.
-- If about totals, suggest daily average or budget status.
+TONE: casual, friendly, slightly playful — travel app, not bank statement. Emoji max 1 per answer, only if it fits naturally.
 
-TONE:
-- Casual, friendly, slightly playful. Travel app vibes, not a bank statement.
-- Use emoji sparingly — one per answer max, only if it fits naturally.
+FOLLOW-UPS (2-3): phrased like a friend would ask ("What about transport?", not "Query transport category"). Filter by trip shape from TRIP CONTEXT.flags:
+  · skip budget questions when has_any_budget = false;
+  · skip "who spent more" / member comparisons when members.length < 2;
+  · skip balance / settlement / "who owes whom" when has_splits = false.
 
 Respond as JSON only:
-{ "answer": "...", "followUps": ["...", "...", "..."] }`;
+{ "answer": "...", "followUps": ["...", "..."] }`;
 
 function buildSummarizerUser(
   question: string,
@@ -511,15 +484,22 @@ function buildSummarizerUser(
 }
 
 const FORBIDDEN_TOKEN_RE = /\b(insert|update|delete|drop|alter|create|truncate|attach|detach|pragma|vacuum|grant|revoke|copy|merge)\b/i;
-const EXPENSES_REF_RE = /\bexpenses\b/i;
-// Note: \bexpenses\b does NOT match within `expense_splits` because `_` is a
-// word character, so the trailing word boundary fails. Use a separate regex
-// for split queries — without it, a SELECT FROM expense_splits would skip
-// the privacy/caller checks entirely.
-const EXPENSE_SPLITS_REF_RE = /\bexpense_splits\b/i;
 const AGGREGATE_FN_RE = /\b(sum|count|avg|min|max)\s*\(/i;
 const GROUP_BY_RE = /\bgroup\s+by\b/i;
-const DEFAULT_LIMIT = 500;
+const DEFAULT_LIMIT = 100;
+
+// Raw tables the planner must NOT query — the analytics views handle privacy,
+// soft-delete, splits, and currency conversion already. Reject any reference
+// so we get a fast, intelligible error instead of e.g. a privacy leak through
+// the raw expenses table or a bug from missing the deleted_at filter.
+// Word boundaries (\b) deliberately do NOT match `expense_analysis` because
+// the trailing `_` is a word character (good — views still pass through).
+const RAW_TABLE_RES: ReadonlyArray<{ name: string; re: RegExp }> = [
+  { name: 'expenses',       re: /\bexpenses\b/i },
+  { name: 'expense_splits', re: /\bexpense_splits\b/i },
+  { name: 'trip_members',   re: /\btrip_members\b/i },
+  { name: 'profiles',       re: /\bprofiles\b/i },
+];
 
 function ensureLimit(sql: string): string {
   if (/\blimit\b/i.test(sql)) return sql;
@@ -528,20 +508,7 @@ function ensureLimit(sql: string): string {
   return sql.replace(/;?\s*$/, '') + ` LIMIT ${DEFAULT_LIMIT}`;
 }
 
-// The planner is told to embed the caller's UUID verbatim in the privacy
-// disjunction `is_private = false OR user_id = '<caller>'`. It occasionally
-// mangles the literal (truncated chars, wrong digit). Rewrite the UUID slot
-// that follows `is_private = false OR ... user_id =` so a planner typo does
-// not bounce a query that is otherwise correct. Other user_id comparisons
-// (e.g. comparing two members) are left untouched.
-function ensurePrivacyCallerId(sql: string, callerId: string): string {
-  return sql.replace(
-    /(is_private\s*=\s*false\s+OR\s+(?:\w+\.)?user_id\s*=\s*')([^']+)(')/gi,
-    (_match, prefix, _uuid, suffix) => `${prefix}${callerId}${suffix}`,
-  );
-}
-
-function validateSql(sql: string, tripId: string, callerId: string): string | null {
+function validateSql(sql: string, tripId: string): string | null {
   const trimmed = sql.trim();
   if (trimmed.length === 0) return 'empty SQL';
   const lower = trimmed.toLowerCase();
@@ -551,36 +518,19 @@ function validateSql(sql: string, tripId: string, callerId: string): string | nu
   if (FORBIDDEN_TOKEN_RE.test(lower)) {
     return 'contains forbidden mutating keyword';
   }
+  // Trip id must appear as a literal so the planner cannot accidentally query
+  // across trips. We don't try to repair it — a missing/typo'd UUID is more
+  // likely a planner bug than a transcription slip.
   if (!sql.includes(tripId)) {
     return 'must include the trip id literal';
   }
-  if (!/deleted_at\s+is\s+null/i.test(sql)) {
-    return 'must include deleted_at IS NULL';
-  }
-  if (EXPENSES_REF_RE.test(sql)) {
-    if (!/is_private\s*=\s*false/i.test(sql)) {
-      return 'expenses query must filter is_private = false';
-    }
-    if (!sql.includes(callerId)) {
-      return 'expenses query must include caller user_id literal';
+  for (const { name, re } of RAW_TABLE_RES) {
+    if (re.test(sql)) {
+      return `query references raw table "${name}" — use the analytics views (expense_analysis, daily_spending, trip_summary, balance_ledger) instead`;
     }
   }
-  if (EXPENSE_SPLITS_REF_RE.test(sql)) {
-    // The planner is told to JOIN expense_splits through expenses with the
-    // privacy filter applied at the parent. These checks enforce that shape.
-    if (!/is_private\s*=\s*false/i.test(sql)) {
-      return 'expense_splits query must filter is_private = false on the joined expenses';
-    }
-    if (!sql.includes(callerId)) {
-      return 'expense_splits query must include caller user_id literal';
-    }
-    // Both expenses and expense_splits have deleted_at; require the filter
-    // to appear at least twice so the planner doesn't filter only one table.
-    const deletedAtMatches = sql.match(/deleted_at\s+is\s+null/gi) ?? [];
-    if (deletedAtMatches.length < 2) {
-      return 'expense_splits query must filter deleted_at IS NULL on both expense_splits and expenses';
-    }
-  }
+  // LIMIT is auto-appended by ensureLimit() before this runs, so the only way
+  // to be missing it here is a pure aggregate (intentional).
   return null;
 }
 
@@ -605,7 +555,7 @@ async function buildTripContext(
 
   const { data: memberRows, error: memberError } = await admin
     .from('trip_members')
-    .select('role, joined_at, profiles!inner(name)')
+    .select('role, joined_at, budget, profiles!inner(name)')
     .eq('trip_id', tripId)
     .not('joined_at', 'is', null);
 
@@ -619,6 +569,12 @@ async function buildTripContext(
       const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
       return { name: profile?.name ?? 'Unknown', role: row.role };
     });
+
+  // Budget shape — true if the trip has an overall budget OR any active member
+  // has set a personal budget. Used to gate budget-related follow-ups.
+  const hasAnyBudget =
+    (trip.budget !== null && trip.budget !== undefined) ||
+    (memberRows ?? []).some((m: { budget: number | string | null }) => m.budget !== null && m.budget !== undefined);
 
   // Aggregate stats — privacy-filtered.
   const statsRows = await sql`
@@ -736,6 +692,7 @@ async function buildTripContext(
       has_excluded_expenses: stats.has_excluded_expenses ?? false,
       has_spread_expenses: stats.has_spread_expenses ?? false,
       has_splits: hasSplits,
+      has_any_budget: hasAnyBudget,
     },
     balance_summary: balanceSummary,
   };
@@ -812,8 +769,54 @@ async function runQueries(
   return results;
 }
 
-function genericFollowUps(language: Language): string[] {
-  return [...STATIC_FALLBACKS[language].followUps];
+// Trip-shape-aware fallback follow-ups. Used when the LLM doesn't supply
+// follow-ups (validator failure, planner empty queries, summarizer error).
+// Each candidate carries the trip-shape predicate that must hold for it to
+// appear; we pick the first three that match. This mirrors the guidance the
+// summarizer follows when it generates its own follow-ups, so behavior stays
+// consistent whether the user gets LLM follow-ups or fallback ones.
+interface FollowUpCandidate {
+  question: string;
+  requiresBudget?: boolean;
+  requiresMultipleMembers?: boolean;
+  requiresSplits?: boolean;
+}
+
+const FOLLOWUP_POOL: Record<Language, FollowUpCandidate[]> = {
+  en: [
+    { question: 'How much have I spent so far?' },
+    { question: 'What category am I spending the most on?' },
+    { question: 'How am I doing against my budget?', requiresBudget: true },
+    { question: 'Who owes whom?', requiresSplits: true },
+    { question: 'Who spent more on this trip?', requiresMultipleMembers: true },
+    { question: 'What is my daily average?' },
+    { question: 'What was my most expensive day?' },
+  ],
+  he: [
+    { question: 'כמה הוצאתי עד עכשיו?' },
+    { question: 'באיזו קטגוריה אני מוציא הכי הרבה?' },
+    { question: 'איך אני עומד מול התקציב?', requiresBudget: true },
+    { question: 'מי חייב למי?', requiresSplits: true },
+    { question: 'מי הוציא יותר בטיול הזה?', requiresMultipleMembers: true },
+    { question: 'מה הממוצע היומי שלי?' },
+    { question: 'מה היה היום הכי יקר?' },
+  ],
+};
+
+function contextualFollowUps(language: Language, context: TripContext | null): string[] {
+  const pool = FOLLOWUP_POOL[language];
+  // Without context (rare error path), fall back to the unfiltered first three.
+  if (!context) return pool.slice(0, 3).map((c) => c.question);
+  const hasBudget = context.flags.has_any_budget;
+  const multipleMembers = context.members.length > 1;
+  const hasSplits = context.flags.has_splits;
+  const filtered = pool.filter((c) => {
+    if (c.requiresBudget && !hasBudget) return false;
+    if (c.requiresMultipleMembers && !multipleMembers) return false;
+    if (c.requiresSplits && !hasSplits) return false;
+    return true;
+  });
+  return filtered.slice(0, 3).map((c) => c.question);
 }
 
 function clampStringArray(value: unknown, max: number): string[] {
@@ -997,28 +1000,22 @@ Deno.serve(async (req: Request) => {
           : planner.intent === 'OUT_OF_SCOPE'
             ? fallbacks.outOfScope
             : fallbacks.clarify;
-      return chatResponse(answer, genericFollowUps(language), planner.intent);
+      return chatResponse(answer, contextualFollowUps(language, context), planner.intent);
     }
 
-    if (planner.queries.length === 0) {
-      return chatResponse(
-        fallbacks.rephrase,
-        genericFollowUps(language),
-        'DATA_QUERY',
-        'planner returned no queries',
-      );
-    }
-
+    // No-SQL path: when the planner picks DATA_QUERY but emits queries: [],
+    // it judged the question answerable from TRIP CONTEXT alone (e.g. "what
+    // currency?", "who's on this trip?"). The validation loop is a no-op,
+    // runQueries returns [], and the summarizer is told to read context.
     for (const q of planner.queries) {
-      q.sql = ensurePrivacyCallerId(q.sql, callerId);
       q.sql = ensureLimit(q.sql);
-      const failure = validateSql(q.sql, tripId, callerId);
+      const failure = validateSql(q.sql, tripId);
       if (failure) {
         console.error('ai-query: validator rejected SQL', failure, q.sql);
         return chatResponse(
           fallbacks.rephrase,
-          genericFollowUps(language),
-          'DATA_QUERY',
+          contextualFollowUps(language, context),
+          'error',
           `SQL validation failed: ${failure}`,
         );
       }
@@ -1040,16 +1037,22 @@ Deno.serve(async (req: Request) => {
       return chatResponse(fallbacks.thinkingError, [], 'error');
     }
 
-    const followUps = summary.followUps.length > 0 ? summary.followUps : genericFollowUps(language);
-    const answer = summary.answer.trim().length > 0
-      ? summary.answer
-      : fallbacks.noAnswer;
+    const followUps = summary.followUps.length > 0
+      ? summary.followUps
+      : contextualFollowUps(language, context);
+    // Empty summarizer answer = a failure mode (the LLM either had nothing to
+    // say or returned malformed JSON). Surface as 'error' so the app shows the
+    // Try-Again button rather than a dead-end "couldn't put together an answer".
+    const summarizerOk = summary.answer.trim().length > 0;
+    const answer = summarizerOk ? summary.answer : fallbacks.noAnswer;
+    const intent = summarizerOk ? 'DATA_QUERY' : 'error';
 
     // Diagnostic log: the user-visible answer plus the row counts that
     // produced it. This pairs with the planner log to make it easy to see
     // whether a wrong answer came from bad SQL, empty rows, or summarizer drift.
     console.log('ai-query: answer', JSON.stringify({
       answer,
+      intent,
       rowCounts: results.map((r) => ({
         purpose: r.purpose,
         rowCount: r.rows?.length ?? 0,
@@ -1057,7 +1060,7 @@ Deno.serve(async (req: Request) => {
       })),
     }));
 
-    return chatResponse(answer, followUps, 'DATA_QUERY');
+    return chatResponse(answer, followUps, intent);
   } catch (err) {
     console.error('ai-query: unhandled error', err instanceof Error ? err.stack ?? err.message : err);
     return chatResponse(fallbacks.thinkingError, [], 'error');

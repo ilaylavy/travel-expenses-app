@@ -20,6 +20,7 @@ import { CategoryGrid } from '@/components/expense/CategoryGrid';
 import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/NumPad';
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
 import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
+import { CalendarPickerModal } from '@/components/ui/CalendarPickerModal';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
@@ -57,6 +58,11 @@ import type { PaymentMethod } from '@/types/expense';
 import type { Trip, TripMember } from '@/types/trip';
 import { formatAmount, getCurrencySymbol, roundAmount } from '@/utils/currency';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
+import {
+  countDaysInRange,
+  formatReadableDate,
+  formatReadableDateRange,
+} from '@/utils/dates';
 import { newId } from '@/utils/id';
 import { shareExpense } from '@/utils/sharing';
 
@@ -164,6 +170,8 @@ export default function AddExpenseScreen() {
   );
   const [manualRate, setManualRate] = useState<number | null>(null);
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [spreadPickerOpen, setSpreadPickerOpen] = useState(false);
   // True once the user has actively picked a currency (chip or picker).
   // Stops the async location-derived auto-pick from clobbering their choice
   // if reverse-geocoding finishes after they already tapped something.
@@ -929,6 +937,58 @@ export default function AddExpenseScreen() {
           />
         </Section>
 
+        {/* Date / spread — unified card with calendar picker. Spread mode
+            replaces the single-day row in place; the time field hides. */}
+        <Section title={t('expense.dateTimeSection')} theme={theme}>
+          <DateSection
+            theme={theme}
+            t={t}
+            date={expenseDate}
+            time={expenseTime}
+            isSpread={isSpread}
+            spreadStart={spreadStart}
+            spreadEnd={spreadEnd}
+            amountValue={amountValue}
+            currency={currency}
+            onOpenDatePicker={() => setDatePickerOpen(true)}
+            onOpenSpreadPicker={() => setSpreadPickerOpen(true)}
+            onTimeChange={setExpenseTime}
+            onTimeFocus={handleTextFocus}
+            onEnterSpread={() => {
+              const start = expenseDate;
+              setIsSpread(true);
+              setSpreadStart(start);
+              setSpreadEnd(start);
+              setSpreadPickerOpen(true);
+            }}
+            onExitSpread={() => {
+              setIsSpread(false);
+              setSpreadStart('');
+              setSpreadEnd('');
+            }}
+          />
+        </Section>
+
+        <CalendarPickerModal
+          visible={datePickerOpen}
+          onClose={() => setDatePickerOpen(false)}
+          mode="single"
+          value={expenseDate}
+          onChange={(d) => setExpenseDate(d)}
+        />
+        <CalendarPickerModal
+          visible={spreadPickerOpen}
+          onClose={() => setSpreadPickerOpen(false)}
+          mode="range"
+          rangeValue={{ start: spreadStart || null, end: spreadEnd || null }}
+          onRangeChange={(start, end) => {
+            setSpreadStart(start);
+            setSpreadEnd(end);
+            // Per spec: expense_date stays in sync with spread_start_date.
+            setExpenseDate(start);
+          }}
+        />
+
         {/* Payment method */}
         <Section title={t('expense.paymentSection')} theme={theme}>
           <View style={styles.paymentRow}>
@@ -957,38 +1017,6 @@ export default function AddExpenseScreen() {
                 </Pressable>
               );
             })}
-          </View>
-        </Section>
-
-        {/* Date + time */}
-        <Section title={t('expense.dateTimeSection')} theme={theme}>
-          <View style={styles.dateTimeRow}>
-            <TextInput
-              value={expenseDate}
-              onChangeText={setExpenseDate}
-              onFocus={handleTextFocus}
-              placeholder={t('expense.datePlaceholder')}
-              placeholderTextColor={theme.textMuted}
-              autoCapitalize="none"
-              style={[
-                styles.input,
-                styles.dateInput,
-                { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-              ]}
-            />
-            <TextInput
-              value={expenseTime.slice(0, 5)}
-              onChangeText={setExpenseTime}
-              onFocus={handleTextFocus}
-              placeholder={t('expense.timePlaceholder')}
-              placeholderTextColor={theme.textMuted}
-              autoCapitalize="none"
-              style={[
-                styles.input,
-                styles.timeInput,
-                { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-              ]}
-            />
           </View>
         </Section>
 
@@ -1048,47 +1076,6 @@ export default function AddExpenseScreen() {
               onChange={setIsPrivate}
               theme={theme}
             />
-          ) : null}
-          <ToggleRow
-            label={t('expense.spreadToggle')}
-            hint={t('expense.spreadHint')}
-            value={isSpread}
-            onChange={(v) => {
-              setIsSpread(v);
-              if (v && !spreadStart) setSpreadStart(expenseDate);
-              if (v && !spreadEnd) setSpreadEnd(expenseDate);
-            }}
-            theme={theme}
-          />
-          {isSpread ? (
-            <View style={styles.dateTimeRow}>
-              <TextInput
-                value={spreadStart}
-                onChangeText={setSpreadStart}
-                onFocus={handleTextFocus}
-                placeholder={t('expense.datePlaceholder')}
-                placeholderTextColor={theme.textMuted}
-                autoCapitalize="none"
-                style={[
-                  styles.input,
-                  styles.dateInput,
-                  { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-                ]}
-              />
-              <TextInput
-                value={spreadEnd}
-                onChangeText={setSpreadEnd}
-                onFocus={handleTextFocus}
-                placeholder={t('expense.datePlaceholder')}
-                placeholderTextColor={theme.textMuted}
-                autoCapitalize="none"
-                style={[
-                  styles.input,
-                  styles.dateInput,
-                  { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-                ]}
-              />
-            </View>
           ) : null}
           {isSharedTrip ? (
             <ToggleRow
@@ -1432,6 +1419,127 @@ function Section({
   );
 }
 
+function DateSection({
+  theme,
+  t,
+  date,
+  time,
+  isSpread,
+  spreadStart,
+  spreadEnd,
+  amountValue,
+  currency,
+  onOpenDatePicker,
+  onOpenSpreadPicker,
+  onTimeChange,
+  onTimeFocus,
+  onEnterSpread,
+  onExitSpread,
+}: {
+  theme: ReturnType<typeof useTheme>;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  date: string;
+  time: string;
+  isSpread: boolean;
+  spreadStart: string;
+  spreadEnd: string;
+  amountValue: number;
+  currency: string;
+  onOpenDatePicker: () => void;
+  onOpenSpreadPicker: () => void;
+  onTimeChange: (v: string) => void;
+  onTimeFocus: () => void;
+  onEnterSpread: () => void;
+  onExitSpread: () => void;
+}) {
+  const spreadDays =
+    isSpread && spreadStart && spreadEnd
+      ? countDaysInRange(spreadStart, spreadEnd)
+      : 1;
+  // "Nights" = days - 1, with a min of 1 for single-day spreads. Matches the
+  // hotel-booking semantics (3 nights for Mar 15→18 check-in/out).
+  const nights = Math.max(1, spreadDays - 1);
+  const perDay = amountValue > 0 && spreadDays > 0 ? amountValue / spreadDays : 0;
+
+  return (
+    <LinearGradient
+      colors={theme.cardGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.dateCard, { borderColor: theme.border }]}
+    >
+      {isSpread ? (
+        <View style={{ gap: spacing.xs }}>
+          <View style={styles.dateRow}>
+            <Pressable
+              onPress={onOpenSpreadPicker}
+              hitSlop={6}
+              style={styles.dateLeft}
+            >
+              <Text
+                style={[styles.dateText, { color: theme.text }]}
+                numberOfLines={1}
+              >
+                📅{' '}
+                {spreadStart && spreadEnd
+                  ? formatReadableDateRange(spreadStart, spreadEnd)
+                  : t('calendar.selectRange')}
+              </Text>
+            </Pressable>
+            <Pressable onPress={onExitSpread} hitSlop={8} style={styles.spreadClose}>
+              <Text style={[styles.spreadCloseText, { color: theme.textMuted }]}>
+                ✕
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.spreadHint, { color: theme.textMuted }]}>
+            {amountValue > 0 && currency
+              ? t('datePicker.spreadPerDay', {
+                  days: nights,
+                  amount: formatAmount(perDay, currency),
+                })
+              : t('datePicker.spreadNights', { days: nights })}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.dateRow}>
+          <Pressable
+            onPress={onOpenDatePicker}
+            hitSlop={6}
+            style={styles.dateLeft}
+          >
+            <Text
+              style={[styles.dateText, { color: theme.text }]}
+              numberOfLines={1}
+            >
+              📅 {formatReadableDate(date)}
+            </Text>
+          </Pressable>
+          <TextInput
+            value={time.slice(0, 5)}
+            onChangeText={onTimeChange}
+            onFocus={onTimeFocus}
+            placeholder="HH:MM"
+            placeholderTextColor={theme.textMuted}
+            autoCapitalize="none"
+            keyboardType="numeric"
+            maxLength={5}
+            style={[
+              styles.timeField,
+              { color: theme.text, backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          />
+          <Pressable onPress={onEnterSpread} hitSlop={6} style={styles.spreadButton}>
+            <Text style={[styles.spreadButtonText, { color: theme.textMuted }]}>
+              ⟷ {t('datePicker.spread')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </LinearGradient>
+  );
+}
+
 function ToggleRow({
   label,
   hint,
@@ -1583,9 +1691,33 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingTop: spacing.xs,
   },
-  dateTimeRow: { flexDirection: 'row', gap: spacing.sm },
-  dateInput: { flex: 2 },
-  timeInput: { flex: 1 },
+  dateCard: {
+    borderRadius: sizing.radiusInput,
+    borderWidth: 1.5,
+    padding: spacing.md,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  dateLeft: { flex: 1 },
+  dateText: { fontSize: 14, fontWeight: '600' },
+  timeField: {
+    width: 64,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: sizing.radiusInput,
+    borderWidth: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  spreadButton: { paddingHorizontal: 4, paddingVertical: 4 },
+  spreadButtonText: { fontSize: 12, fontWeight: '600' },
+  spreadClose: { paddingHorizontal: 4 },
+  spreadCloseText: { fontSize: 14, fontWeight: '600' },
+  spreadHint: { fontSize: 12, fontWeight: '500' },
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',

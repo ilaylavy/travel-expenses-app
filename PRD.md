@@ -84,7 +84,7 @@ This is the most critical screen. Target: complete an entry in under 10 seconds.
 
 **Pre-filled / auto fields:**
 - Currency (defaults to trip currency, switchable)
-- Date/time (defaults to now, editable)
+- Date/time (defaults to now, editable via the unified date section — see below)
 - Location (auto-captured from GPS, shows place name via reverse geocoding)
 - Converted amount shown in real-time (trip currency → home currency)
 
@@ -92,12 +92,20 @@ This is the most critical screen. Target: complete an entry in under 10 seconds.
 - Note (free text with suggestions from recent notes in this trip), positioned above the category grid so picking a suggestion can preview into the category below
 - Payment method (Credit / Cash / Debit / custom — remembers last used)
 
+**Form field order:**
+amount → currency → note → category → date → payment → location → toggles (refund / exclude / private) → split (shared trips) → photos. The date section sits below category because most users do not change the default "now".
+
+**Date / spread section:**
+A single tappable card replaces the previous YYYY-MM-DD text input. Default state shows the date in readable form ("📅 Mar 15, 2026"), an HH:MM time field, and a small "⟷ Spread" affordance. Tapping the date opens a themed bottom-sheet calendar picker (single mode); future dates are disabled when creating a new expense. Tapping "⟷ Spread" switches the card into spread mode: the row morphs into a date-range picker with an inline summary ("3 nights · €40.00/night") that recomputes live as the amount changes. In spread mode the time field is hidden, an ✕ in the corner exits back to single mode (preserving the current expense_date), and the underlying expense_date stays in sync with spread_start_date.
+
 **Optional fields (toggle to reveal):**
 - Refund toggle — marks expense as negative, shown with green "+€X" in lists, reduces totals
 - Exclude from metrics — expense exists in list but does not count toward budget, daily average, or charts. Use case: work expenses to be reimbursed, gifts, one-off outliers
-- Multi-day spread — set a start and end date, amount is divided evenly across those days in daily metrics. Use case: 3-night hotel booking shows as per-night cost in daily charts
+- Private (shared trips only) — keeps the expense visible only to the logger
 - Photos — attach 1 or more photos (receipt, menu, the place). Camera capture or gallery pick
 - Share — send this single expense as a formatted message via system share sheet (WhatsApp, SMS, etc.)
+
+(Multi-day spread is no longer in this list — it lives in the date section above.)
 
 **Note suggestions:**
 - Tappable chips below the note input, sourced from notes used in this trip across all members (in shared trips); other members' private expenses are excluded

@@ -1,7 +1,8 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -46,6 +47,26 @@ export default function RootLayout() {
     void hydrateSettings();
     void initializeAuth();
   }, [hydrateSettings, initializeAuth]);
+
+  useEffect(() => {
+    if (!Updates.isEnabled || __DEV__) return;
+    const checkForUpdate = async (): Promise<void> => {
+      try {
+        const result = await Updates.checkForUpdateAsync();
+        if (result.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch {
+        // Silent failure: offline-first app keeps working without updates.
+      }
+    };
+    void checkForUpdate();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void checkForUpdate();
+    });
+    return () => sub.remove();
+  }, []);
 
   // Re-run on every sign-in: sign-out resets the stores' isHydrated flag, and
   // a one-time mount effect would never fire again to rehydrate them.

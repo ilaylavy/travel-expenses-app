@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { NumericPadField } from '@/components/expense/NumericPadField';
+import { CalendarPickerModal } from '@/components/ui/CalendarPickerModal';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getCurrencySymbol } from '@/utils/currency';
 import { isValidIsoDate, todayIsoDate } from '@/utils/date';
+import { formatReadableDate } from '@/utils/dates';
 
 const TRIP_EMOJIS = ['✈️', '🏖️', '🏔️', '🗺️', '🏛️', '🍜', '🌴', '🎒', '🚂', '🏕️', '🌸', '🌃'];
 
@@ -51,6 +53,8 @@ export function TripForm({
   const [budget, setBudget] = useState(initial?.budget != null ? String(initial.budget) : '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [endPickerOpen, setEndPickerOpen] = useState(false);
 
   // base_currency / home_currency are still stored on the trip row, but
   // the user no longer picks them. Default both to displayCurrency for
@@ -130,14 +134,20 @@ export function TripForm({
       </Field>
 
       <Field label={t('tripForm.startDate')} theme={theme}>
-        <TextInput
-          style={inputStyle}
-          value={startDate}
-          onChangeText={setStartDate}
-          placeholder={t('tripForm.datePlaceholder')}
-          placeholderTextColor={theme.textMuted}
-          autoCapitalize="none"
-        />
+        <Pressable
+          onPress={() => setStartPickerOpen(true)}
+          style={[
+            styles.input,
+            styles.dateButton,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.dateButtonText, { color: theme.text }]}>
+            {startDate && isValidIsoDate(startDate)
+              ? formatReadableDate(startDate)
+              : t('calendar.selectDate')}
+          </Text>
+        </Pressable>
       </Field>
 
       <View style={styles.ongoingRow}>
@@ -154,16 +164,47 @@ export function TripForm({
 
       {!ongoing && (
         <Field label={t('tripForm.endDate')} theme={theme}>
-          <TextInput
-            style={inputStyle}
-            value={endDate}
-            onChangeText={setEndDate}
-            placeholder={t('tripForm.datePlaceholder')}
-            placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-          />
+          <Pressable
+            onPress={() => setEndPickerOpen(true)}
+            style={[
+              styles.input,
+              styles.dateButton,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dateButtonText,
+                { color: endDate && isValidIsoDate(endDate) ? theme.text : theme.textMuted },
+              ]}
+            >
+              {endDate && isValidIsoDate(endDate)
+                ? formatReadableDate(endDate)
+                : t('calendar.selectDate')}
+            </Text>
+          </Pressable>
         </Field>
       )}
+
+      <CalendarPickerModal
+        visible={startPickerOpen}
+        onClose={() => setStartPickerOpen(false)}
+        mode="single"
+        value={startDate || null}
+        onChange={(d) => {
+          setStartDate(d);
+          // Clear an end date that would now precede start.
+          if (endDate && d > endDate) setEndDate('');
+        }}
+      />
+      <CalendarPickerModal
+        visible={endPickerOpen}
+        onClose={() => setEndPickerOpen(false)}
+        mode="single"
+        value={endDate || null}
+        minDate={startDate || undefined}
+        onChange={(d) => setEndDate(d)}
+      />
 
       <Field label={t('tripForm.budget', { currency: displayCurrency })} theme={theme}>
         <NumericPadField
@@ -223,6 +264,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  dateButton: { justifyContent: 'center' },
+  dateButtonText: { fontSize: 15, fontWeight: '500' },
   emojiRow: { gap: spacing.sm, paddingVertical: 4 },
   emojiChip: {
     width: 52,

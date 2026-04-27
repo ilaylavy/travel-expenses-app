@@ -33,6 +33,13 @@ interface UiMessage extends ConversationMessage {
   followUps?: string[];
 }
 
+const THINKING_KEYS = [
+  'ask.thinking1',
+  'ask.thinking2',
+  'ask.thinking3',
+  'ask.thinking4',
+] as const;
+
 export default function AskScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -44,6 +51,7 @@ export default function AskScreen() {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [thinkingIdx, setThinkingIdx] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const pulse = useRef(new Animated.Value(1)).current;
 
@@ -58,6 +66,20 @@ export default function AskScreen() {
     loop.start();
     return () => loop.stop();
   }, [loading, pulse]);
+
+  // Rotate the "thinking..." copy every 3s while waiting on the AI so the
+  // user sees forward motion instead of a frozen "Thinking..." for the full
+  // (often 6-15s) round trip.
+  useEffect(() => {
+    if (!loading) {
+      setThinkingIdx(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setThinkingIdx((i) => (i + 1) % THINKING_KEYS.length);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [loading]);
 
   useEffect(() => {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -230,7 +252,7 @@ export default function AskScreen() {
           {loading ? (
             <View style={styles.messageBlock}>
               <Animated.View style={{ opacity: pulse }}>
-                <ChatBubble role="assistant" content={t('ask.thinking')} />
+                <ChatBubble role="assistant" content={t(THINKING_KEYS[thinkingIdx])} />
               </Animated.View>
             </View>
           ) : null}

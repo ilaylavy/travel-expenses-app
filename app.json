@@ -71,6 +71,19 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "98f2105b-50d2-4966-a06d-fac56b5e7379"
+      }
+    },
+    "owner": "ilaylavy",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/98f2105b-50d2-4966-a06d-fac56b5e7379"
     }
   }
 }
