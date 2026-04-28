@@ -2,6 +2,8 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  BackHandler,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -134,12 +136,12 @@ export default function SettingsScreen() {
     async (next: LanguagePref): Promise<void> => {
       if (next === language) return;
       const directionChanged = await setLanguage(next);
-      if (directionChanged) {
-        Alert.alert(
-          t('language.rtlRestartTitle'),
-          t('language.rtlRestartBody'),
-        );
+      if (!directionChanged) return;
+      if (Platform.OS === 'android') {
+        BackHandler.exitApp();
+        return;
       }
+      Alert.alert(t('language.rtlRestartTitle'), t('language.rtlRestartBody'));
     },
     [language, setLanguage, t],
   );
