@@ -327,7 +327,8 @@
     "english": "English",
     "hebrew": "עברית",
     "rtlRestartTitle": "Restart required",
-    "rtlRestartBody": "Please close and reopen the app for the layout direction to update."
+    "rtlRestartBody": "Please close and reopen the app for the layout direction to update.",
+    "rtlRestartConfirm": "Close App"
   },
   "currency": {
     "picker": {

@@ -327,7 +327,8 @@
     "english": "English",
     "hebrew": "עברית",
     "rtlRestartTitle": "נדרש אתחול",
-    "rtlRestartBody": "נא לסגור ולפתוח מחדש את האפליקציה כדי לעדכן את כיוון התצוגה."
+    "rtlRestartBody": "נא לסגור ולפתוח מחדש את האפליקציה כדי לעדכן את כיוון התצוגה.",
+    "rtlRestartConfirm": "סגור אפליקציה"
   },
   "currency": {
     "picker": {
