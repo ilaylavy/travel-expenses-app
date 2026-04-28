@@ -20,7 +20,7 @@ import { deleteDatabase } from '@/db/database';
 import { getProfile, updateProfile, type Profile } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { type LanguagePref } from '@/i18n';
+import { isRTLLanguage, resolveLanguage, type LanguagePref } from '@/i18n';
 import { useAuthStore } from '@/stores/authStore';
 import { useCategoryStore } from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
@@ -133,15 +133,25 @@ export default function SettingsScreen() {
   );
 
   const handleSetLanguage = useCallback(
-    async (next: LanguagePref): Promise<void> => {
+    (next: LanguagePref): void => {
       if (next === language) return;
-      const directionChanged = await setLanguage(next);
-      if (!directionChanged) return;
-      if (Platform.OS === 'android') {
-        BackHandler.exitApp();
+      const directionWillChange =
+        isRTLLanguage(resolveLanguage(language)) !== isRTLLanguage(resolveLanguage(next));
+      if (!directionWillChange) {
+        void setLanguage(next);
         return;
       }
-      Alert.alert(t('language.rtlRestartTitle'), t('language.rtlRestartBody'));
+      Alert.alert(t('language.rtlRestartTitle'), t('language.rtlRestartBody'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('language.rtlRestartConfirm'),
+          style: 'default',
+          onPress: async () => {
+            await setLanguage(next);
+            if (Platform.OS === 'android') BackHandler.exitApp();
+          },
+        },
+      ]);
     },
     [language, setLanguage, t],
   );

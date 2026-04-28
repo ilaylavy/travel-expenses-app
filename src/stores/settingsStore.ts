@@ -106,7 +106,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setLanguage: async (language) => {
     set({ language });
-    void persist(snapshot(get()));
+    await persist(snapshot(get()));
     return initI18n(language);
   },
 
