@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LTRView } from '@/components/ui/LTRView';
 import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -53,7 +54,7 @@ function NumPadInner({ onKeyPress, onLongBackspace, onDone, disabled }: NumPadPr
   }, [disabled, onDone]);
 
   return (
-    <View style={styles.pad}>
+    <LTRView style={styles.pad}>
       <View style={styles.numbersCol}>
         {NUMBER_ROWS.map((row, rowIndex) => (
           <View key={rowIndex} style={styles.row}>
@@ -100,7 +101,7 @@ function NumPadInner({ onKeyPress, onLongBackspace, onDone, disabled }: NumPadPr
           </Text>
         </Pressable>
       </View>
-    </View>
+    </LTRView>
   );
 }
 
