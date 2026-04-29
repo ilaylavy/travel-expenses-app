@@ -2,7 +2,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  BackHandler,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import RNExitApp from 'react-native-exit-app';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
@@ -148,7 +148,7 @@ export default function SettingsScreen() {
           style: 'default',
           onPress: async () => {
             await setLanguage(next);
-            if (Platform.OS === 'android') BackHandler.exitApp();
+            if (Platform.OS === 'android') RNExitApp.exitApp();
           },
         },
       ]);
