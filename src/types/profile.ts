@@ -17,3 +17,11 @@ export interface ProfileRow {
   created_at: string;
   updated_at: string;
 }
+
+// Query input — shared between native and web variants.
+export interface UpdateProfileInput {
+  userId: string;
+  name?: string;
+  defaultCurrency?: string;
+  avatarUrl?: string | null;
+}

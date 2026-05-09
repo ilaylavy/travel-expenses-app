@@ -1,6 +1,7 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { getDatabase } from '@/db/database';
 import { deleteLocalPhoto } from '@/services/photoService';
 import type { PullTable } from '@/types/sync';
 
@@ -20,10 +21,10 @@ const TABLES: PullTable[] = [
 
 const STUCK_ERROR_DELAY_MS = 10_000;
 
-export function subscribeToRealtime(
-  db: SQLiteDatabase,
-  supabase: SupabaseClient,
-): () => void {
+// Shared signature with the web variant: takes only the Supabase client and
+// sources the SQLite handle internally. The IIFE awaits getDatabase() before
+// subscribing, so handleEvent always sees a non-null db.
+export function subscribeToRealtime(supabase: SupabaseClient): () => void {
   const channels: RealtimeChannel[] = [];
   const stuckTimers = new Map<PullTable, ReturnType<typeof setTimeout>>();
   let cancelled = false;
@@ -33,6 +34,13 @@ export function subscribeToRealtime(
   // first subscribe attempt can race ahead and fail with CHANNEL_ERROR
   // because RLS-protected tables reject anon-keyed postgres_changes joins.
   void (async () => {
+    let db: SQLiteDatabase;
+    try {
+      db = await getDatabase();
+    } catch (err) {
+      console.warn('sync: realtime getDatabase failed', err);
+      return;
+    }
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;

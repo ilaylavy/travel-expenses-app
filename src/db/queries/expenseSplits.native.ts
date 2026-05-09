@@ -1,16 +1,17 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { ExpenseSplit, ExpenseSplitRow } from '@/types/expense';
+import type {
+  CreateSplitInput,
+  ExpenseSplit,
+  ExpenseSplitRow,
+} from '@/types/expense';
 import { newId } from '@/utils/id';
 
+import type { ExpenseSplitsQueries } from './contract';
 import { enqueueSync } from './syncQueue';
 
-export interface CreateSplitInput {
-  userId: string;
-  amount: number;
-  isPayer: boolean;
-}
+export type { CreateSplitInput };
 
 function rowToSplit(row: ExpenseSplitRow): ExpenseSplit {
   return {
@@ -175,3 +176,12 @@ export async function deleteSplits(expenseId: string): Promise<void> {
     }
   });
 }
+
+const _check: ExpenseSplitsQueries = {
+  getSplitsForExpense,
+  getSplitsForTrip,
+  createSplits,
+  updateSplits,
+  deleteSplits,
+};
+void _check;

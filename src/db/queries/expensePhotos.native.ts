@@ -3,6 +3,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDatabase } from '@/db/database';
 import type { ExpensePhoto, ExpensePhotoRow } from '@/types/expense';
 
+import type { ExpensePhotosQueries } from './contract';
+
 export function rowToPhoto(row: ExpensePhotoRow): ExpensePhoto {
   return {
     id: row.id,
@@ -69,3 +71,8 @@ export async function listPhotosForExpense(
   );
   return rows.map(rowToPhoto);
 }
+
+const _check: ExpensePhotosQueries = {
+  listPhotosForExpense,
+};
+void _check;

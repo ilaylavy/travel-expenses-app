@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { sizing } from '@/constants/theme';
 import { getSignedPhotoUrl } from '@/services/photoService';
 import type { ExpensePhoto } from '@/types/expense';
+import { isWebViewableUri } from '@/utils/photoUri';
 
 export function PhotoThumb({
   photo,
@@ -14,10 +15,15 @@ export function PhotoThumb({
   borderColor: string;
   onPress: () => void;
 }) {
-  const [uri, setUri] = useState<string | null>(photo.localUri ?? null);
+  // Only seed from localUri if this platform can actually render it. Web
+  // can't load file:// URIs uploaded by native devices, so it falls through
+  // to the signed-URL path below.
+  const [uri, setUri] = useState<string | null>(
+    isWebViewableUri(photo.localUri) ? photo.localUri : null,
+  );
 
   useEffect(() => {
-    if (photo.localUri) {
+    if (isWebViewableUri(photo.localUri)) {
       setUri(photo.localUri);
       return;
     }

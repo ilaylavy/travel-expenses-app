@@ -1,7 +1,10 @@
 import { getDatabase } from '@/db/database';
-import type { Profile, ProfileRow } from '@/types/profile';
+import type { Profile, ProfileRow, UpdateProfileInput } from '@/types/profile';
 
+import type { ProfileQueries } from './contract';
 import { enqueueSync } from './syncQueue';
+
+export type { UpdateProfileInput };
 
 function rowToProfile(row: ProfileRow): Profile {
   return {
@@ -30,13 +33,6 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     [userId],
   );
   return row ? rowToProfile(row) : null;
-}
-
-export interface UpdateProfileInput {
-  userId: string;
-  name?: string;
-  defaultCurrency?: string;
-  avatarUrl?: string | null;
 }
 
 export async function updateProfile(input: UpdateProfileInput): Promise<Profile> {
@@ -71,3 +67,10 @@ export async function updateProfile(input: UpdateProfileInput): Promise<Profile>
 
   return next;
 }
+
+const _check: ProfileQueries = {
+  getProfileName,
+  getProfile,
+  updateProfile,
+};
+void _check;

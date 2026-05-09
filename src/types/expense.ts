@@ -101,3 +101,69 @@ export interface ExpenseSplitRow {
   updated_at: string;
   deleted_at: string | null;
 }
+
+// =========================================================
+// Query inputs/outputs — shared between native and web variants of the
+// query layer. The implementations live in src/db/queries/*.{native,web}.ts;
+// the types live here so both sides import from a single source of truth.
+// =========================================================
+
+export interface CreateExpenseInput {
+  tripId: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  convertedAmount: number;
+  exchangeRate: number;
+  categoryId: string;
+  note: string | null;
+  paymentMethod: PaymentMethod | null;
+  latitude: number | null;
+  longitude: number | null;
+  placeName: string | null;
+  expenseDate: string;
+  expenseTime: string;
+  isRefund: boolean;
+  isExcludedFromDailyMetrics: boolean;
+  isPrivate: boolean;
+  isSplit?: boolean;
+  spreadStartDate: string | null;
+  spreadEndDate: string | null;
+  // id is optional; callers that persist files to disk before insertion
+  // pre-generate it so the file path can embed it.
+  photos?: { id?: string; localUri: string }[];
+}
+
+export interface UpdateExpenseInput {
+  id: string;
+  amount?: number;
+  currency?: string;
+  convertedAmount?: number;
+  exchangeRate?: number;
+  categoryId?: string;
+  note?: string | null;
+  paymentMethod?: PaymentMethod | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  placeName?: string | null;
+  expenseDate?: string;
+  expenseTime?: string;
+  isRefund?: boolean;
+  isExcludedFromDailyMetrics?: boolean;
+  isPrivate?: boolean;
+  isSplit?: boolean;
+  spreadStartDate?: string | null;
+  spreadEndDate?: string | null;
+}
+
+export interface CreateSplitInput {
+  userId: string;
+  amount: number;
+  isPayer: boolean;
+}
+
+export interface RecentNoteSuggestion {
+  note: string;
+  categoryId: string;
+  categoryEmoji: string;
+}

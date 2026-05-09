@@ -2,38 +2,20 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
 import type {
+  CreateTripInput,
   Trip,
   TripMember,
   TripMemberRow,
   TripRow,
   TripWithStats,
+  UpdateTripInput,
 } from '@/types/trip';
 import { newId } from '@/utils/id';
 
+import type { TripQueries } from './contract';
 import { enqueueSync } from './syncQueue';
 
-export interface CreateTripInput {
-  name: string;
-  emoji: string;
-  startDate: string;
-  endDate: string | null;
-  baseCurrency: string;
-  homeCurrency: string;
-  // The owner's personal budget for the trip, in home_currency. Stored
-  // on the owner's trip_members row, not on the trips table.
-  budget: number | null;
-  ownerId: string;
-}
-
-export interface UpdateTripInput {
-  id: string;
-  name?: string;
-  emoji?: string;
-  startDate?: string;
-  endDate?: string | null;
-  baseCurrency?: string;
-  homeCurrency?: string;
-}
+export type { CreateTripInput, UpdateTripInput };
 
 function rowToTripBase(row: TripRow): Omit<Trip, 'budget'> {
   return {
@@ -429,3 +411,15 @@ async function insertMember(db: SQLiteDatabase, member: TripMember): Promise<voi
     ],
   );
 }
+
+const _check: TripQueries = {
+  listTrips,
+  listTripsWithStats,
+  getTrip,
+  listTripMembers,
+  createTrip,
+  updateTrip,
+  updateMemberBudget,
+  softDeleteTrip,
+};
+void _check;

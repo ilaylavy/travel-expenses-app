@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "baseUrl": ".",
+    "moduleSuffixes": [".native", ""],
     "paths": {
       "@/*": ["src/*"],
       "@/components/*": ["src/components/*"],

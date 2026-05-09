@@ -2,28 +2,20 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { DEFAULT_CATEGORIES } from '@/constants/categories';
 import { getDatabase } from '@/db/database';
-import type { Category, CategoryRow } from '@/types/category';
+import type {
+  Category,
+  CategoryRow,
+  CreateCategoryInput,
+  UpdateCategoryInput,
+} from '@/types/category';
 import { newId } from '@/utils/id';
 
+import type { CategoryQueries } from './contract';
 import { enqueueSync } from './syncQueue';
 
-export interface CreateCategoryInput {
-  name: string;
-  emoji: string;
-  color: string;
-  tripId: string | null;
-  createdBy: string | null;
-  sortOrder?: number;
-}
-
-export interface UpdateCategoryInput {
-  id: string;
-  name?: string;
-  emoji?: string;
-  color?: string;
-  sortOrder?: number;
-  isArchived?: boolean;
-}
+// Inputs live in @/types/category; re-exported here so existing consumers
+// keep working through the @/db/queries/categories path.
+export type { CreateCategoryInput, UpdateCategoryInput };
 
 function rowToCategory(row: CategoryRow): Category {
   return {
@@ -250,3 +242,16 @@ async function insertCategory(db: SQLiteDatabase, category: Category): Promise<v
     ],
   );
 }
+
+// Drift detector — keeps the .native and .web variants in sync.
+const _check: CategoryQueries = {
+  listAllCategories,
+  listCategoriesForTrip,
+  getCategory,
+  createCategory,
+  updateCategory,
+  reorderCategories,
+  deleteCategoryIfEmpty,
+  seedDefaultCategoriesIfNeeded,
+};
+void _check;

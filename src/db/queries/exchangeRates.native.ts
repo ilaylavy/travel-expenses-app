@@ -4,6 +4,8 @@ import { getDatabase } from '@/db/database';
 import type { ExchangeRate } from '@/types/exchangeRate';
 import { newId } from '@/utils/id';
 
+import type { ExchangeRateQueries } from './contract';
+
 interface ExchangeRateRow {
   id: string;
   base_currency: string;
@@ -124,3 +126,10 @@ export async function upsertRate(
     createdAt: now,
   };
 }
+
+const _check: ExchangeRateQueries = {
+  getCachedRate,
+  getLatestRate,
+  upsertRate,
+};
+void _check;

@@ -3,65 +3,23 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDatabase } from '@/db/database';
 import { deleteLocalPhoto } from '@/services/photoService';
 import type {
+  CreateExpenseInput,
   Expense,
   ExpensePhoto,
   ExpensePhotoRow,
   ExpenseRow,
   ExpenseWithPhotos,
-  PaymentMethod,
+  UpdateExpenseInput,
 } from '@/types/expense';
 import { newId } from '@/utils/id';
 
+import type { ExpenseQueries } from './contract';
 import { insertPhoto, photoToPayload, rowToPhoto } from './expensePhotos';
 import { enqueueSync } from './syncQueue';
 
-export interface CreateExpenseInput {
-  tripId: string;
-  userId: string;
-  amount: number;
-  currency: string;
-  convertedAmount: number;
-  exchangeRate: number;
-  categoryId: string;
-  note: string | null;
-  paymentMethod: PaymentMethod | null;
-  latitude: number | null;
-  longitude: number | null;
-  placeName: string | null;
-  expenseDate: string;
-  expenseTime: string;
-  isRefund: boolean;
-  isExcludedFromDailyMetrics: boolean;
-  isPrivate: boolean;
-  isSplit?: boolean;
-  spreadStartDate: string | null;
-  spreadEndDate: string | null;
-  // id is optional; callers that persist files to disk before insertion
-  // pre-generate it so the file path can embed it.
-  photos?: { id?: string; localUri: string }[];
-}
-
-export interface UpdateExpenseInput {
-  id: string;
-  amount?: number;
-  currency?: string;
-  convertedAmount?: number;
-  exchangeRate?: number;
-  categoryId?: string;
-  note?: string | null;
-  paymentMethod?: PaymentMethod | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  placeName?: string | null;
-  expenseDate?: string;
-  expenseTime?: string;
-  isRefund?: boolean;
-  isExcludedFromDailyMetrics?: boolean;
-  isPrivate?: boolean;
-  isSplit?: boolean;
-  spreadStartDate?: string | null;
-  spreadEndDate?: string | null;
-}
+// Inputs live in @/types/expense; re-exported here so existing consumers
+// keep working through the @/db/queries/expenses path.
+export type { CreateExpenseInput, UpdateExpenseInput };
 
 function rowToExpense(row: ExpenseRow): Expense {
   return {
@@ -354,3 +312,12 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
     ],
   );
 }
+
+const _check: ExpenseQueries = {
+  listExpensesForTrip,
+  getExpense,
+  createExpense,
+  updateExpense,
+  softDeleteExpense,
+};
+void _check;
