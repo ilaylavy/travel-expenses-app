@@ -1,46 +1,16 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { Trip, TripMember, TripMemberRole, TripWithStats } from '@/types/trip';
+import type {
+  Trip,
+  TripMember,
+  TripMemberRow,
+  TripRow,
+  TripWithStats,
+} from '@/types/trip';
 import { newId } from '@/utils/id';
 
 import { enqueueSync } from './syncQueue';
-
-interface TripRow {
-  id: string;
-  name: string;
-  emoji: string;
-  start_date: string;
-  end_date: string | null;
-  base_currency: string;
-  home_currency: string;
-  // Legacy column. The new contract puts each user's budget on their
-  // trip_members row; this stays nullable so old payloads don't break the
-  // schema, but new code never reads it.
-  budget: number | null;
-  owner_id: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
-
-interface TripMemberRow {
-  id: string;
-  trip_id: string;
-  user_id: string;
-  role: TripMemberRole;
-  invited_at: string;
-  joined_at: string | null;
-  budget: number | null;
-  updated_at: string | null;
-}
-
-interface TripStatsRow {
-  id: string;
-  total_spent: number | null;
-  member_count: number | null;
-  budget_home: number | null;
-}
 
 export interface CreateTripInput {
   name: string;

@@ -5,48 +5,15 @@ import { deleteLocalPhoto } from '@/services/photoService';
 import type {
   Expense,
   ExpensePhoto,
+  ExpensePhotoRow,
+  ExpenseRow,
   ExpenseWithPhotos,
   PaymentMethod,
 } from '@/types/expense';
 import { newId } from '@/utils/id';
 
+import { insertPhoto, photoToPayload, rowToPhoto } from './expensePhotos';
 import { enqueueSync } from './syncQueue';
-
-interface ExpenseRow {
-  id: string;
-  trip_id: string;
-  user_id: string;
-  amount: number;
-  currency: string;
-  converted_amount: number;
-  exchange_rate: number;
-  category_id: string;
-  note: string | null;
-  payment_method: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  place_name: string | null;
-  expense_date: string;
-  expense_time: string;
-  is_refund: number;
-  is_excluded_from_daily_metrics: number;
-  is_private: number;
-  is_split: number;
-  spread_start_date: string | null;
-  spread_end_date: string | null;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
-
-interface ExpensePhotoRow {
-  id: string;
-  expense_id: string;
-  storage_path: string;
-  local_uri: string | null;
-  sort_order: number;
-  created_at: string;
-}
 
 export interface CreateExpenseInput {
   tripId: string;
@@ -71,7 +38,7 @@ export interface CreateExpenseInput {
   spreadEndDate: string | null;
   // id is optional; callers that persist files to disk before insertion
   // pre-generate it so the file path can embed it.
-  photos?: Array<{ id?: string; localUri: string }>;
+  photos?: { id?: string; localUri: string }[];
 }
 
 export interface UpdateExpenseInput {
@@ -125,17 +92,6 @@ function rowToExpense(row: ExpenseRow): Expense {
   };
 }
 
-function rowToPhoto(row: ExpensePhotoRow): ExpensePhoto {
-  return {
-    id: row.id,
-    expenseId: row.expense_id,
-    storagePath: row.storage_path,
-    localUri: row.local_uri,
-    sortOrder: row.sort_order,
-    createdAt: row.created_at,
-  };
-}
-
 function expenseToPayload(e: Expense): Record<string, unknown> {
   return {
     id: e.id,
@@ -162,17 +118,6 @@ function expenseToPayload(e: Expense): Record<string, unknown> {
     created_at: e.createdAt,
     updated_at: e.updatedAt,
     deleted_at: e.deletedAt,
-  };
-}
-
-function photoToPayload(p: ExpensePhoto): Record<string, unknown> {
-  return {
-    id: p.id,
-    expense_id: p.expenseId,
-    storage_path: p.storagePath,
-    local_uri: p.localUri,
-    sort_order: p.sortOrder,
-    created_at: p.createdAt,
   };
 }
 
@@ -372,94 +317,6 @@ export async function softDeleteExpense(id: string): Promise<void> {
   await Promise.all(photoRows.map((row) => deleteLocalPhoto(row.local_uri)));
 }
 
-export interface RecentNoteSuggestion {
-  note: string;
-  categoryId: string;
-  categoryEmoji: string;
-}
-
-// Distinct note strings used most recently in this trip, paired with the
-// category they were last logged under. Powers the suggestion chips on the
-// entry screen, including auto-selecting the category when tapped. Notes
-// from other members' private expenses are excluded.
-export async function getRecentNotes(
-  tripId: string,
-  currentUserId: string,
-  limit = 10,
-): Promise<RecentNoteSuggestion[]> {
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<{
-    note: string;
-    category_id: string;
-    emoji: string;
-  }>(
-    `SELECT e.note AS note, e.category_id AS category_id, c.emoji AS emoji
-       FROM expenses e
-       JOIN categories c ON c.id = e.category_id
-       WHERE e.id IN (
-         SELECT id FROM (
-           SELECT id,
-                  ROW_NUMBER() OVER (
-                    PARTITION BY LOWER(note)
-                    ORDER BY expense_date DESC, expense_time DESC, created_at DESC
-                  ) AS rn
-             FROM expenses
-             WHERE trip_id = ?
-               AND deleted_at IS NULL
-               AND note IS NOT NULL
-               AND TRIM(note) <> ''
-               AND (is_private = 0 OR user_id = ?)
-         ) WHERE rn = 1
-       )
-       ORDER BY e.expense_date DESC, e.expense_time DESC, e.created_at DESC
-       LIMIT ?;`,
-    [tripId, currentUserId, limit],
-  );
-  return rows.map((r) => ({
-    note: r.note,
-    categoryId: r.category_id,
-    categoryEmoji: r.emoji,
-  }));
-}
-
-// Most recently used payment method — used to pre-select the selector.
-export async function lastUsedPaymentMethodForTrip(
-  tripId: string,
-): Promise<string | null> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ payment_method: string | null }>(
-    `SELECT payment_method FROM expenses
-       WHERE trip_id = ? AND deleted_at IS NULL AND payment_method IS NOT NULL
-       ORDER BY created_at DESC LIMIT 1;`,
-    [tripId],
-  );
-  return row?.payment_method ?? null;
-}
-
-// Counts how often each category has been used in this trip, so the entry
-// screen can show recently/frequently used categories first.
-export async function categoryUsageForTrip(
-  tripId: string,
-): Promise<Map<string, { count: number; lastUsed: string }>> {
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<{
-    category_id: string;
-    uses: number;
-    last_used: string;
-  }>(
-    `SELECT category_id, COUNT(*) AS uses, MAX(created_at) AS last_used
-       FROM expenses
-       WHERE trip_id = ? AND deleted_at IS NULL
-       GROUP BY category_id;`,
-    [tripId],
-  );
-  const map = new Map<string, { count: number; lastUsed: string }>();
-  for (const row of rows) {
-    map.set(row.category_id, { count: row.uses, lastUsed: row.last_used });
-  }
-  return map;
-}
-
 async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
   await db.runAsync(
     `INSERT INTO expenses
@@ -495,14 +352,5 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
       e.updatedAt,
       e.deletedAt,
     ],
-  );
-}
-
-async function insertPhoto(db: SQLiteDatabase, p: ExpensePhoto): Promise<void> {
-  await db.runAsync(
-    `INSERT INTO expense_photos
-       (id, expense_id, storage_path, local_uri, sort_order, created_at)
-     VALUES (?, ?, ?, ?, ?, ?);`,
-    [p.id, p.expenseId, p.storagePath, p.localUri, p.sortOrder, p.createdAt],
   );
 }

@@ -3,13 +3,13 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CategoryForm, type CategoryFormValues } from '@/components/expense/CategoryForm';
+import { CategoryForm, type CategoryFormValues } from '@/components/expense/category/CategoryForm';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useCategoryStore } from '@/stores/categoryStore';
-import type { CategoryColorToken } from '@/utils/categoryColor';
+import type { CategoryColorToken } from '@/utils/category';
 
 export default function EditCategoryScreen() {
   const theme = useTheme();

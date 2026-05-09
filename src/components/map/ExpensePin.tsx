@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useIsDark, useTheme } from '@/hooks/useTheme';
 import type { Category } from '@/types/category';
-import { getCategoryColor } from '@/utils/categoryColor';
+import { getCategoryColor } from '@/utils/category';
 
 interface CategoryPinProps {
   category: Category | null;

@@ -4,7 +4,7 @@
 
 TRAVEL-EXPENSES-APP is a mobile expense tracker for travelers. Built with React Native (Expo), TypeScript, SQLite (local), and Supabase (backend). Users create trips, log expenses with location/currency/category, view spending on a map, see stats, share trips with a partner, and ask natural language questions about their data.
 
-**Read `PRD.md` for full product requirements. Read `TECHNICAL_SPEC.md` for architecture details, database schema, and sync design. Read `DESIGN_SYSTEM.md` for all visual design specs, color tokens, component patterns, and theming.**
+**Read `docs/PRD.md` for full product requirements. Read `docs/TECHNICAL_SPEC.md` for architecture details, database schema, and sync design. Read `docs/DESIGN_SYSTEM.md` for all visual design specs, color tokens, component patterns, and theming.**
 
 ---
 
@@ -19,7 +19,7 @@ TRAVEL-EXPENSES-APP is a mobile expense tracker for travelers. Built with React 
 - **Maps:** `react-native-maps` with Google Maps provider
 - **Charts:** `victory-native`
 - **AI:** OpenAI GPT-4o-mini via Supabase Edge Function (never call OpenAI directly from client)
-- **Styling:** React Native StyleSheet. Both dark and light themes. All color tokens, spacing, typography, and component patterns defined in `DESIGN_SYSTEM.md` and implemented in `src/constants/theme.ts`
+- **Styling:** React Native StyleSheet. Both dark and light themes. All color tokens, spacing, typography, and component patterns defined in `docs/DESIGN_SYSTEM.md` and implemented in `src/constants/theme.ts`
 - **Internationalization:** `i18next` + `react-i18next` for translation, `expo-localization` for device-locale detection. Translation JSON files live in `src/i18n/locales/`. Supported languages: English (`en`) and Hebrew (`he`). Device language is auto-detected on first launch; users can override it in Settings.
 - **RTL:** Hebrew switches the layout to right-to-left via `I18nManager.forceRTL()`. Every screen must work correctly in both LTR and RTL — prefer `flex-direction: row` (which mirrors automatically) and logical margins/paddings over hardcoded `left`/`right` positioning.
 
@@ -61,7 +61,7 @@ The following plugins are installed and available:
 ## Project Structure
 
 - `app/` — Expo Router screens. File = route. Groups: `(auth)` for login/signup, `(main)` for authenticated screens
-- `src/components/` — Reusable UI components, organized by domain (`ui/`, `expense/`, `trip/`, `map/`, `stats/`, `chat/`)
+- `src/components/` — Reusable UI components, organized by domain (`ui/`, `expense/{card,category,detail,entry,list,numpad,photo,stats}/`, `trip/`, `map/`, `settings/`, `currency/`, `stats/`, `chat/`)
 - `src/db/` — Local SQLite layer: schema, migrations, query functions. All DB access goes through functions in `src/db/queries/`
 - `src/sync/` — Sync engine: queue, push, pull, conflict resolution, realtime subscriptions
 - `src/services/` — External integrations: Supabase client, auth, exchange rates, location, AI queries, photos
@@ -69,8 +69,9 @@ The following plugins are installed and available:
 - `src/hooks/` — Custom React hooks
 - `src/utils/` — Pure utility functions (currency formatting, date helpers)
 - `src/constants/` — Theme, default categories, currency list, config
-- `src/types/` — TypeScript type definitions
+- `src/types/` — TypeScript type definitions, including the entity (`Expense`, `Trip`, ...) and Row types for each table
 - `supabase/` — Supabase migrations (SQL) and Edge Functions
+- `docs/` — `PRD.md`, `TECHNICAL_SPEC.md`, `DESIGN_SYSTEM.md`, `DEPLOYMENT.md`
 
 ---
 
@@ -199,13 +200,13 @@ eas build --platform ios
 
 ## When Working on Features
 
-1. **Before coding:** Read the relevant section in `PRD.md` and `TECHNICAL_SPEC.md` to understand the full requirements.
+1. **Before coding:** Read the relevant section in `docs/PRD.md` and `docs/TECHNICAL_SPEC.md` to understand the full requirements.
 1.5. **Every user-facing string goes through i18n.** Add new strings to both `src/i18n/locales/en.json` and `src/i18n/locales/he.json` (English values only for now, Hebrew will be filled in later — leave empty strings so they fall back to English). Consume them via `const { t } = useTranslation()` from `@/hooks/useTranslation` and `t('your.key')`. Never hardcode English in components.
 2. **Start with types:** Define or update TypeScript types in `src/types/` first.
 3. **Then data layer:** Write/update SQLite schema, migrations, and query functions.
 4. **Then service layer:** Any new external service calls go in `src/services/`.
 5. **Then store:** Update Zustand stores if the feature needs global state.
-6. **Before building UI:** Read `DESIGN_SYSTEM.md` for component patterns, colors, spacing, and typography. Every screen must follow the design system precisely. Both dark and light modes must work.
+6. **Before building UI:** Read `docs/DESIGN_SYSTEM.md` for component patterns, colors, spacing, and typography. Every screen must follow the design system precisely. Both dark and light modes must work.
 7. **Then UI:** Build the screen/component, consuming the layers above and following the design system.
 8. **Don't forget sync:** Every data mutation must include a sync_queue entry.
 9. **Verify with MCP:** After database changes, use Supabase MCP to verify the migration applied correctly and RLS policies work.
@@ -215,7 +216,7 @@ eas build --platform ios
 
 ## Style Guide (UI)
 
-**Read `DESIGN_SYSTEM.md` for the complete design system.** This is the authoritative reference for all visual design. Key highlights:
+**Read `docs/DESIGN_SYSTEM.md` for the complete design system.** This is the authoritative reference for all visual design. Key highlights:
 
 ### Design Philosophy
 The app should feel **colorful, playful, and alive** — not like a spreadsheet. Every category has its own color. Gradients add energy. Emojis add personality. Bold typography makes financial data scannable.
@@ -230,7 +231,7 @@ The app should feel **colorful, playful, and alive** — not like a spreadsheet.
   <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
   ```
 
-### Key Design Tokens (quick reference — see DESIGN_SYSTEM.md for full values)
+### Key Design Tokens (quick reference — see docs/DESIGN_SYSTEM.md for full values)
 - Card radius: 22px (outer), 18px (inner)
 - Button/input radius: 14px
 - Chip/badge radius: 22px
@@ -266,7 +267,7 @@ Each category maps to a specific color. This mapping is used everywhere: chips, 
 
 ## Deployment
 
-App is distributed via EAS to friends as an APK (preview profile). See `DEPLOYMENT.md` for the full guide.
+App is distributed via EAS to friends as an APK (preview profile). See `docs/DEPLOYMENT.md` for the full guide.
 
 - **Push an OTA update** (JS/TS/JSON only): `eas update --branch preview --platform android --message "..."` — `--platform android` is required, otherwise it tries to bundle for web and fails.
 - **New native build needed** when: adding/removing a native lib, changing `app.json` (icon, splash, permissions, plugins), or bumping Expo SDK. Run `eas build --platform android --profile preview`.
@@ -306,6 +307,6 @@ OPENAI_API_KEY=<your-openai-key>
 - Do not build UI that only works in one theme mode. Both dark and light must work.
 - Do not use line icons for navigation or categories. Use emojis as defined in the design system.
 - Do not use flat card backgrounds. Use `cardGradient` from the theme for subtle depth.
-- Do not use generic/plain styling. Follow `DESIGN_SYSTEM.md` precisely — the app should feel colorful and playful.
+- Do not use generic/plain styling. Follow `docs/DESIGN_SYSTEM.md` precisely — the app should feel colorful and playful.
 - Do not hardcode English strings in components. Always use translation keys via the `t()` function from `useTranslation()` (imported from `@/hooks/useTranslation`), and add the string to both `src/i18n/locales/en.json` and `src/i18n/locales/he.json`.
 - Do not assume LTR layout. RTL is active whenever Hebrew is selected; avoid hardcoded `left`/`right` positioning or margins and prefer logical flex direction so components mirror correctly.

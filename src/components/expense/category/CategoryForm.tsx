@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { CATEGORY_COLOR_TOKENS, getCategoryColor, type CategoryColorToken } from '@/utils/categoryColor';
+import { CATEGORY_COLOR_TOKENS, getCategoryColor, type CategoryColorToken } from '@/utils/category';
 
 const CATEGORY_EMOJI_OPTIONS = [
   '🍽️', '🥗', '🍔', '🍕', '☕', '🍺', '🍰',

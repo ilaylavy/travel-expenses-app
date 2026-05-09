@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 
-import { NumericPadField } from '@/components/expense/NumericPadField';
+import { NumericPadField } from '@/components/expense/numpad/NumericPadField';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';

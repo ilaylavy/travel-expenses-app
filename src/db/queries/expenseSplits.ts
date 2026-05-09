@@ -1,21 +1,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { ExpenseSplit } from '@/types/expense';
+import type { ExpenseSplit, ExpenseSplitRow } from '@/types/expense';
 import { newId } from '@/utils/id';
 
 import { enqueueSync } from './syncQueue';
-
-interface ExpenseSplitRow {
-  id: string;
-  expense_id: string;
-  user_id: string;
-  amount: number;
-  is_payer: number;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
 
 export interface CreateSplitInput {
   userId: string;

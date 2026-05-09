@@ -1,4 +1,4 @@
-import type { CategoryColorToken } from '@/utils/categoryColor';
+import type { CategoryColorToken } from '@/utils/category';
 
 export interface DefaultCategory {
   slug: string;
@@ -9,7 +9,7 @@ export interface DefaultCategory {
 }
 
 // Color values are semantic theme tokens — resolved at render time via
-// getCategoryColor(). See DESIGN_SYSTEM.md §3 for the mapping.
+// getCategoryColor(). See docs/DESIGN_SYSTEM.md §3 for the mapping.
 export const DEFAULT_CATEGORIES: readonly DefaultCategory[] = [
   { slug: 'food', name: 'Food', emoji: '🍽️', color: 'orange', sortOrder: 0 },
   { slug: 'transport', name: 'Transport', emoji: '🚗', color: 'blue', sortOrder: 1 },
