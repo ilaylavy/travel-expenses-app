@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SwipeableExpenseCard } from '@/components/expense/SwipeableExpenseCard';
-import { ExpenseStatsStrip } from '@/components/expense/ExpenseStatsStrip';
+import { SwipeableExpenseCard } from '@/components/expense/card/SwipeableExpenseCard';
+import { ExpenseStatsStrip } from '@/components/expense/stats/ExpenseStatsStrip';
 import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
@@ -34,7 +34,7 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
 import type { ExpenseWithPhotos } from '@/types/expense';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount, todayDateString } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { groupExpensesByDate, type ExpenseDateGroup } from '@/utils/expenseGrouping';

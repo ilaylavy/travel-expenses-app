@@ -5,8 +5,11 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import {
+  getCategoryColor,
+  getCategoryDisplayName,
+  getCategorySoftColor,
+} from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 import type { CategoryTotal } from '@/utils/statsAggregations';
 

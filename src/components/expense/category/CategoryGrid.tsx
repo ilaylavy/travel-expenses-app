@@ -4,8 +4,11 @@ import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import {
+  getCategoryColor,
+  getCategoryDisplayName,
+  getCategorySoftColor,
+} from '@/utils/category';
 
 interface CategoryGridProps {
   categories: Category[];

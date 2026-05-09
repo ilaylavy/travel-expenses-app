@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PhotoGalleryModal } from '@/components/expense/PhotoGalleryModal';
+import { PhotoGalleryModal } from '@/components/expense/photo/PhotoGalleryModal';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,12 +26,15 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
 import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import {
+  getCategoryColor,
+  getCategoryDisplayName,
+  getCategorySoftColor,
+} from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { href } from '@/utils/nav';
-import { shareExpense } from '@/utils/sharing';
+import { shareExpense } from '@/utils/share';
 
 function paymentLabel(method: string, t: (key: string) => string): string {
   if (method === 'cash') return t('expense.paymentCash');

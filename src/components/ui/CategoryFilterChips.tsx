@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
+import { getCategoryColor, getCategorySoftColor } from '@/utils/category';
 
 interface CategoryFilterChipsProps {
   categories: Category[];

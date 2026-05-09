@@ -8,8 +8,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useCategoryStore } from '@/stores/categoryStore';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import {
+  getCategoryColor,
+  getCategoryDisplayName,
+  getCategorySoftColor,
+} from '@/utils/category';
 
 // App-wide default (global) categories manager. Accessed from Settings.
 // Only shows categories with trip_id IS NULL. Archive toggle is local-only:

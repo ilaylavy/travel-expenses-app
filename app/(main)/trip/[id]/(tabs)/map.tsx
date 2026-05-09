@@ -39,7 +39,7 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import { getCurrentCoordinates } from '@/services/locationService';
 import type { ExpenseWithPhotos } from '@/types/expense';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 import {
   boundsForExpenses,

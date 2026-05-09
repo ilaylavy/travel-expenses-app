@@ -1,4 +1,4 @@
-import type { CategoryColorToken } from '@/utils/categoryColor';
+import type { CategoryColorToken } from '@/utils/category';
 
 export interface DefaultCategory {
   slug: string;

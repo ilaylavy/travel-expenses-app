@@ -16,8 +16,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CategoryGrid } from '@/components/expense/CategoryGrid';
-import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/NumPad';
+import { CategoryGrid } from '@/components/expense/category/CategoryGrid';
+import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/numpad/NumPad';
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
 import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
 import { CalendarPickerModal } from '@/components/ui/CalendarPickerModal';
@@ -56,16 +56,17 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import type { Category } from '@/types/category';
 import type { PaymentMethod } from '@/types/expense';
 import type { Trip, TripMember } from '@/types/trip';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount, getCurrencySymbol, roundAmount } from '@/utils/currency';
-import { isValidIsoDate, todayIsoDate } from '@/utils/date';
 import {
   countDaysInRange,
   formatReadableDate,
   formatReadableDateRange,
-} from '@/utils/dates';
+  isValidIsoDate,
+  todayIsoDate,
+} from '@/utils/date';
 import { newId } from '@/utils/id';
-import { shareExpense } from '@/utils/sharing';
+import { shareExpense } from '@/utils/share';
 
 const PAYMENT_METHODS: PaymentMethod[] = ['credit', 'cash', 'debit'];
 
