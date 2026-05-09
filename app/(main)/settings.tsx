@@ -150,6 +150,13 @@ export default function SettingsScreen() {
           style: 'default',
           onPress: async () => {
             await setLanguage(next);
+            if (Platform.OS === 'web') {
+              // <html dir> is updated synchronously by applyRTL; reloading
+              // makes RN-web re-pick up the direction so layout-mirrored
+              // components rerender from scratch.
+              if (typeof window !== 'undefined') window.location.reload();
+              return;
+            }
             // Lazy-require: native module is unavailable in Expo Go; production
             // builds bundle it and exit normally on Android.
             if (Platform.OS === 'android') {

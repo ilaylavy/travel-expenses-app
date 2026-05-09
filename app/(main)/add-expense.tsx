@@ -2,7 +2,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import {
-  I18nManager,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +25,7 @@ import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/nu
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useExpenseEntryForm } from '@/hooks/useExpenseEntryForm';
+import { useIsRTL } from '@/hooks/useIsRTL';
 import { usePhotoCapture } from '@/hooks/usePhotoCapture';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -39,6 +39,7 @@ export default function AddExpenseScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const isRTL = useIsRTL();
   const params = useLocalSearchParams<{
     tripId?: string | string[];
     expenseId?: string | string[];
@@ -256,7 +257,7 @@ export default function AddExpenseScreen() {
             styles.fab,
             {
               bottom: fabBottomOffset,
-              [I18nManager.isRTL ? 'left' : 'right']: spacing.lg,
+              [isRTL ? 'left' : 'right']: spacing.lg,
               shadowColor: theme.accentGlow,
               opacity: !form.formIsValid || form.saving ? 0.5 : 1,
             },

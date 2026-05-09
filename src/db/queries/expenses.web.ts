@@ -4,6 +4,10 @@
 // silently dropped so a web user can still create non-photo expenses while
 // the photoService.web.ts is missing.
 
+import {
+  deleteLocalPhoto,
+  uploadPhotoToStorage,
+} from '@/services/photoService';
 import { supabase } from '@/services/supabase';
 import type {
   CreateExpenseInput,
@@ -184,13 +188,55 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
     .single();
   if (error) throw error;
   const expense = rowToExpense(data as RemoteExpenseRow);
-  // Photo upload is not wired up on web until Phase 4 of the rollout. Drop
-  // any photos[] payload silently for now so the rest of the create flow is
-  // usable — the user gets a photoless expense rather than an error.
+
+  // Photo upload happens inline (no sync queue on web). Each photo: upload
+  // bytes to Storage, then insert the expense_photos row pointing at that
+  // path. We tolerate per-photo failures — the expense itself is already
+  // saved at this point, and a failed photo upload shouldn't roll back the
+  // whole expense.
+  const photos: ExpensePhoto[] = [];
   if (input.photos && input.photos.length > 0) {
-    console.warn('createExpense.web: photos[] dropped; web photo upload lands in Phase 4');
+    for (let i = 0; i < input.photos.length; i += 1) {
+      const draft = input.photos[i];
+      const photoId = draft.id ?? crypto.randomUUID();
+      try {
+        const storagePath = await uploadPhotoToStorage({
+          tripId: input.tripId,
+          expenseId: expense.id,
+          photoId,
+          localUri: draft.localUri,
+        });
+        const { data: photoRow, error: photoError } = await supabase
+          .from('expense_photos')
+          .insert({
+            id: photoId,
+            expense_id: expense.id,
+            storage_path: storagePath,
+            // local_uri is intentionally null on web rows: the blob URL is
+            // browser-tab-scoped and doesn't survive a refresh, let alone
+            // sync to other devices.
+            local_uri: null,
+            sort_order: i,
+          })
+          .select('*')
+          .single();
+        if (photoError) throw photoError;
+        photos.push({
+          id: photoRow.id,
+          expenseId: photoRow.expense_id,
+          storagePath: photoRow.storage_path,
+          localUri: null,
+          sortOrder: photoRow.sort_order,
+          createdAt: photoRow.created_at,
+        });
+      } catch (e) {
+        console.warn('createExpense.web: photo upload failed', e);
+        // Best-effort cleanup of the staged blob URL so we don't leak it.
+        await deleteLocalPhoto(draft.localUri);
+      }
+    }
   }
-  return { ...expense, photos: [] };
+  return { ...expense, photos };
 }
 
 export async function updateExpense(input: UpdateExpenseInput): Promise<Expense> {
