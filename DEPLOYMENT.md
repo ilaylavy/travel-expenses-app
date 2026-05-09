@@ -38,6 +38,24 @@ To force an immediate update check, users can kill and reopen the app.
 - Changed app.json configuration (name, icon, splash, permissions)
 - Changed native code or native modules
 - Updated Expo SDK version
+- Changed `app.config.ts` or any value it injects into the native manifest (e.g. Google Maps API key) — the manifest is baked into the APK at build time and OTA cannot replace it
+
+## Adding a new secret to native config
+
+`app.config.ts` is the one place where env vars get injected into native config (Android manifest, iOS Info.plist). Static `app.json` does NOT substitute env vars — placeholders like `"$EXPO_PUBLIC_FOO"` would land in the manifest as literal strings.
+
+To wire up a new secret:
+
+1. Add `EXPO_PUBLIC_FOO=...` to `.env` and `.env.example`.
+2. Set it on EAS for each environment:
+   ```bash
+   eas env:create --environment preview --name EXPO_PUBLIC_FOO --value ...
+   eas env:create --environment production --name EXPO_PUBLIC_FOO --value ...
+   ```
+3. In `app.config.ts`, call `requireEnv('EXPO_PUBLIC_FOO')` and merge the value into the appropriate `ios.config` / `android.config` field.
+4. Run a fresh `eas build` — OTA cannot update the native manifest.
+
+If a required env var is missing at build time, the build fails loudly with a clear error message rather than producing a broken APK.
 
 ## Check update status
 
