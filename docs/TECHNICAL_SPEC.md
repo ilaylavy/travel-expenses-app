@@ -34,127 +34,106 @@
 
 ```
 TRAVEL-EXPENSES-APP/
-├── app/                          # Expo Router screens
+├── app/                          # Expo Router screens (file = route)
 │   ├── _layout.tsx               # Root layout
 │   ├── index.tsx                 # Entry point / redirect
-│   ├── (auth)/                   # Auth group (login, signup)
+│   ├── (auth)/                   # Auth group
 │   │   ├── _layout.tsx
 │   │   ├── login.tsx
 │   │   └── signup.tsx
-│   └── (main)/                   # Main app group (requires auth)
+│   └── (main)/                   # Authenticated group
 │       ├── _layout.tsx
-│       ├── index.tsx             # Trip list (home screen)
-│       ├── add-expense.tsx       # Add/edit expense modal
-│       ├── new-trip.tsx          # Create trip
+│       ├── index.tsx             # Trip list (home)
+│       ├── add-expense.tsx       # Add/edit expense screen (orchestrator)
+│       ├── new-trip.tsx
+│       ├── settings.tsx          # App settings (orchestrator)
+│       ├── categories.tsx        # Default-categories list
 │       └── trip/[id]/            # Per-trip Stack
-│           ├── _layout.tsx       # Stack hosting tabs + settings + categories
-│           ├── settings.tsx      # Edit-trip screen (opened from pencil icon on trip card)
-│           ├── (tabs)/           # Bottom tab navigator for the active trip
+│           ├── _layout.tsx
+│           ├── settings.tsx      # Edit-trip screen
+│           ├── (tabs)/           # Bottom tab navigator
 │           │   ├── _layout.tsx
-│           │   ├── index.tsx     # Expenses tab (default) — list, stats strip, multi-filter, FAB
-│           │   ├── map.tsx       # Map tab
-│           │   ├── ask.tsx       # AI chat tab
-│           │   └── stats.tsx     # Stats tab
-│           └── categories/       # Category management stack (per-trip)
+│           │   ├── index.tsx     # Expenses (list + filters + stats strip)
+│           │   ├── map.tsx       # Map (filters + clustering)
+│           │   ├── ask.tsx       # AI chat
+│           │   └── stats.tsx
+│           ├── expense/          # Expense detail stack
+│           │   ├── _layout.tsx
+│           │   └── [expenseId].tsx
+│           └── categories/       # Per-trip category management
 │               ├── _layout.tsx
-│               ├── index.tsx     # Category list
-│               ├── new.tsx       # Create category
-│               └── [categoryId].tsx  # Edit category
+│               ├── index.tsx
+│               ├── new.tsx
+│               └── [categoryId].tsx
 ├── src/
-│   ├── components/               # Reusable UI components
-│   │   ├── ui/                   # Generic UI (Button, Input, Badge, Card)
-│   │   ├── expense/              # Expense-specific components
-│   │   │   ├── ExpenseCard.tsx
-│   │   │   ├── ExpenseForm.tsx
-│   │   │   ├── CategoryGrid.tsx
-│   │   │   ├── NumPad.tsx
-│   │   │   └── NoteSuggestions.tsx
-│   │   ├── trip/                 # Trip-specific components
-│   │   │   ├── TripCard.tsx
-│   │   │   ├── TripHeader.tsx
-│   │   │   └── BudgetProgress.tsx
-│   │   ├── map/                  # Map components
-│   │   │   ├── ExpenseMap.tsx
-│   │   │   └── ExpensePin.tsx
-│   │   ├── stats/                # Stats/chart components
-│   │   │   ├── CategoryBreakdown.tsx
-│   │   │   ├── DailyChart.tsx
-│   │   │   ├── SplitBalance.tsx
-│   │   │   └── SummaryCards.tsx
-│   │   └── chat/                 # AI chat components
-│   │       ├── ChatBubble.tsx
-│   │       └── SuggestedQuestions.tsx
-│   ├── db/                       # Local database layer
-│   │   ├── schema.ts             # SQLite table definitions
-│   │   ├── migrations.ts         # Schema versioning and migrations
-│   │   ├── database.ts           # DB initialization and connection
-│   │   ├── queries/              # Query functions organized by entity
-│   │   │   ├── trips.ts
-│   │   │   ├── expenses.ts
-│   │   │   ├── categories.ts
-│   │   │   └── sync.ts
-│   │   └── seed.ts               # Default categories and initial data
+│   ├── components/               # Reusable UI components, organized by domain
+│   │   ├── ui/                   # Generic primitives (FilterModal, FilterPill, KeyboardAwareWrapper, …)
+│   │   ├── chat/                 # AI chat (ChatBubble, FollowUpChips, MessageInput, EmptyState)
+│   │   ├── currency/             # CurrencyPickerModal, RateOverrideChip, CurrencyConverterCard
+│   │   ├── expense/
+│   │   │   ├── card/             # ExpenseCard, SwipeableExpenseCard, LoggedByBadge
+│   │   │   ├── category/         # CategoryGrid, CategoryForm
+│   │   │   ├── detail/           # ExpenseHero, FieldCard, PhotoThumb, ExpensePhotosSection, ExpenseSplitBreakdown
+│   │   │   ├── entry/            # 11 components powering add-expense.tsx (AmountSection, NoteSuggestionsRow, …)
+│   │   │   ├── list/             # ExpenseFilterChips (shared with the map screen)
+│   │   │   ├── numpad/           # NumPad, NumericPadField
+│   │   │   ├── photo/            # PhotoGalleryModal
+│   │   │   └── stats/            # ExpenseStatsStrip
+│   │   ├── map/                  # ExpensePin, ExpensePopup, TrackedMarker
+│   │   ├── settings/             # 6 section components + SettingsPrimitives
+│   │   ├── stats/                # CategoryBreakdownCard, DailySpendingChart, …
+│   │   └── trip/                 # TripCard, TripForm, PendingInviteCard, MembersSection/ (folder)
+│   ├── db/                       # Local SQLite layer
+│   │   ├── database.ts           # Connection + initialization
+│   │   ├── schema.ts             # Table definitions
+│   │   ├── migrations.ts         # Schema versioning
+│   │   └── queries/              # One file per entity (CRUD lives here, sync_queue writes alongside)
+│   │       ├── categories.ts
+│   │       ├── exchangeRates.ts
+│   │       ├── expenseAnalytics.ts   # getRecentNotes, lastUsedPaymentMethodForTrip, categoryUsageForTrip
+│   │       ├── expenses.ts           # CRUD only — slimmed in Phase 3
+│   │       ├── expensePhotos.ts      # Photo helpers + insertPhoto used by createExpense
+│   │       ├── expenseSplits.ts
+│   │       ├── profiles.ts
+│   │       ├── syncQueue.ts          # enqueueSync — invariant API; called by every mutation
+│   │       ├── tripMembers.ts
+│   │       └── trips.ts
 │   ├── sync/                     # Sync engine
-│   │   ├── syncEngine.ts         # Main sync orchestrator
-│   │   ├── syncQueue.ts          # Local queue management
-│   │   ├── pushChanges.ts        # Push local → remote
-│   │   ├── pullChanges.ts        # Pull remote → local
-│   │   ├── conflictResolver.ts   # Last-write-wins logic
-│   │   └── realtimeSubscription.ts  # Supabase Realtime listener
-│   ├── services/                 # External service integrations
-│   │   ├── supabase.ts           # Supabase client initialization
-│   │   ├── auth.ts               # Auth service (login, signup, logout, session)
-│   │   ├── exchangeRates.ts      # Fetch and cache exchange rates
-│   │   ├── locationService.ts    # GPS + reverse geocoding
-│   │   ├── aiQueryService.ts     # Send questions to LLM, execute SQL
-│   │   └── photoService.ts       # Photo capture, storage, upload
-│   ├── stores/                   # Zustand state stores
-│   │   ├── authStore.ts          # Auth state and user profile
-│   │   ├── tripStore.ts          # Active trip, trip list
-│   │   ├── expenseStore.ts       # Expenses for active trip
-│   │   ├── syncStore.ts          # Sync status (synced/pending/error)
-│   │   └── settingsStore.ts      # App settings and preferences
-│   ├── hooks/                    # Custom React hooks
-│   │   ├── useDatabase.ts        # DB access hook
-│   │   ├── useSync.ts            # Sync state and triggers
-│   │   ├── useLocation.ts        # Current location
-│   │   ├── useExchangeRate.ts    # Get rate for currency pair
-│   │   └── useExpenseStats.ts    # Computed stats for a trip
-│   ├── utils/                    # Pure utility functions
-│   │   ├── currency.ts           # Formatting, conversion helpers
-│   │   ├── dates.ts              # Date formatting, range helpers
-│   │   ├── colors.ts             # Category colors, theme helpers
-│   │   └── sharing.ts            # Format expense for sharing
-│   ├── constants/                # App-wide constants
-│   │   ├── categories.ts         # Default category definitions
-│   │   ├── currencies.ts         # Currency list with symbols
-│   │   ├── theme.ts              # Colors, spacing, typography
-│   │   └── config.ts             # API URLs, feature flags
-│   ├── i18n/                     # Internationalization
-│   │   ├── index.ts              # i18next init, RTL helpers, language resolution
-│   │   └── locales/
-│   │       ├── en.json           # English translations
-│   │       └── he.json           # Hebrew translations
-│   └── types/                    # TypeScript type definitions
-│       ├── trip.ts
-│       ├── expense.ts
-│       ├── category.ts
-│       ├── user.ts
-│       └── sync.ts
-├── supabase/                     # Supabase project files
+│   │   ├── syncEngine.ts         # Orchestrator (debounced push/pull cycle)
+│   │   ├── syncQueue.ts          # Pending-entries iteration helpers
+│   │   ├── pushChanges.ts        # Push local → remote (drains sync_queue)
+│   │   ├── pullChanges.ts        # Pull remote → local (cursor-based)
+│   │   ├── conflictResolver.ts   # Last-write-wins + per-table apply functions
+│   │   ├── realtimeSubscription.ts   # Supabase Realtime listener
+│   │   ├── reconcileDefaults.ts  # Backfill / default-category remap
+│   │   ├── typeCoercion.ts       # asString/asNumber/asBoolInt + BOOL_FIELDS_BY_TABLE
+│   │   └── errorUtils.ts
+│   ├── services/                 # External integrations (supabase, auth, exchangeRates, location, photo, aiQuery)
+│   ├── stores/                   # Zustand stores (auth, trip, category, expense, settings, sync)
+│   ├── hooks/                    # useExchangeRate, useExpenseEntryForm, usePhotoCapture, useExpenseClustering, useExpenseShareGetter, useTheme, useTranslation, useDismissKeyboard
+│   ├── utils/                    # Pure helpers
+│   │   ├── balance.ts            # computeBalance — split-aware shares + pairwise settlement
+│   │   ├── category/             # color.ts, name.ts, index.ts (re-exports)
+│   │   ├── currency/             # format.ts, index.ts
+│   │   ├── date.ts               # formatDay, formatReadableDate, countDaysInRange, …
+│   │   ├── expenseGrouping.ts    # SectionList grouping + spread expansion
+│   │   ├── id.ts, initials.ts, nav.ts
+│   │   ├── mapCluster.ts         # Pure clustering algorithm
+│   │   ├── share/                # balance.ts (split share calc), system.ts (system share sheet)
+│   │   └── statsAggregations.ts
+│   ├── constants/                # categories, currencies, theme, config
+│   ├── i18n/                     # i18next init + en.json / he.json
+│   └── types/                    # Entity + Row types per table (expense.ts, trip.ts, category.ts, profile.ts, exchangeRate.ts, sync.ts)
+├── supabase/
 │   ├── migrations/               # Database migrations (SQL)
-│   │   ├── 001_initial_schema.sql
-│   │   └── 002_rls_policies.sql
-│   ├── functions/                # Edge Functions
-│   │   ├── ai-query/index.ts     # OpenAI proxy for natural language queries
-│   │   └── exchange-rates/index.ts  # Rate fetching and caching
-│   └── seed.sql                  # Default data
-├── assets/                       # Static assets (images, fonts)
-├── CLAUDE.md                     # Claude Code project instructions
-├── PRD.md                        # Product requirements
-├── TECHNICAL_SPEC.md             # This document
-├── app.json                      # Expo configuration
-├── tsconfig.json                 # TypeScript configuration
+│   ├── functions/                # Edge Functions (ai-query, exchange-rates)
+│   └── seed.sql
+├── assets/
+├── docs/                         # PRD, TECHNICAL_SPEC, DESIGN_SYSTEM, DEPLOYMENT
+├── CLAUDE.md                     # Claude Code project instructions (root, by convention)
+├── jest.config.js                # Jest + ts-jest config
+├── app.json, eas.json            # Expo + EAS config
+├── tsconfig.json
 ├── package.json
 └── .env                          # Environment variables (not committed)
 ```

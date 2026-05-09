@@ -111,7 +111,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   const [currency, setCurrency] = useState<string>('');
   const [manualRate, setManualRate] = useState<number | null>(null);
   // Only relevant in edit mode: preserve the exchange rate the expense was
-  // originally booked at. PRD.md — historical values must not drift.
+  // originally booked at. docs/PRD.md — historical values must not drift.
   const [lockedExchangeRate, setLockedExchangeRate] = useState<number | null>(null);
   // True once the user has actively picked a currency (chip or picker).
   // Stops the async location-derived auto-pick from clobbering their choice
