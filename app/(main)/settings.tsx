@@ -20,6 +20,7 @@ import { ProfileSection } from '@/components/settings/ProfileSection';
 import { SyncSection, type SyncSectionStatus } from '@/components/settings/SyncSection';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
+import { showConfirmDialog } from '@/utils/confirmDialog';
 import { deleteDatabase } from '@/db/database';
 import { getProfile, updateProfile } from '@/db/queries/profiles';
 import type { Profile } from '@/types/profile';
@@ -150,6 +151,13 @@ export default function SettingsScreen() {
           style: 'default',
           onPress: async () => {
             await setLanguage(next);
+            if (Platform.OS === 'web') {
+              // <html dir> is updated synchronously by applyRTL; reloading
+              // makes RN-web re-pick up the direction so layout-mirrored
+              // components rerender from scratch.
+              if (typeof window !== 'undefined') window.location.reload();
+              return;
+            }
             // Lazy-require: native module is unavailable in Expo Go; production
             // builds bundle it and exit normally on Android.
             if (Platform.OS === 'android') {
@@ -191,50 +199,42 @@ export default function SettingsScreen() {
   }, []);
 
   const handleSignOut = useCallback((): void => {
-    Alert.alert(
-      t('settings.account.signOutConfirmTitle'),
-      t('settings.account.signOutConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('settings.account.signOut'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              await resetAllStoresAndDb();
-            } catch (e) {
-              console.warn('Sign out failed:', e);
-              Alert.alert(t('settings.account.signOutFailed'));
-            }
-          },
-        },
-      ],
-    );
+    showConfirmDialog({
+      title: t('settings.account.signOutConfirmTitle'),
+      body: t('settings.account.signOutConfirmBody'),
+      confirmLabel: t('settings.account.signOut'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await signOut();
+          await resetAllStoresAndDb();
+        } catch (e) {
+          console.warn('Sign out failed:', e);
+          Alert.alert(t('settings.account.signOutFailed'));
+        }
+      },
+    });
   }, [t, signOut, resetAllStoresAndDb]);
 
   const handleDeleteAccount = useCallback((): void => {
-    Alert.alert(
-      t('settings.account.deleteConfirmTitle'),
-      t('settings.account.deleteConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('settings.account.deleteAccount'),
-          style: 'destructive',
-          onPress: async () => {
-            // MVP: deletion is a v2 feature. For now, signing out is the safe
-            // fallback; server-side account deletion will come later.
-            try {
-              await signOut();
-              await resetAllStoresAndDb();
-            } catch (e) {
-              console.warn('Delete (sign out) failed:', e);
-            }
-          },
-        },
-      ],
-    );
+    showConfirmDialog({
+      title: t('settings.account.deleteConfirmTitle'),
+      body: t('settings.account.deleteConfirmBody'),
+      confirmLabel: t('settings.account.deleteAccount'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: async () => {
+        // MVP: deletion is a v2 feature. For now, signing out is the safe
+        // fallback; server-side account deletion will come later.
+        try {
+          await signOut();
+          await resetAllStoresAndDb();
+        } catch (e) {
+          console.warn('Delete (sign out) failed:', e);
+        }
+      },
+    });
   }, [t, signOut, resetAllStoresAndDb]);
 
   const email = user?.email ?? '—';

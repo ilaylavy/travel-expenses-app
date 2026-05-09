@@ -62,8 +62,7 @@ export async function start(): Promise<void> {
 
   await refreshPendingCount();
 
-  const db = await getDatabase();
-  realtimeUnsubscribe = subscribeToRealtime(db, supabase);
+  realtimeUnsubscribe = subscribeToRealtime(supabase);
 
   netInfoUnsubscribe = NetInfo.addEventListener((state) => {
     const online = Boolean(state.isConnected && state.isInternetReachable !== false);

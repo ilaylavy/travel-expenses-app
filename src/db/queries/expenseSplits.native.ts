@@ -1,16 +1,17 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { ExpenseSplit, ExpenseSplitRow } from '@/types/expense';
+import type {
+  CreateSplitInput,
+  ExpenseSplit,
+  ExpenseSplitRow,
+} from '@/types/expense';
 import { newId } from '@/utils/id';
 
+import type { ExpenseSplitsQueries } from './contract';
 import { enqueueSync } from './syncQueue';
 
-export interface CreateSplitInput {
-  userId: string;
-  amount: number;
-  isPayer: boolean;
-}
+export type { CreateSplitInput };
 
 function rowToSplit(row: ExpenseSplitRow): ExpenseSplit {
   return {
@@ -104,14 +105,6 @@ export async function createSplits(
       await insertSplit(db, row);
       await enqueueSync(db, 'expense_splits', row.id, 'create', splitToPayload(row));
     }
-    await db.runAsync(
-      'UPDATE expenses SET is_split = 1, updated_at = ? WHERE id = ?;',
-      [now, expenseId],
-    );
-    const expensePayload = await readExpensePayload(db, expenseId);
-    if (expensePayload) {
-      await enqueueSync(db, 'expenses', expenseId, 'update', expensePayload);
-    }
   });
 
   return rows;
@@ -156,15 +149,6 @@ export async function updateSplits(
       await insertSplit(db, row);
       await enqueueSync(db, 'expense_splits', row.id, 'create', splitToPayload(row));
     }
-    // Ensure the parent flag stays correct (in case we are re-enabling).
-    await db.runAsync(
-      'UPDATE expenses SET is_split = 1, updated_at = ? WHERE id = ?;',
-      [now, expenseId],
-    );
-    const expensePayload = await readExpensePayload(db, expenseId);
-    if (expensePayload) {
-      await enqueueSync(db, 'expenses', expenseId, 'update', expensePayload);
-    }
   });
 
   return newRows;
@@ -190,40 +174,14 @@ export async function deleteSplits(expenseId: string): Promise<void> {
         updated_at: now,
       });
     }
-    await db.runAsync(
-      'UPDATE expenses SET is_split = 0, updated_at = ? WHERE id = ?;',
-      [now, expenseId],
-    );
-    const expensePayload = await readExpensePayload(db, expenseId);
-    if (expensePayload) {
-      await enqueueSync(db, 'expenses', expenseId, 'update', expensePayload);
-    }
   });
 }
 
-// Reads the full expense row in payload form so we can enqueue an 'update'
-// sync entry that mirrors the local change to the is_split flag.
-async function readExpensePayload(
-  db: SQLiteDatabase,
-  expenseId: string,
-): Promise<Record<string, unknown> | null> {
-  const row = await db.getFirstAsync<Record<string, unknown> & { id: string }>(
-    'SELECT * FROM expenses WHERE id = ?;',
-    [expenseId],
-  );
-  if (!row) return null;
-  // Convert SQLite booleans (0/1) to actual booleans for the JSON payload —
-  // the push pipeline's normalizePayload also coerces these, but doing it
-  // here keeps the on-disk payload self-consistent with other 'update' entries.
-  const out: Record<string, unknown> = { ...row };
-  for (const key of [
-    'is_refund',
-    'is_excluded_from_daily_metrics',
-    'is_private',
-    'is_split',
-  ]) {
-    const v = out[key];
-    if (v === 0 || v === 1) out[key] = v === 1;
-  }
-  return out;
-}
+const _check: ExpenseSplitsQueries = {
+  getSplitsForExpense,
+  getSplitsForTrip,
+  createSplits,
+  updateSplits,
+  deleteSplits,
+};
+void _check;

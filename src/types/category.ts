@@ -24,3 +24,25 @@ export interface CategoryRow {
   created_at: string;
   updated_at: string;
 }
+
+// =========================================================
+// Query inputs/outputs — shared between native and web query variants.
+// =========================================================
+
+export interface CreateCategoryInput {
+  name: string;
+  emoji: string;
+  color: string;
+  tripId: string | null;
+  createdBy: string | null;
+  sortOrder?: number;
+}
+
+export interface UpdateCategoryInput {
+  id: string;
+  name?: string;
+  emoji?: string;
+  color?: string;
+  sortOrder?: number;
+  isArchived?: boolean;
+}

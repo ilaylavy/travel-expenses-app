@@ -3,7 +3,6 @@ import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  I18nManager,
   Pressable,
   SectionList,
   StyleSheet,
@@ -26,6 +25,7 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
 import { useExpenseShareGetter } from '@/hooks/useExpenseShareGetter';
+import { useIsRTL } from '@/hooks/useIsRTL';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -72,6 +72,7 @@ export default function TripExpensesScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
+  const isRTL = useIsRTL();
   const params = useGlobalSearchParams<{ id: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
 
@@ -487,7 +488,7 @@ export default function TripExpensesScreen() {
         onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
         style={({ pressed }) => [
           styles.fab,
-          I18nManager.isRTL ? styles.fabLeft : styles.fabRight,
+          isRTL ? styles.fabLeft : styles.fabRight,
           { shadowColor: theme.accent, transform: [{ scale: pressed ? 0.96 : 1 }] },
         ]}
         accessibilityLabel={t('tripView.addExpense')}

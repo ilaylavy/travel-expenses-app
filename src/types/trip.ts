@@ -96,3 +96,35 @@ export interface PendingInviteRow extends TripMemberRow {
   trip_created_at: string;
   trip_updated_at: string;
 }
+
+// =========================================================
+// Query inputs/outputs — shared between native and web query variants.
+// =========================================================
+
+export interface CreateTripInput {
+  name: string;
+  emoji: string;
+  startDate: string;
+  endDate: string | null;
+  baseCurrency: string;
+  homeCurrency: string;
+  // The owner's personal budget for the trip, in home_currency. Stored
+  // on the owner's trip_members row, not on the trips table.
+  budget: number | null;
+  ownerId: string;
+}
+
+export interface UpdateTripInput {
+  id: string;
+  name?: string;
+  emoji?: string;
+  startDate?: string;
+  endDate?: string | null;
+  baseCurrency?: string;
+  homeCurrency?: string;
+}
+
+export interface PendingInvite {
+  member: TripMember;
+  trip: Trip;
+}

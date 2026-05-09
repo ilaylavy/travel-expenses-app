@@ -1,28 +1,20 @@
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  I18nManager,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CategoryPin, ClusterPin } from '@/components/map/ExpensePin';
-import { ExpensePopup } from '@/components/map/ExpensePopup';
 import {
   ExpenseFilterChips,
   type ExpenseFilterKey,
 } from '@/components/expense/list/ExpenseFilterChips';
-import { TrackedMarker } from '@/components/map/TrackedMarker';
+import { ExpensePopup } from '@/components/map/ExpensePopup';
+import { TripMap } from '@/components/map/TripMap';
+import type { TripMapHandle } from '@/components/map/types';
 import type { FilterOption } from '@/components/ui/FilterModal';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
-import { useExpenseClustering } from '@/hooks/useExpenseClustering';
+import { useIsRTL } from '@/hooks/useIsRTL';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getCurrentCoordinates } from '@/services/locationService';
@@ -34,7 +26,6 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryDisplayName } from '@/utils/category';
-import { formatAmount } from '@/utils/currency';
 import { locatedExpenses as filterLocated } from '@/utils/mapCluster';
 import { href } from '@/utils/nav';
 
@@ -66,6 +57,7 @@ export default function TripMapScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
+  const isRTL = useIsRTL();
   const params = useGlobalSearchParams<{ id: string; focusExpenseId?: string }>();
   const tripId = Array.isArray(params.id) ? params.id[0] : params.id;
   const focusExpenseId = Array.isArray(params.focusExpenseId)
@@ -78,8 +70,7 @@ export default function TripMapScreen() {
   const loadForTrip = useExpenseStore((s) => s.loadForTrip);
   const allCategories = useCategoryStore((s) => s.categories);
 
-  const mapRef = useRef<MapView | null>(null);
-  const focusHandledRef = useRef<string | null>(null);
+  const tripMapRef = useRef<TripMapHandle | null>(null);
 
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
@@ -133,8 +124,6 @@ export default function TripMapScreen() {
   // Only consider expenses that have coordinates — this whole screen revolves
   // around located expenses, so filter once up front.
   const locatedAll = useMemo(() => filterLocated(expenses), [expenses]);
-
-  // ----- Filter option lists derived from located expenses -----
 
   const categoryOptions = useMemo<FilterOption[]>(() => {
     const tally = new Map<string, number>();
@@ -230,31 +219,6 @@ export default function TripMapScreen() {
     selectedMonths,
   ]);
 
-  const { initialRegion, setRegion, items, focusExpense, zoomIntoCluster } =
-    useExpenseClustering({
-      allExpenses: expenses,
-      visibleExpenses,
-      mapRef,
-    });
-
-  // Focus a specific expense when navigated to with `?focusExpenseId=...`
-  // (e.g., from the location field on the expense detail screen).
-  useEffect(() => {
-    if (!focusExpenseId) return;
-    if (focusHandledRef.current === focusExpenseId) return;
-    const target = expenses.find((e) => e.id === focusExpenseId);
-    if (!target) return;
-    if (target.latitude == null || target.longitude == null) {
-      focusHandledRef.current = focusExpenseId;
-      router.setParams({ focusExpenseId: undefined });
-      return;
-    }
-    focusExpense(target);
-    setSelectedExpense(target);
-    focusHandledRef.current = focusExpenseId;
-    router.setParams({ focusExpenseId: undefined });
-  }, [focusExpenseId, expenses, router, focusExpense]);
-
   const handleClearAll = () => {
     setSelectedCategoryIds(new Set());
     setSelectedPayments(new Set());
@@ -272,15 +236,7 @@ export default function TripMapScreen() {
         Alert.alert(t('map.locationPermissionDenied'));
         return;
       }
-      mapRef.current?.animateToRegion(
-        {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        },
-        350,
-      );
+      tripMapRef.current?.panTo(coords);
     } finally {
       setLoadingLocation(false);
     }
@@ -298,55 +254,17 @@ export default function TripMapScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={StyleSheet.absoluteFillObject}
-        initialRegion={initialRegion}
-        onRegionChangeComplete={setRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-      >
-        {items.map((item) => {
-          if (item.type === 'pin') {
-            const category = categoryById.get(item.expense.categoryId) ?? null;
-            const isSelected = selectedExpense?.id === item.expense.id;
-            const amountLabel = formatAmount(
-              item.expense.convertedAmount,
-              trip.homeCurrency,
-            );
-            return (
-              <TrackedMarker
-                key={item.key}
-                identity={`${item.key}:${isSelected ? '1' : '0'}`}
-                coordinate={{
-                  latitude: item.latitude,
-                  longitude: item.longitude,
-                }}
-                onPress={() => setSelectedExpense(item.expense)}
-                anchor={{ x: 0.5, y: 1 }}
-              >
-                <CategoryPin
-                  category={category}
-                  selected={isSelected}
-                  amountLabel={amountLabel}
-                />
-              </TrackedMarker>
-            );
-          }
-          return (
-            <TrackedMarker
-              key={item.key}
-              identity={item.key}
-              coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-              onPress={() => zoomIntoCluster(item.expenses)}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <ClusterPin count={item.count} />
-            </TrackedMarker>
-          );
-        })}
-      </MapView>
+      <TripMap
+        ref={tripMapRef}
+        allExpenses={expenses}
+        visibleExpenses={visibleExpenses}
+        categoryById={categoryById}
+        homeCurrency={trip.homeCurrency}
+        selectedExpenseId={selectedExpense?.id ?? null}
+        onPressExpense={setSelectedExpense}
+        focusExpenseId={focusExpenseId}
+        onFocusHandled={() => router.setParams({ focusExpenseId: undefined })}
+      />
 
       <SafeAreaView style={styles.topOverlay} edges={['top']} pointerEvents="box-none">
         {locatedAll.length > 0 ? (
@@ -380,7 +298,7 @@ export default function TripMapScreen() {
           accessibilityLabel={t('map.myLocation')}
           style={[
             styles.locateButton,
-            I18nManager.isRTL ? styles.locateButtonLeft : styles.locateButtonRight,
+            isRTL ? styles.locateButtonLeft : styles.locateButtonRight,
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,

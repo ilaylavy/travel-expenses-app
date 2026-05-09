@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type MapView from 'react-native-maps';
-import type { Region } from 'react-native-maps';
 
+import type { MapHandle } from '@/components/map/types';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import {
   boundsForExpenses,
   clusterExpenses,
+  type MapItem,
+  type MapRegion,
 } from '@/utils/mapCluster';
 
-const FALLBACK_REGION: Region = {
+const FALLBACK_REGION: MapRegion = {
   latitude: 20,
   longitude: 0,
   latitudeDelta: 120,
@@ -16,34 +17,45 @@ const FALLBACK_REGION: Region = {
 };
 
 // Owns map region state + viewport-keyed clustering for the trip map. The
-// caller passes the visible expense set; the hook fits the map on first load
-// and on each filter change (visibleExpenses identity).
+// caller passes the visible expense set and a MapHandle that abstracts away
+// whichever map SDK is wired up underneath (react-native-maps on native,
+// vis.gl on web). The hook is platform-agnostic — every imperative call
+// goes through the handle.
 export function useExpenseClustering({
   allExpenses,
   visibleExpenses,
-  mapRef,
+  mapHandle,
 }: {
   allExpenses: ExpenseWithPhotos[];
   visibleExpenses: ExpenseWithPhotos[];
-  mapRef: React.RefObject<MapView | null>;
-}) {
-  const [initialRegion] = useState<Region>(() => {
+  mapHandle: MapHandle | null;
+}): {
+  initialRegion: MapRegion;
+  region: MapRegion;
+  setRegion: (region: MapRegion) => void;
+  items: MapItem[];
+  focusExpense: (target: ExpenseWithPhotos) => void;
+  zoomIntoCluster: (members: ExpenseWithPhotos[]) => void;
+} {
+  const [initialRegion] = useState<MapRegion>(() => {
     const bounds = boundsForExpenses(allExpenses);
     return bounds ?? FALLBACK_REGION;
   });
-  const [region, setRegion] = useState<Region>(initialRegion);
+  const [region, setRegion] = useState<MapRegion>(initialRegion);
   const didInitialFitRef = useRef(boundsForExpenses(allExpenses) !== null);
   const suppressVisibleFitRef = useRef(false);
 
-  // Initial fit: once expenses load with at least one located item, fit the map.
+  // Initial fit: once expenses load with at least one located item, fit the
+  // map. Re-runs when mapHandle becomes available so web (where the handle
+  // is null until <Map> mounts) catches up on the first fit.
   useEffect(() => {
     if (didInitialFitRef.current) return;
     const bounds = boundsForExpenses(allExpenses);
-    if (bounds && mapRef.current) {
-      mapRef.current.animateToRegion(bounds, 400);
+    if (bounds && mapHandle) {
+      mapHandle.animateToRegion(bounds);
       didInitialFitRef.current = true;
     }
-  }, [allExpenses, mapRef]);
+  }, [allExpenses, mapHandle]);
 
   // Refit on filter changes — fits to the *visible* set so the user always
   // sees the pins they care about.
@@ -53,7 +65,7 @@ export function useExpenseClustering({
   );
   useEffect(() => {
     if (!didInitialFitRef.current) return;
-    if (!mapRef.current) return;
+    if (!mapHandle) return;
     if (visibleExpenses.length === 0) return;
     if (suppressVisibleFitRef.current) {
       suppressVisibleFitRef.current = false;
@@ -63,13 +75,10 @@ export function useExpenseClustering({
       latitude: e.latitude as number,
       longitude: e.longitude as number,
     }));
-    mapRef.current.fitToCoordinates(coords, {
-      edgePadding: { top: 120, right: 60, bottom: 200, left: 60 },
-      animated: true,
-    });
+    mapHandle.fitToCoordinates(coords);
     // visibleExpenses recomputes when filters change; this signature is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleSignature]);
+  }, [visibleSignature, mapHandle]);
 
   const items = useMemo(
     () => clusterExpenses(visibleExpenses, region),
@@ -80,19 +89,16 @@ export function useExpenseClustering({
     if (target.latitude == null || target.longitude == null) return;
     didInitialFitRef.current = true;
     suppressVisibleFitRef.current = true;
-    mapRef.current?.animateToRegion(
-      {
-        latitude: target.latitude,
-        longitude: target.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      },
-      400,
-    );
+    mapHandle?.animateToRegion({
+      latitude: target.latitude,
+      longitude: target.longitude,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    });
   };
 
   const zoomIntoCluster = (members: ExpenseWithPhotos[]) => {
-    if (!mapRef.current || members.length === 0) return;
+    if (!mapHandle || members.length === 0) return;
     let minLat = members[0].latitude as number;
     let maxLat = minLat;
     let minLng = members[0].longitude as number;
@@ -105,13 +111,12 @@ export function useExpenseClustering({
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
     }
-    const next: Region = {
+    mapHandle.animateToRegion({
       latitude: (minLat + maxLat) / 2,
       longitude: (minLng + maxLng) / 2,
       latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.004),
       longitudeDelta: Math.max((maxLng - minLng) * 1.6, 0.004),
-    };
-    mapRef.current.animateToRegion(next, 300);
+    });
   };
 
   return {

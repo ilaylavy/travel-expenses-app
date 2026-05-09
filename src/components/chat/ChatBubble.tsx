@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { I18nManager, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useIsRTL } from '@/hooks/useIsRTL';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -14,7 +15,7 @@ export function ChatBubble({ role, content, onTryAgain }: ChatBubbleProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const isUser = role === 'user';
-  const isRTL = I18nManager.isRTL;
+  const isRTL = useIsRTL();
 
   const trailingFlat = isRTL ? 'borderBottomLeftRadius' : 'borderBottomRightRadius';
   const leadingFlat = isRTL ? 'borderBottomRightRadius' : 'borderBottomLeftRadius';

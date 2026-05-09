@@ -1,6 +1,6 @@
 import * as Localization from 'expo-localization';
 import i18n from 'i18next';
-import { I18nManager } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
 import { initReactI18next } from 'react-i18next';
 
 import en from './locales/en.json';
@@ -26,9 +26,18 @@ export function isRTLLanguage(lng: string): boolean {
 }
 
 // Apply layout direction for the given language. Returns true if the
-// direction actually changed — callers should treat this as a reload hint.
+// direction actually changed — callers should treat this as a reload hint
+// (native needs a JS-bridge reload, web can just set <html dir>).
 export function applyRTL(lng: string): boolean {
   const shouldRTL = isRTLLanguage(lng);
+  if (Platform.OS === 'web') {
+    if (typeof document === 'undefined') return false;
+    const current = document.documentElement.getAttribute('dir');
+    const next = shouldRTL ? 'rtl' : 'ltr';
+    if (current === next) return false;
+    document.documentElement.setAttribute('dir', next);
+    return true;
+  }
   if (I18nManager.isRTL === shouldRTL) return false;
   try {
     I18nManager.allowRTL(shouldRTL);

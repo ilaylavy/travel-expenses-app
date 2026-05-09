@@ -1,18 +1,16 @@
 import { getDatabase } from '@/db/database';
 import type {
+  PendingInvite,
   PendingInviteRow,
-  Trip,
   TripMember,
   TripMemberRow,
 } from '@/types/trip';
 import { newId } from '@/utils/id';
 
+import type { TripMembersQueries } from './contract';
 import { enqueueSync } from './syncQueue';
 
-export interface PendingInvite {
-  member: TripMember;
-  trip: Trip;
-}
+export type { PendingInvite };
 
 function rowToMember(row: TripMemberRow): TripMember {
   return {
@@ -180,3 +178,14 @@ export async function listPendingInvitesForUser(userId: string): Promise<Pending
     },
   }));
 }
+
+const _check: TripMembersQueries = {
+  getExistingMember,
+  inviteMember,
+  acceptInvite,
+  removeMember,
+  declineInvite,
+  leaveTrip,
+  listPendingInvitesForUser,
+};
+void _check;

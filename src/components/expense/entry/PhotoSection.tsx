@@ -1,9 +1,10 @@
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { DraftPhoto } from '@/hooks/usePhotoCapture';
+import { showConfirmDialog } from '@/utils/confirmDialog';
 
 import { Section } from './Section';
 
@@ -57,14 +58,14 @@ export function PhotoSection({
             <Pressable
               key={p.uri}
               onLongPress={() => {
-                Alert.alert(t('expense.photosRemoveConfirm'), '', [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  {
-                    text: t('common.delete'),
-                    style: 'destructive',
-                    onPress: () => onRemove(p.uri),
-                  },
-                ]);
+                showConfirmDialog({
+                  title: t('expense.photosRemoveConfirm'),
+                  body: '',
+                  confirmLabel: t('common.delete'),
+                  cancelLabel: t('common.cancel'),
+                  destructive: true,
+                  onConfirm: () => onRemove(p.uri),
+                });
               }}
             >
               <Image source={{ uri: p.uri }} style={styles.photoThumb} />

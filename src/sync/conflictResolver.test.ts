@@ -1,4 +1,7 @@
-import { shouldApplyRemote } from './conflictResolver';
+// Tests run under Jest, which doesn't honor TS moduleSuffixes — and
+// shouldApplyRemote only exists on the native variant anyway, so the
+// import is explicit.
+import { shouldApplyRemote } from './conflictResolver.native';
 
 describe('shouldApplyRemote', () => {
   it('applies when no local row exists', () => {

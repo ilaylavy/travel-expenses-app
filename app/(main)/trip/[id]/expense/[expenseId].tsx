@@ -29,6 +29,7 @@ import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
 import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryDisplayName } from '@/utils/category';
+import { showConfirmDialog } from '@/utils/confirmDialog';
 import { formatAmount } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -149,26 +150,22 @@ export default function ExpenseDetailScreen() {
 
   const handleDelete = useCallback(() => {
     if (!expense) return;
-    Alert.alert(
-      t('expenseDetail.deleteConfirmTitle'),
-      t('expenseDetail.deleteConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteExpense(expense.id);
-              router.back();
-            } catch (error) {
-              console.warn('Failed to delete expense:', error);
-              Alert.alert(t('expenseDetail.deleteFailedTitle'));
-            }
-          },
-        },
-      ],
-    );
+    showConfirmDialog({
+      title: t('expenseDetail.deleteConfirmTitle'),
+      body: t('expenseDetail.deleteConfirmBody'),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteExpense(expense.id);
+          router.back();
+        } catch (error) {
+          console.warn('Failed to delete expense:', error);
+          Alert.alert(t('expenseDetail.deleteFailedTitle'));
+        }
+      },
+    });
   }, [expense, deleteExpense, router, t]);
 
   if (!expense || !trip) {

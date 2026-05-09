@@ -1,10 +1,9 @@
 import { getDatabase } from '@/db/database';
+import type { RecentNoteSuggestion } from '@/types/expense';
 
-export interface RecentNoteSuggestion {
-  note: string;
-  categoryId: string;
-  categoryEmoji: string;
-}
+import type { ExpenseAnalyticsQueries } from './contract';
+
+export type { RecentNoteSuggestion };
 
 // Distinct note strings used most recently in this trip, paired with the
 // category they were last logged under. Powers the suggestion chips on the
@@ -87,3 +86,10 @@ export async function categoryUsageForTrip(
   }
   return map;
 }
+
+const _check: ExpenseAnalyticsQueries = {
+  getRecentNotes,
+  lastUsedPaymentMethodForTrip,
+  categoryUsageForTrip,
+};
+void _check;

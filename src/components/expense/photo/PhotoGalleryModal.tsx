@@ -17,6 +17,7 @@ import { spacing, typography } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getSignedPhotoUrl } from '@/services/photoService';
 import type { ExpensePhoto } from '@/types/expense';
+import { isWebViewableUri } from '@/utils/photoUri';
 
 interface PhotoGalleryModalProps {
   visible: boolean;
@@ -106,14 +107,15 @@ interface GalleryPageProps {
 }
 
 function GalleryPage({ photo, width, height, t }: GalleryPageProps) {
-  const [resolvedUri, setResolvedUri] = useState<string | null>(
-    photo.localUri ?? null,
-  );
-  const [loading, setLoading] = useState(!photo.localUri && !!photo.storagePath);
+  // Same render guard as PhotoThumb: only seed from localUri if this
+  // platform can actually load it; otherwise fall through to the signed URL.
+  const initialUri = isWebViewableUri(photo.localUri) ? photo.localUri : null;
+  const [resolvedUri, setResolvedUri] = useState<string | null>(initialUri);
+  const [loading, setLoading] = useState(!initialUri && !!photo.storagePath);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (photo.localUri) {
+    if (isWebViewableUri(photo.localUri)) {
       setResolvedUri(photo.localUri);
       setLoading(false);
       setFailed(false);
