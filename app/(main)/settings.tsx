@@ -21,7 +21,8 @@ import { SyncSection, type SyncSectionStatus } from '@/components/settings/SyncS
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { deleteDatabase } from '@/db/database';
-import { getProfile, updateProfile, type Profile } from '@/db/queries/profiles';
+import { getProfile, updateProfile } from '@/db/queries/profiles';
+import type { Profile } from '@/types/profile';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { isRTLLanguage, resolveLanguage, type LanguagePref } from '@/i18n';

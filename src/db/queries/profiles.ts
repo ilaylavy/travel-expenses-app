@@ -1,16 +1,7 @@
 import { getDatabase } from '@/db/database';
-import type { ProfileRow } from '@/types/profile';
+import type { Profile, ProfileRow } from '@/types/profile';
 
 import { enqueueSync } from './syncQueue';
-
-export interface Profile {
-  id: string;
-  name: string;
-  avatarUrl: string | null;
-  defaultCurrency: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 function rowToProfile(row: ProfileRow): Profile {
   return {

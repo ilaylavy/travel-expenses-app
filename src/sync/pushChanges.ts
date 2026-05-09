@@ -10,6 +10,7 @@ import type { SyncQueueEntry, SyncTable } from '@/types/sync';
 
 import { formatError } from './errorUtils';
 import { getPendingEntries, markError, markSynced } from './syncQueue';
+import { BOOL_FIELDS_BY_TABLE } from './typeCoercion';
 
 // Dependency order: tables whose rows are referenced by FKs push first.
 const TABLE_ORDER: SyncTable[] = [
@@ -36,16 +37,7 @@ function normalizePayload(table: SyncTable, payload: Record<string, unknown>): R
     delete out.is_excluded_from_metrics;
   }
 
-  const boolFields: Record<SyncTable, string[]> = {
-    profiles: [],
-    trips: [],
-    trip_members: [],
-    categories: ['is_archived'],
-    expenses: ['is_refund', 'is_excluded_from_daily_metrics', 'is_private', 'is_split'],
-    expense_splits: ['is_payer'],
-    expense_photos: [],
-  };
-  for (const field of boolFields[table]) {
+  for (const field of BOOL_FIELDS_BY_TABLE[table]) {
     const v = out[field];
     if (v === 0 || v === 1) out[field] = v === 1;
   }
