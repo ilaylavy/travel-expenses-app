@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 
-import { ExpenseCard } from '@/components/expense/ExpenseCard';
+import { ExpenseCard } from '@/components/expense/card/ExpenseCard';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import type { Category } from '@/types/category';

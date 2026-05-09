@@ -5,7 +5,6 @@ import {
   Alert,
   I18nManager,
   Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -14,15 +13,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SwipeableExpenseCard } from '@/components/expense/SwipeableExpenseCard';
-import { ExpenseStatsStrip } from '@/components/expense/ExpenseStatsStrip';
-import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
-import { FilterPill } from '@/components/ui/FilterPill';
+import { SwipeableExpenseCard } from '@/components/expense/card/SwipeableExpenseCard';
+import {
+  ExpenseFilterChips,
+  type ExpenseFilterKey,
+} from '@/components/expense/list/ExpenseFilterChips';
+import { ExpenseStatsStrip } from '@/components/expense/stats/ExpenseStatsStrip';
+import type { FilterOption } from '@/components/ui/FilterModal';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
+import { useExpenseShareGetter } from '@/hooks/useExpenseShareGetter';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -34,7 +37,7 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
 import type { ExpenseWithPhotos } from '@/types/expense';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount, todayDateString } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { groupExpensesByDate, type ExpenseDateGroup } from '@/utils/expenseGrouping';
@@ -65,8 +68,6 @@ function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-type FilterKey = 'category' | 'payment' | 'member' | 'place' | 'month';
-
 export default function TripExpensesScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function TripExpensesScreen() {
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(() => new Set());
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(() => new Set());
   const [selectedMonths, setSelectedMonths] = useState<Set<string>>(() => new Set());
-  const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
+  const [openFilter, setOpenFilter] = useState<ExpenseFilterKey | null>(null);
 
   const isSharedTrip = Object.keys(memberNames).length > 1;
 
@@ -143,8 +144,6 @@ export default function TripExpensesScreen() {
     () => expenses.filter((e) => e.deletedAt === null && !e.isRefund).length,
     [expenses],
   );
-
-  // ----- Filter option lists derived from current expenses -----
 
   const categoryOptions = useMemo<FilterOption[]>(() => {
     const tally = new Map<string, number>();
@@ -217,8 +216,6 @@ export default function TripExpensesScreen() {
       .map(([id, count]) => ({ id, label: formatYearMonth(id), count }));
   }, [expenses]);
 
-  // ----- Filtering -----
-
   const filteredExpenses = useMemo(() => {
     const q = query.trim().toLowerCase();
     return expenses.filter((e) => {
@@ -249,53 +246,15 @@ export default function TripExpensesScreen() {
     selectedMonths,
   ]);
 
-  // Share-aware getter: returns the current user's share for split expenses,
-  // null otherwise (so the grouping util uses the full amount). For split
-  // expenses without a row for this user, we keep the full amount visible
-  // and let the SPLIT badge convey that it's not their cost — but it's also
-  // not their share, so they shouldn't see it added to subtotals at all.
-  const getShareForExpense = useCallback<
-    (expenseId: string) => { amount: number; convertedAmount: number } | null
-  >(
-    (expenseId) => {
-      const expense = filteredExpenses.find((e) => e.id === expenseId);
-      if (!expense || !expense.isSplit) return null;
-      const userSplit = splits.find(
-        (s) =>
-          s.expenseId === expenseId &&
-          s.userId === currentUserId &&
-          s.deletedAt === null,
-      );
-      if (!userSplit) {
-        // User isn't a participant — show full amount but don't count toward
-        // subtotal. We achieve "don't count" by returning a 0 share here; the
-        // ExpenseCard call site will still render the full amount.
-        return { amount: 0, convertedAmount: 0 };
-      }
-      const ratio = expense.amount === 0 ? 0 : userSplit.amount / expense.amount;
-      return {
-        amount: userSplit.amount,
-        convertedAmount: expense.convertedAmount * ratio,
-      };
-    },
-    [filteredExpenses, splits, currentUserId],
-  );
+  const getShareForExpense = useExpenseShareGetter({
+    expenses: filteredExpenses,
+    splits,
+    currentUserId,
+  });
 
   const sections = useMemo<ExpenseDateGroup[]>(
     () => groupExpensesByDate(filteredExpenses, getShareForExpense),
     [filteredExpenses, getShareForExpense],
-  );
-
-  // ----- Toggle helpers -----
-
-  const toggleIn = useCallback(
-    (set: Set<string>, setter: (s: Set<string>) => void) => (id: string) => {
-      const next = new Set(set);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      setter(next);
-    },
-    [],
   );
 
   const handleClearAll = useCallback(() => {
@@ -305,13 +264,6 @@ export default function TripExpensesScreen() {
     setSelectedPlaces(new Set());
     setSelectedMonths(new Set());
   }, []);
-
-  const anyFilterActive =
-    selectedCategoryIds.size > 0 ||
-    selectedPayments.size > 0 ||
-    selectedMembers.size > 0 ||
-    selectedPlaces.size > 0 ||
-    selectedMonths.size > 0;
 
   const handlePressRow = useCallback(
     (expense: ExpenseWithPhotos) => {
@@ -354,53 +306,6 @@ export default function TripExpensesScreen() {
   const hasExpenses = expenses.length > 0;
   const filteredAway = hasExpenses && sections.length === 0;
 
-  // ----- Pill summary helpers -----
-
-  function summarize(
-    selected: Set<string>,
-    options: FilterOption[],
-    fallback: string,
-    countKey: 'expenses.filterNCategories' | 'expenses.filterNSelected',
-  ): string {
-    if (selected.size === 0) return fallback;
-    if (selected.size <= 2) {
-      const labels = options.filter((o) => selected.has(o.id)).map((o) => o.label);
-      return labels.join(', ');
-    }
-    return t(countKey, { count: selected.size });
-  }
-
-  const categorySummary = summarize(
-    selectedCategoryIds,
-    categoryOptions,
-    t('expenses.filterAll'),
-    'expenses.filterNCategories',
-  );
-  const paymentSummary = summarize(
-    selectedPayments,
-    paymentOptions,
-    t('expenses.filterAllPayments'),
-    'expenses.filterNSelected',
-  );
-  const memberSummary = summarize(
-    selectedMembers,
-    memberOptions,
-    t('expenses.filterEveryone'),
-    'expenses.filterNSelected',
-  );
-  const placeSummary = summarize(
-    selectedPlaces,
-    placeOptions,
-    t('expenses.filterAllPlaces'),
-    'expenses.filterNSelected',
-  );
-  const monthSummary = summarize(
-    selectedMonths,
-    monthOptions,
-    t('expenses.filterAllTime'),
-    'expenses.filterNSelected',
-  );
-
   const listHeader = (
     <View>
       {stats ? (
@@ -433,57 +338,27 @@ export default function TripExpensesScreen() {
         ]}
       />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillRow}
-      >
-        <FilterPill
-          label={t('expenses.filterCategory')}
-          summary={categorySummary}
-          active={selectedCategoryIds.size > 0}
-          onPress={() => setOpenFilter('category')}
-        />
-        <FilterPill
-          label={t('expenses.filterPayment')}
-          summary={paymentSummary}
-          active={selectedPayments.size > 0}
-          onPress={() => setOpenFilter('payment')}
-        />
-        {isSharedTrip ? (
-          <FilterPill
-            label={t('expenses.filterMember')}
-            summary={memberSummary}
-            active={selectedMembers.size > 0}
-            onPress={() => setOpenFilter('member')}
-          />
-        ) : null}
-        <FilterPill
-          label={t('expenses.filterLocation')}
-          summary={placeSummary}
-          active={selectedPlaces.size > 0}
-          onPress={() => setOpenFilter('place')}
-        />
-        <FilterPill
-          label={t('expenses.filterMonth')}
-          summary={monthSummary}
-          active={selectedMonths.size > 0}
-          onPress={() => setOpenFilter('month')}
-        />
-        {anyFilterActive ? (
-          <Pressable
-            onPress={handleClearAll}
-            style={[
-              styles.clearButton,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-            accessibilityLabel={t('expenses.filterClearAll')}
-            hitSlop={6}
-          >
-            <Text style={[styles.clearButtonText, { color: theme.textSecondary }]}>✕</Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
+      <ExpenseFilterChips
+        isSharedTrip={isSharedTrip}
+        openFilter={openFilter}
+        onOpenFilter={setOpenFilter}
+        categoryOptions={categoryOptions}
+        paymentOptions={paymentOptions}
+        memberOptions={memberOptions}
+        placeOptions={placeOptions}
+        monthOptions={monthOptions}
+        selectedCategoryIds={selectedCategoryIds}
+        selectedPayments={selectedPayments}
+        selectedMembers={selectedMembers}
+        selectedPlaces={selectedPlaces}
+        selectedMonths={selectedMonths}
+        onSetCategoryIds={setSelectedCategoryIds}
+        onSetPayments={setSelectedPayments}
+        onSetMembers={setSelectedMembers}
+        onSetPlaces={setSelectedPlaces}
+        onSetMonths={setSelectedMonths}
+        onClearAll={handleClearAll}
+      />
     </View>
   );
 
@@ -521,91 +396,91 @@ export default function TripExpensesScreen() {
       </View>
 
       <KeyboardAwareWrapper hasBottomTab style={styles.flex}>
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.key}
-        stickySectionHeadersEnabled
-        contentContainerStyle={styles.list}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={hasExpenses ? listHeader : null}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        renderSectionHeader={({ section }) => (
-          <View
-            style={[
-              styles.sectionHeader,
-              { backgroundColor: theme.bg, borderBottomColor: theme.borderLight },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              {labelForGroup(section)}
-            </Text>
-            <Text style={[styles.sectionSubtotal, { color: theme.textSecondary }]}>
-              {formatAmount(section.subtotal, trip.homeCurrency)}
-            </Text>
-          </View>
-        )}
-        renderItem={({ item }) => {
-          const loggedById = item.expense.userId;
-          const isSelfLogged = loggedById === currentUserId;
-          const loggedByName = isSharedTrip ? memberNames[loggedById] ?? null : null;
-          // Split + non-participant: don't override the displayed amount —
-          // user sees the full amount with the SPLIT badge (they owe nothing).
-          const userSplitExists = splits.some(
-            (s) =>
-              s.expenseId === item.expense.id &&
-              s.userId === currentUserId &&
-              s.deletedAt === null,
-          );
-          const skipShareOverride = item.expense.isSplit && !userSplitExists;
-          return (
-            <SwipeableExpenseCard
-              expense={item.displayExpense}
-              category={categoryById.get(item.expense.categoryId) ?? null}
-              homeCurrency={trip.homeCurrency}
-              onPress={() => handlePressRow(item.expense)}
-              onDelete={() => handleDelete(item.expense)}
-              confirmTitle={t('expensesList.deleteConfirmTitle')}
-              confirmBody={t('expensesList.deleteConfirmBody')}
-              confirmLabel={t('common.delete')}
-              cancelLabel={t('common.cancel')}
-              deleteLabel={t('expensesList.deleteAction')}
-              loggedByName={loggedByName}
-              isSelfLogged={isSelfLogged}
-              canDelete={isSelfLogged}
-              userShareAmount={
-                skipShareOverride ? undefined : item.userShareAmount
-              }
-              userShareConverted={
-                skipShareOverride ? undefined : item.userShareConverted
-              }
-            />
-          );
-        }}
-        ListEmptyComponent={
-          filteredAway ? (
-            <View style={[styles.empty, { borderColor: theme.borderLight }]}>
-              <Text style={styles.emptyEmoji}>🔍</Text>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                {t('expensesList.emptyFilteredTitle')}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.key}
+          stickySectionHeadersEnabled
+          contentContainerStyle={styles.list}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={hasExpenses ? listHeader : null}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          renderSectionHeader={({ section }) => (
+            <View
+              style={[
+                styles.sectionHeader,
+                { backgroundColor: theme.bg, borderBottomColor: theme.borderLight },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                {labelForGroup(section)}
               </Text>
-              <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-                {t('expensesList.emptyFilteredBody')}
+              <Text style={[styles.sectionSubtotal, { color: theme.textSecondary }]}>
+                {formatAmount(section.subtotal, trip.homeCurrency)}
               </Text>
             </View>
-          ) : (
-            <View style={[styles.empty, { borderColor: theme.borderLight }]}>
-              <Text style={styles.emptyEmoji}>💸</Text>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                {t('tripView.emptyExpensesTitle')}
-              </Text>
-              <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-                {t('tripView.emptyExpensesBody')}
-              </Text>
-            </View>
-          )
-        }
-      />
+          )}
+          renderItem={({ item }) => {
+            const loggedById = item.expense.userId;
+            const isSelfLogged = loggedById === currentUserId;
+            const loggedByName = isSharedTrip ? memberNames[loggedById] ?? null : null;
+            // Split + non-participant: don't override the displayed amount —
+            // user sees the full amount with the SPLIT badge (they owe nothing).
+            const userSplitExists = splits.some(
+              (s) =>
+                s.expenseId === item.expense.id &&
+                s.userId === currentUserId &&
+                s.deletedAt === null,
+            );
+            const skipShareOverride = item.expense.isSplit && !userSplitExists;
+            return (
+              <SwipeableExpenseCard
+                expense={item.displayExpense}
+                category={categoryById.get(item.expense.categoryId) ?? null}
+                homeCurrency={trip.homeCurrency}
+                onPress={() => handlePressRow(item.expense)}
+                onDelete={() => handleDelete(item.expense)}
+                confirmTitle={t('expensesList.deleteConfirmTitle')}
+                confirmBody={t('expensesList.deleteConfirmBody')}
+                confirmLabel={t('common.delete')}
+                cancelLabel={t('common.cancel')}
+                deleteLabel={t('expensesList.deleteAction')}
+                loggedByName={loggedByName}
+                isSelfLogged={isSelfLogged}
+                canDelete={isSelfLogged}
+                userShareAmount={
+                  skipShareOverride ? undefined : item.userShareAmount
+                }
+                userShareConverted={
+                  skipShareOverride ? undefined : item.userShareConverted
+                }
+              />
+            );
+          }}
+          ListEmptyComponent={
+            filteredAway ? (
+              <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+                <Text style={styles.emptyEmoji}>🔍</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  {t('expensesList.emptyFilteredTitle')}
+                </Text>
+                <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
+                  {t('expensesList.emptyFilteredBody')}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+                <Text style={styles.emptyEmoji}>💸</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  {t('tripView.emptyExpensesTitle')}
+                </Text>
+                <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
+                  {t('tripView.emptyExpensesBody')}
+                </Text>
+              </View>
+            )
+          }
+        />
       </KeyboardAwareWrapper>
 
       <Pressable
@@ -626,57 +501,6 @@ export default function TripExpensesScreen() {
           <Text style={styles.fabPlus}>＋</Text>
         </LinearGradient>
       </Pressable>
-
-      <FilterModal
-        visible={openFilter === 'category'}
-        title={t('expenses.filterCategory')}
-        options={categoryOptions}
-        selectedIds={selectedCategoryIds}
-        onToggle={toggleIn(selectedCategoryIds, setSelectedCategoryIds)}
-        onSelectAll={() => setSelectedCategoryIds(new Set(categoryOptions.map((o) => o.id)))}
-        onClear={() => setSelectedCategoryIds(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'payment'}
-        title={t('expenses.filterPayment')}
-        options={paymentOptions}
-        selectedIds={selectedPayments}
-        onToggle={toggleIn(selectedPayments, setSelectedPayments)}
-        onSelectAll={() => setSelectedPayments(new Set(paymentOptions.map((o) => o.id)))}
-        onClear={() => setSelectedPayments(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'member'}
-        title={t('expenses.filterMember')}
-        options={memberOptions}
-        selectedIds={selectedMembers}
-        onToggle={toggleIn(selectedMembers, setSelectedMembers)}
-        onSelectAll={() => setSelectedMembers(new Set(memberOptions.map((o) => o.id)))}
-        onClear={() => setSelectedMembers(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'place'}
-        title={t('expenses.filterLocation')}
-        options={placeOptions}
-        selectedIds={selectedPlaces}
-        onToggle={toggleIn(selectedPlaces, setSelectedPlaces)}
-        onSelectAll={() => setSelectedPlaces(new Set(placeOptions.map((o) => o.id)))}
-        onClear={() => setSelectedPlaces(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'month'}
-        title={t('expenses.filterMonth')}
-        options={monthOptions}
-        selectedIds={selectedMonths}
-        onToggle={toggleIn(selectedMonths, setSelectedMonths)}
-        onSelectAll={() => setSelectedMonths(new Set(monthOptions.map((o) => o.id)))}
-        onClear={() => setSelectedMonths(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
     </SafeAreaView>
   );
 }
@@ -713,21 +537,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: spacing.sm,
   },
-  pillRow: {
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-    paddingRight: spacing.base,
-    alignItems: 'center',
-  },
-  clearButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clearButtonText: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
   list: { paddingHorizontal: spacing.base, paddingBottom: spacing.xxl },
   sectionHeader: {
     flexDirection: 'row',

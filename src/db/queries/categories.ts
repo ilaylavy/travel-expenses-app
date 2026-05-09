@@ -2,23 +2,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { DEFAULT_CATEGORIES } from '@/constants/categories';
 import { getDatabase } from '@/db/database';
-import type { Category } from '@/types/category';
+import type { Category, CategoryRow } from '@/types/category';
 import { newId } from '@/utils/id';
 
 import { enqueueSync } from './syncQueue';
-
-interface CategoryRow {
-  id: string;
-  name: string;
-  emoji: string;
-  color: string;
-  sort_order: number;
-  trip_id: string | null;
-  created_by: string | null;
-  is_archived: number;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface CreateCategoryInput {
   name: string;

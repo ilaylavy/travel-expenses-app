@@ -7,7 +7,7 @@ import type { MarkedDates } from 'react-native-calendars/src/types';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { countDaysInRange, formatReadableDateRange } from '@/utils/dates';
+import { countDaysInRange, formatReadableDateRange } from '@/utils/date';
 
 type CalendarRangeValue = { start: string | null; end: string | null };
 

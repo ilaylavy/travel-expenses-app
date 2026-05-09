@@ -9,8 +9,11 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { selectCategoriesForTrip, useCategoryStore } from '@/stores/categoryStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/categoryColor';
-import { getCategoryDisplayName } from '@/utils/categoryName';
+import {
+  getCategoryColor,
+  getCategoryDisplayName,
+  getCategorySoftColor,
+} from '@/utils/category';
 import { href } from '@/utils/nav';
 
 export default function CategoriesScreen() {

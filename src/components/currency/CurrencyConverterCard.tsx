@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useNumericPadModal } from '@/components/expense/NumericPadField';
+import { useNumericPadModal } from '@/components/expense/numpad/NumericPadField';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useExchangeRate } from '@/hooks/useExchangeRate';

@@ -2,22 +2,9 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { PullTable } from '@/types/sync';
 
+import { asBoolInt, asNumber, asString } from './typeCoercion';
+
 type Remote = Record<string, unknown>;
-
-function asString(v: unknown): string | null {
-  return v == null ? null : String(v);
-}
-
-function asNumber(v: unknown): number | null {
-  if (v == null) return null;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function asBoolInt(v: unknown): number {
-  if (v === true || v === 1 || v === '1' || v === 't' || v === 'true') return 1;
-  return 0;
-}
 
 export function shouldApplyRemote(
   localUpdatedAt: string | null,
