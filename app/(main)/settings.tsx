@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import RNExitApp from 'react-native-exit-app';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
@@ -148,7 +147,17 @@ export default function SettingsScreen() {
           style: 'default',
           onPress: async () => {
             await setLanguage(next);
-            if (Platform.OS === 'android') RNExitApp.exitApp();
+            // Lazy-require: native module is unavailable in Expo Go; production
+            // builds bundle it and exit normally on Android.
+            if (Platform.OS === 'android') {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const RNExitApp = require('react-native-exit-app').default;
+                RNExitApp.exitApp();
+              } catch {
+                // Native module unavailable (e.g. Expo Go); user must restart manually.
+              }
+            }
           },
         },
       ]);
