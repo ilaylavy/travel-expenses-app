@@ -76,3 +76,68 @@ eas build --platform android --profile production
 # Submit to Play Store (requires service account key)
 eas submit --platform android --profile production
 ```
+
+## Web (any browser)
+
+The web bundle is online-only — no SQLite, no offline mode. Reads/writes
+go straight to Supabase. See `CLAUDE.md` for the architectural shape;
+this section is just the deploy mechanics.
+
+### One-time setup (per Supabase / GCP / EAS project)
+
+1. **Maps JavaScript API** — in Google Cloud Console, enable
+   "Maps JavaScript API" on the project that owns
+   `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`. The Android/iOS Maps SDKs are
+   separate APIs; enabling those is not enough for the web map.
+
+2. **Storage CORS** — the `expense-photos` bucket needs to allow the
+   web origin so signed-URL `<img>` loads and Storage uploads work.
+   In the Supabase dashboard → Storage → Policies → CORS, add:
+   - `http://localhost:8081` (dev)
+   - `http://<your-LAN-IP>:8081` (phone-on-LAN dev)
+   - The deployed origin (after first `eas deploy`)
+   For dev convenience you can use `*` while iterating.
+
+3. **Auth redirect URLs** (only relevant once OAuth/magic-link is
+   wired up) — in Supabase dashboard → Authentication → URL
+   Configuration, add the deployed origin to the allow list.
+
+4. **EAS env vars** — the same `EXPO_PUBLIC_*` values used by
+   native must be set on EAS so the web bundle picks them up at
+   build time:
+   ```bash
+   eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_URL --value ...
+   eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value ...
+   eas env:create --environment preview --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value ...
+   ```
+   Repeat for `--environment production` if you ship a `--prod` deploy.
+
+### Deploy
+
+```bash
+npm run deploy:web
+```
+This runs `expo export -p web` (produces `dist/`) then `eas deploy`
+to upload it. The first run on a new project is interactive and
+asks you to pick a project alias; subsequent runs deploy straight
+to a preview URL.
+
+To promote to a stable production URL:
+```bash
+expo export -p web && eas deploy --prod
+```
+
+EAS prints the deployed URL when the upload finishes. Open it in a
+browser; the login screen renders, sign-in hits the same Supabase
+project as native, and the user sees their trips and expenses.
+
+### Limits to know about
+- No offline mode. A flaky-connection web user gets errors instead
+  of queued writes; the offline-first machinery only runs on native.
+- No reverse geocoding. Web-attached expenses store coordinates with
+  `placeName: null`. Edit the place name later or pick a location
+  via the map.
+- Photo uploads are non-atomic. If the upload fails after the parent
+  expense is created, the row is saved without that photo and the
+  staged blob is dropped on refresh. Acceptable for now; revisit if
+  it bites real users.
