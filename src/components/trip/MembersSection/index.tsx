@@ -12,6 +12,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
 import { syncEngine } from '@/sync/syncEngine';
+import { showConfirmDialog } from '@/utils/confirmDialog';
 
 import { InviteMemberForm } from './InviteMemberForm';
 import type { MemberWithName } from './MemberRow';
@@ -44,56 +45,48 @@ export function MembersSection({
   }, [reload]);
 
   const handleRemove = (m: MemberWithName): void => {
-    Alert.alert(
-      t('tripSettings.members.removeConfirmTitle'),
-      t('tripSettings.members.removeConfirmBody', { name: m.name ?? '—' }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dbRemoveMember(m.id);
-              void syncEngine.triggerSync();
-              await reload();
-            } catch (e) {
-              Alert.alert(
-                t('tripSettings.members.removeFailedTitle'),
-                e instanceof Error ? e.message : t('tripSettings.unknownError'),
-              );
-            }
-          },
-        },
-      ],
-    );
+    showConfirmDialog({
+      title: t('tripSettings.members.removeConfirmTitle'),
+      body: t('tripSettings.members.removeConfirmBody', { name: m.name ?? '—' }),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await dbRemoveMember(m.id);
+          void syncEngine.triggerSync();
+          await reload();
+        } catch (e) {
+          Alert.alert(
+            t('tripSettings.members.removeFailedTitle'),
+            e instanceof Error ? e.message : t('tripSettings.unknownError'),
+          );
+        }
+      },
+    });
   };
 
   const handleLeave = (): void => {
     if (!currentUserId) return;
-    Alert.alert(
-      t('tripSettings.members.leaveConfirmTitle'),
-      t('tripSettings.members.leaveConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('tripSettings.members.leaveTrip'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dbLeaveTrip(tripId, currentUserId);
-              void syncEngine.triggerSync();
-              await reload();
-            } catch (e) {
-              Alert.alert(
-                t('tripSettings.members.leaveFailedTitle'),
-                e instanceof Error ? e.message : t('tripSettings.unknownError'),
-              );
-            }
-          },
-        },
-      ],
-    );
+    showConfirmDialog({
+      title: t('tripSettings.members.leaveConfirmTitle'),
+      body: t('tripSettings.members.leaveConfirmBody'),
+      confirmLabel: t('tripSettings.members.leaveTrip'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await dbLeaveTrip(tripId, currentUserId);
+          void syncEngine.triggerSync();
+          await reload();
+        } catch (e) {
+          Alert.alert(
+            t('tripSettings.members.leaveFailedTitle'),
+            e instanceof Error ? e.message : t('tripSettings.unknownError'),
+          );
+        }
+      },
+    });
   };
 
   return (

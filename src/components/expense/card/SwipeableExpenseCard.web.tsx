@@ -1,10 +1,16 @@
-// Web build of SwipeableExpenseCard. Swiping a card to reveal a delete
-// action doesn't translate well to mouse + keyboard, so on web the same
-// card gets a small ⋮ overlay button that pops a window.confirm. Same
-// outcome (delete on confirm), simpler interaction. Native keeps the
-// gesture-based flow.
-
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+// Web build of SwipeableExpenseCard. Swiping a card doesn't translate to
+// mouse + keyboard, so on web the same card gets a small ⋮ overlay button
+// that pops a window.confirm. Native keeps the gesture-based flow.
+//
+// Why all the event-blocking. ExpenseCard wraps everything in a
+// react-native Pressable. On web that's a <div> with pointerdown/pointerup
+// listeners — NOT a click listener — and Pressable fires onPress on the
+// pointerup that follows a pointerdown without movement. So even if our
+// button stops the click event, Pressable has already registered the press
+// from the pointerdown and triggered navigation. We have to block all
+// three (pointerdown, pointerup, click) and ideally at the capture phase
+// so they never reach the wrapper.
+import { StyleSheet, View } from 'react-native';
 
 import { ExpenseCard } from '@/components/expense/card/ExpenseCard';
 import { spacing } from '@/constants/theme';
@@ -49,13 +55,16 @@ export function SwipeableExpenseCard({
 }: SwipeableExpenseCardProps) {
   const theme = useTheme();
 
-  const handleDeletePress = () => {
-    // window.confirm doesn't render a separate confirm/cancel button label,
-    // so we fold the action wording into the body. cancelLabel is unused
-    // on web; the browser dialog supplies its own Cancel button.
-    const ok = typeof window !== 'undefined' && window.confirm
-      ? window.confirm(`${confirmTitle}\n\n${confirmBody}\n\n— ${confirmLabel}`)
-      : true;
+  const swallow = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    swallow(e);
+    const ok = window.confirm(
+      `${confirmTitle}\n\n${confirmBody}\n\n— ${confirmLabel}`,
+    );
     if (ok) onDelete();
   };
 
@@ -72,21 +81,47 @@ export function SwipeableExpenseCard({
         userShareConverted={userShareConverted}
       />
       {canDelete ? (
-        <Pressable
-          onPress={handleDeletePress}
-          accessibilityLabel={confirmLabel}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.menuButton,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-              opacity: pressed ? 0.6 : 0.9,
-            },
-          ]}
+        <button
+          type="button"
+          // Block pointerdown/pointerup at capture so they never reach
+          // ExpenseCard's wrapping Pressable. Click is the actual handler.
+          onPointerDownCapture={swallow}
+          onPointerUpCapture={swallow}
+          onMouseDown={swallow}
+          onMouseUp={swallow}
+          onClick={handleClick}
+          aria-label={confirmLabel}
+          style={{
+            position: 'absolute',
+            top: spacing.sm,
+            insetInlineEnd: spacing.sm,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            borderWidth: 1,
+            borderStyle: 'solid',
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            color: theme.text,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            fontSize: 22,
+            fontWeight: 700,
+            lineHeight: 1,
+            opacity: 1,
+            zIndex: 10,
+            // Belt-and-suspenders: tell the browser this element handles
+            // its own touch behavior so the parent doesn't get a chance
+            // to interpret the touch as a press on the card.
+            touchAction: 'manipulation',
+            userSelect: 'none',
+          }}
         >
-          <Text style={[styles.menuIcon, { color: theme.textSecondary }]}>⋮</Text>
-        </Pressable>
+          ⋮
+        </button>
       ) : null}
     </View>
   );
@@ -94,16 +129,4 @@ export function SwipeableExpenseCard({
 
 const styles = StyleSheet.create({
   wrap: { position: 'relative' },
-  menuButton: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: { fontSize: 18, fontWeight: '700', lineHeight: 20 },
 });

@@ -14,6 +14,7 @@ import {
   getCategoryDisplayName,
   getCategorySoftColor,
 } from '@/utils/category';
+import { showConfirmDialog } from '@/utils/confirmDialog';
 import { href } from '@/utils/nav';
 
 export default function CategoriesScreen() {
@@ -57,26 +58,22 @@ export default function CategoriesScreen() {
   };
 
   const handleDelete = (category: Category) => {
-    Alert.alert(
-      t('categories.deleteConfirmTitle'),
-      t('categories.deleteConfirmBody', { name: getCategoryDisplayName(category, t) }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: async () => {
-            const ok = await deleteCategoryIfEmpty(category.id);
-            if (!ok) {
-              Alert.alert(
-                t('categories.cannotDeleteTitle'),
-                t('categories.cannotDeleteBody'),
-              );
-            }
-          },
-        },
-      ],
-    );
+    showConfirmDialog({
+      title: t('categories.deleteConfirmTitle'),
+      body: t('categories.deleteConfirmBody', { name: getCategoryDisplayName(category, t) }),
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: async () => {
+        const ok = await deleteCategoryIfEmpty(category.id);
+        if (!ok) {
+          Alert.alert(
+            t('categories.cannotDeleteTitle'),
+            t('categories.cannotDeleteBody'),
+          );
+        }
+      },
+    });
   };
 
   const renderRow = (category: Category, index: number, scope: Category[]) => {
