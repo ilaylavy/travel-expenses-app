@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,12 +10,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ExpenseHero } from '@/components/expense/detail/ExpenseHero';
+import { ExpensePhotosSection } from '@/components/expense/detail/ExpensePhotosSection';
+import { ExpenseSplitBreakdown } from '@/components/expense/detail/ExpenseSplitBreakdown';
+import { FieldCard } from '@/components/expense/detail/FieldCard';
 import { PhotoGalleryModal } from '@/components/expense/photo/PhotoGalleryModal';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { getSignedPhotoUrl } from '@/services/photoService';
 import { useAuthStore } from '@/stores/authStore';
 import {
   selectCategoriesForTrip,
@@ -25,12 +27,8 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
-import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
-import {
-  getCategoryColor,
-  getCategoryDisplayName,
-  getCategorySoftColor,
-} from '@/utils/category';
+import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -201,26 +199,7 @@ export default function ExpenseDetailScreen() {
     );
   }
 
-  const color = category ? getCategoryColor(category.color, theme) : theme.accent;
-  const softColor = category
-    ? getCategorySoftColor(category.color, theme)
-    : theme.accentSoft;
-
   const showConverted = expense.currency !== trip.homeCurrency;
-  // For split expenses where the user has a share row, the hero shows the
-  // user's share (matches the expense list). The full amount is still
-  // visible in the Split section as "Total: ...".
-  const heroAmountValue =
-    expense.isSplit && userSplit ? userSplit.amount : expense.amount;
-  const heroConvertedValue =
-    expense.isSplit && userSplit && expense.amount !== 0
-      ? expense.convertedAmount * (userSplit.amount / expense.amount)
-      : expense.convertedAmount;
-  const primaryAmount = formatAmount(Math.abs(heroAmountValue), expense.currency);
-  const convertedAmount = formatAmount(
-    Math.abs(heroConvertedValue),
-    trip.homeCurrency,
-  );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
@@ -244,15 +223,10 @@ export default function ExpenseDetailScreen() {
             hitSlop={8}
             style={[
               styles.headerButton,
-              {
-                backgroundColor: theme.accentSoft,
-                borderColor: theme.accent,
-              },
+              { backgroundColor: theme.accentSoft, borderColor: theme.accent },
             ]}
           >
-            <Text style={[styles.headerButtonText, { color: theme.accent }]}>
-              ✎
-            </Text>
+            <Text style={[styles.headerButtonText, { color: theme.accent }]}>✎</Text>
           </Pressable>
         ) : (
           <View style={styles.headerButton} />
@@ -260,69 +234,14 @@ export default function ExpenseDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Amount hero */}
-        <View
-          style={[
-            styles.hero,
-            { backgroundColor: theme.surface, borderColor: theme.borderLight },
-          ]}
-        >
-          <View style={[styles.categoryIcon, { backgroundColor: softColor }]}>
-            <Text style={styles.categoryEmoji}>{category?.emoji ?? '•'}</Text>
-          </View>
-          {category ? (
-            <Text style={[styles.categoryName, { color }]}>
-              {getCategoryDisplayName(category, t)}
-            </Text>
-          ) : null}
-          <Text
-            style={[
-              styles.amount,
-              { color: expense.isRefund ? theme.green : theme.text },
-            ]}
-          >
-            {expense.isRefund ? '+' : ''}
-            {primaryAmount}
-          </Text>
-          {showConverted ? (
-            <Text style={[styles.amountConverted, { color: theme.textMuted }]}>
-              ≈ {convertedAmount}
-            </Text>
-          ) : null}
-          <View style={styles.badgeRow}>
-            {expense.isRefund ? (
-              <View style={[styles.badge, { backgroundColor: theme.greenSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.green }]}>
-                  {t('expenseDetail.badgeRefund')}
-                </Text>
-              </View>
-            ) : null}
-            {expense.isExcludedFromDailyMetrics ? (
-              <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-                  {t('expenseDetail.badgeExcluded')}
-                </Text>
-              </View>
-            ) : null}
-            {expense.spreadStartDate && expense.spreadEndDate ? (
-              <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.accent }]}>
-                  {t('expenseDetail.badgeMultiDay')}
-                </Text>
-              </View>
-            ) : null}
-            {expense.isPrivate ? (
-              <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-                  🔒 {t('expense.privateBadge')}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
+        <ExpenseHero
+          expense={expense}
+          trip={trip}
+          category={category}
+          userSplit={userSplit}
+        />
 
-        {/* Note */}
-        <FieldCard title={t('expenseDetail.noteLabel')} theme={theme}>
+        <FieldCard title={t('expenseDetail.noteLabel')}>
           <Text
             style={[
               styles.fieldValue,
@@ -333,17 +252,15 @@ export default function ExpenseDetailScreen() {
           </Text>
         </FieldCard>
 
-        {/* Payment */}
         {expense.paymentMethod ? (
-          <FieldCard title={t('expenseDetail.paymentLabel')} theme={theme}>
+          <FieldCard title={t('expenseDetail.paymentLabel')}>
             <Text style={[styles.fieldValue, { color: theme.text }]}>
               {paymentLabel(expense.paymentMethod, t)}
             </Text>
           </FieldCard>
         ) : null}
 
-        {/* Date & time */}
-        <FieldCard title={t('expenseDetail.dateTimeLabel')} theme={theme}>
+        <FieldCard title={t('expenseDetail.dateTimeLabel')}>
           <Text style={[styles.fieldValue, { color: theme.text }]}>
             {formatDayWithYear(expense.expenseDate)} · {expense.expenseTime.slice(0, 5)}
           </Text>
@@ -357,14 +274,11 @@ export default function ExpenseDetailScreen() {
           ) : null}
         </FieldCard>
 
-        {/* Location */}
-        <FieldCard title={t('expenseDetail.locationLabel')} theme={theme}>
+        <FieldCard title={t('expenseDetail.locationLabel')}>
           {expense.latitude != null && expense.longitude != null ? (
             <Pressable
               onPress={() =>
-                router.push(
-                  href(`/trip/${tripId}/map?focusExpenseId=${expense.id}`),
-                )
+                router.push(href(`/trip/${tripId}/map?focusExpenseId=${expense.id}`))
               }
               accessibilityRole="button"
               accessibilityLabel={t('expenseDetail.viewOnMapHint')}
@@ -389,8 +303,7 @@ export default function ExpenseDetailScreen() {
           )}
         </FieldCard>
 
-        {/* Exchange rate */}
-        <FieldCard title={t('expenseDetail.exchangeLabel')} theme={theme}>
+        <FieldCard title={t('expenseDetail.exchangeLabel')}>
           {showConverted ? (
             <>
               <Text style={[styles.fieldValue, { color: theme.text }]}>
@@ -413,93 +326,22 @@ export default function ExpenseDetailScreen() {
           )}
         </FieldCard>
 
-        {/* Photos */}
-        {expense.photos.length > 0 ? (
-          <View style={styles.photosSection}>
-            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
-              {t('expenseDetail.photosLabel').toUpperCase()}
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.photoRow}
-            >
-              {expense.photos.map((photo, index) => (
-                <PhotoThumb
-                  key={photo.id}
-                  photo={photo}
-                  borderColor={theme.border}
-                  onPress={() => {
-                    setGalleryIndex(index);
-                    setGalleryOpen(true);
-                  }}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
+        <ExpensePhotosSection
+          photos={expense.photos}
+          onTap={(index) => {
+            setGalleryIndex(index);
+            setGalleryOpen(true);
+          }}
+        />
 
-        {/* Split breakdown */}
-        {expense.isSplit && sortedSplits.length > 0 ? (
-          <FieldCard
-            title={t('split.betweenPeople', { count: sortedSplits.length })}
-            theme={theme}
-          >
-            <Text style={[styles.fieldSub, { color: theme.textSecondary }]}>
-              {t('split.total', {
-                amount: formatAmount(Math.abs(expense.amount), expense.currency),
-              })}
-            </Text>
-            <View style={{ marginTop: spacing.sm, gap: spacing.xs }}>
-              {sortedSplits.map((s) => {
-                const name =
-                  s.userId === user?.id
-                    ? t('expenseDetail.you')
-                    : splitMemberNames[s.userId] || s.userId.slice(0, 6);
-                return (
-                  <View key={s.id} style={styles.splitRow}>
-                    <Text
-                      style={{ color: theme.text, flex: 1, fontWeight: '600' }}
-                      numberOfLines={1}
-                    >
-                      {name}
-                    </Text>
-                    {s.isPayer ? (
-                      <View
-                        style={[styles.badge, { backgroundColor: theme.greenSoft }]}
-                      >
-                        <Text style={[styles.badgeText, { color: theme.green }]}>
-                          {t('split.paid')}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <Text style={{ color: theme.text, fontWeight: '700' }}>
-                      {formatAmount(s.amount, expense.currency)}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-            {userSplit ? (
-              <Text
-                style={[
-                  styles.fieldValue,
-                  {
-                    color: theme.accent,
-                    fontWeight: '700',
-                    marginTop: spacing.sm,
-                  },
-                ]}
-              >
-                {t('split.yourShare', {
-                  amount: formatAmount(userSplit.amount, expense.currency),
-                })}
-              </Text>
-            ) : null}
-          </FieldCard>
-        ) : null}
+        <ExpenseSplitBreakdown
+          expense={expense}
+          splits={sortedSplits}
+          userSplit={userSplit}
+          splitMemberNames={splitMemberNames}
+          currentUserId={user?.id ?? null}
+        />
 
-        {/* Logged by (shared trips only) */}
         {isShared ? (
           <Text style={[styles.loggedBy, { color: theme.textMuted }]}>
             {t('expenseDetail.loggedBy', { name: loggerName ?? '—' })}
@@ -546,71 +388,6 @@ export default function ExpenseDetailScreen() {
   );
 }
 
-function PhotoThumb({
-  photo,
-  borderColor,
-  onPress,
-}: {
-  photo: ExpensePhoto;
-  borderColor: string;
-  onPress: () => void;
-}) {
-  const [uri, setUri] = useState<string | null>(photo.localUri ?? null);
-
-  useEffect(() => {
-    if (photo.localUri) {
-      setUri(photo.localUri);
-      return;
-    }
-    if (!photo.storagePath) return;
-    let cancelled = false;
-    (async () => {
-      const signed = await getSignedPhotoUrl(photo.storagePath);
-      if (!cancelled) setUri(signed);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [photo.localUri, photo.storagePath]);
-
-  return (
-    <Pressable onPress={onPress}>
-      {uri ? (
-        <Image
-          source={{ uri }}
-          style={[styles.photoThumb, { borderColor }]}
-        />
-      ) : (
-        <View style={[styles.photoThumb, { borderColor, backgroundColor: borderColor }]} />
-      )}
-    </Pressable>
-  );
-}
-
-function FieldCard({
-  title,
-  theme,
-  children,
-}: {
-  title: string;
-  theme: ReturnType<typeof useTheme>;
-  children: React.ReactNode;
-}) {
-  return (
-    <View
-      style={[
-        styles.fieldCard,
-        { backgroundColor: theme.surface, borderColor: theme.borderLight },
-      ]}
-    >
-      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>
-        {title.toUpperCase()}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: {
@@ -636,65 +413,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.base,
   },
-  hero: {
-    borderRadius: sizing.radiusCard,
-    borderWidth: 1,
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  categoryIcon: {
-    width: sizing.categoryIconLarge,
-    height: sizing.categoryIconLarge,
-    borderRadius: sizing.radiusIcon,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryEmoji: { fontSize: 24 },
-  categoryName: { ...typography.subtitle, letterSpacing: 0.3 },
-  amount: { ...typography.amountLarge, marginTop: spacing.xs },
-  amountConverted: { ...typography.subtitle },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    justifyContent: 'center',
-    marginTop: spacing.xs,
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: sizing.radiusChip,
-  },
-  badgeText: { ...typography.micro },
-  fieldCard: {
-    borderRadius: sizing.radiusCardInner,
-    borderWidth: 1,
-    padding: spacing.lg,
-    gap: 4,
-  },
-  fieldLabel: { ...typography.micro, marginBottom: 2 },
   fieldValue: { ...typography.body, fontSize: 15 },
   fieldSub: { ...typography.secondary, marginTop: 2 },
-  photosSection: { gap: spacing.sm },
-  sectionLabel: { ...typography.micro, paddingHorizontal: spacing.xs },
-  photoRow: { gap: spacing.sm, paddingVertical: 4 },
-  photoThumb: {
-    width: 96,
-    height: 96,
-    borderRadius: sizing.radiusSmall,
-    borderWidth: 1,
-  },
   loggedBy: {
     ...typography.caption,
     textAlign: 'center',
     marginTop: spacing.sm,
-  },
-  splitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   footer: {
     flexDirection: 'row',

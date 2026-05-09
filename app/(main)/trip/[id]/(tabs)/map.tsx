@@ -1,59 +1,42 @@
 import { useGlobalSearchParams, useRouter } from 'expo-router';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   I18nManager,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import MapView, {
-  Marker,
-  PROVIDER_GOOGLE,
-  type Region,
-} from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryPin, ClusterPin } from '@/components/map/ExpensePin';
 import { ExpensePopup } from '@/components/map/ExpensePopup';
-import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
-import { FilterPill } from '@/components/ui/FilterPill';
+import {
+  ExpenseFilterChips,
+  type ExpenseFilterKey,
+} from '@/components/expense/list/ExpenseFilterChips';
+import { TrackedMarker } from '@/components/map/TrackedMarker';
+import type { FilterOption } from '@/components/ui/FilterModal';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
+import { useExpenseClustering } from '@/hooks/useExpenseClustering';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { getCurrentCoordinates } from '@/services/locationService';
 import {
   selectCategoriesForTrip,
   useCategoryStore,
 } from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
-import { getCurrentCoordinates } from '@/services/locationService';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
-import {
-  boundsForExpenses,
-  clusterExpenses,
-  locatedExpenses as filterLocated,
-} from '@/utils/mapCluster';
+import { locatedExpenses as filterLocated } from '@/utils/mapCluster';
 import { href } from '@/utils/nav';
-
-const FALLBACK_REGION: Region = {
-  latitude: 20,
-  longitude: 0,
-  latitudeDelta: 120,
-  longitudeDelta: 120,
-};
 
 const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -79,8 +62,6 @@ function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-type FilterKey = 'category' | 'payment' | 'member' | 'place' | 'month';
-
 export default function TripMapScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -99,7 +80,6 @@ export default function TripMapScreen() {
 
   const mapRef = useRef<MapView | null>(null);
   const focusHandledRef = useRef<string | null>(null);
-  const suppressVisibleFitRef = useRef(false);
 
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
@@ -109,7 +89,7 @@ export default function TripMapScreen() {
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(() => new Set());
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(() => new Set());
   const [selectedMonths, setSelectedMonths] = useState<Set<string>>(() => new Set());
-  const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
+  const [openFilter, setOpenFilter] = useState<ExpenseFilterKey | null>(null);
   const [selectedExpense, setSelectedExpense] =
     useState<ExpenseWithPhotos | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -223,8 +203,6 @@ export default function TripMapScreen() {
       .map(([id, count]) => ({ id, label: formatYearMonth(id), count }));
   }, [locatedAll]);
 
-  // ----- Filtering -----
-
   const visibleExpenses = useMemo(() => {
     return locatedAll.filter((e) => {
       if (selectedCategoryIds.size > 0 && !selectedCategoryIds.has(e.categoryId)) {
@@ -252,31 +230,12 @@ export default function TripMapScreen() {
     selectedMonths,
   ]);
 
-  const anyFilterActive =
-    selectedCategoryIds.size > 0 ||
-    selectedPayments.size > 0 ||
-    selectedMembers.size > 0 ||
-    selectedPlaces.size > 0 ||
-    selectedMonths.size > 0;
-
-  // ----- Map region & fitting -----
-
-  const [initialRegion] = useState<Region>(() => {
-    const bounds = boundsForExpenses(expenses);
-    return bounds ?? FALLBACK_REGION;
-  });
-  const [region, setRegion] = useState<Region>(initialRegion);
-  const didInitialFitRef = useRef(boundsForExpenses(expenses) !== null);
-
-  // Initial fit: once expenses load with at least one located item, fit the map.
-  useEffect(() => {
-    if (didInitialFitRef.current) return;
-    const bounds = boundsForExpenses(expenses);
-    if (bounds && mapRef.current) {
-      mapRef.current.animateToRegion(bounds, 400);
-      didInitialFitRef.current = true;
-    }
-  }, [expenses]);
+  const { initialRegion, setRegion, items, focusExpense, zoomIntoCluster } =
+    useExpenseClustering({
+      allExpenses: expenses,
+      visibleExpenses,
+      mapRef,
+    });
 
   // Focus a specific expense when navigated to with `?focusExpenseId=...`
   // (e.g., from the location field on the expense detail screen).
@@ -290,85 +249,11 @@ export default function TripMapScreen() {
       router.setParams({ focusExpenseId: undefined });
       return;
     }
-    didInitialFitRef.current = true;
-    suppressVisibleFitRef.current = true;
-    mapRef.current?.animateToRegion(
-      {
-        latitude: target.latitude,
-        longitude: target.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      },
-      400,
-    );
+    focusExpense(target);
     setSelectedExpense(target);
     focusHandledRef.current = focusExpenseId;
     router.setParams({ focusExpenseId: undefined });
-  }, [focusExpenseId, expenses, router]);
-
-  // Refit on filter changes — fits to the *visible* set so the user always
-  // sees the pins they care about.
-  const visibleSignature = useMemo(
-    () => visibleExpenses.map((e) => e.id).join(','),
-    [visibleExpenses],
-  );
-  useEffect(() => {
-    if (!didInitialFitRef.current) return;
-    if (!mapRef.current) return;
-    if (visibleExpenses.length === 0) return;
-    if (suppressVisibleFitRef.current) {
-      suppressVisibleFitRef.current = false;
-      return;
-    }
-    const coords = visibleExpenses.map((e) => ({
-      latitude: e.latitude as number,
-      longitude: e.longitude as number,
-    }));
-    mapRef.current.fitToCoordinates(coords, {
-      edgePadding: { top: 120, right: 60, bottom: 200, left: 60 },
-      animated: true,
-    });
-    // visibleExpenses recomputes when filters change; this signature is stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleSignature]);
-
-  const items = useMemo(
-    () => clusterExpenses(visibleExpenses, region),
-    [visibleExpenses, region],
-  );
-
-  const zoomIntoCluster = (members: ExpenseWithPhotos[]) => {
-    if (!mapRef.current || members.length === 0) return;
-    let minLat = members[0].latitude as number;
-    let maxLat = minLat;
-    let minLng = members[0].longitude as number;
-    let maxLng = minLng;
-    for (let i = 1; i < members.length; i += 1) {
-      const lat = members[i].latitude as number;
-      const lng = members[i].longitude as number;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-    }
-    const next: Region = {
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.004),
-      longitudeDelta: Math.max((maxLng - minLng) * 1.6, 0.004),
-    };
-    mapRef.current.animateToRegion(next, 300);
-  };
-
-  const toggleIn = useCallback(
-    (set: Set<string>, setter: (s: Set<string>) => void) => (id: string) => {
-      const next = new Set(set);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      setter(next);
-    },
-    [],
-  );
+  }, [focusExpenseId, expenses, router, focusExpense]);
 
   const handleClearAll = () => {
     setSelectedCategoryIds(new Set());
@@ -401,22 +286,6 @@ export default function TripMapScreen() {
     }
   };
 
-  // ----- Pill summaries -----
-
-  function summarize(
-    selected: Set<string>,
-    options: FilterOption[],
-    fallback: string,
-    countKey: 'expenses.filterNCategories' | 'expenses.filterNSelected',
-  ): string {
-    if (selected.size === 0) return fallback;
-    if (selected.size <= 2) {
-      const labels = options.filter((o) => selected.has(o.id)).map((o) => o.label);
-      return labels.join(', ');
-    }
-    return t(countKey, { count: selected.size });
-  }
-
   if (!trip || !tripId) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
@@ -426,37 +295,6 @@ export default function TripMapScreen() {
       </SafeAreaView>
     );
   }
-
-  const categorySummary = summarize(
-    selectedCategoryIds,
-    categoryOptions,
-    t('expenses.filterAll'),
-    'expenses.filterNCategories',
-  );
-  const paymentSummary = summarize(
-    selectedPayments,
-    paymentOptions,
-    t('expenses.filterAllPayments'),
-    'expenses.filterNSelected',
-  );
-  const memberSummary = summarize(
-    selectedMembers,
-    memberOptions,
-    t('expenses.filterEveryone'),
-    'expenses.filterNSelected',
-  );
-  const placeSummary = summarize(
-    selectedPlaces,
-    placeOptions,
-    t('expenses.filterAllPlaces'),
-    'expenses.filterNSelected',
-  );
-  const monthSummary = summarize(
-    selectedMonths,
-    monthOptions,
-    t('expenses.filterAllTime'),
-    'expenses.filterNSelected',
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -510,65 +348,29 @@ export default function TripMapScreen() {
         })}
       </MapView>
 
-      <SafeAreaView
-        style={styles.topOverlay}
-        edges={['top']}
-        pointerEvents="box-none"
-      >
+      <SafeAreaView style={styles.topOverlay} edges={['top']} pointerEvents="box-none">
         {locatedAll.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.pillRow}
-          >
-            <FilterPill
-              label={t('expenses.filterCategory')}
-              summary={categorySummary}
-              active={selectedCategoryIds.size > 0}
-              onPress={() => setOpenFilter('category')}
-            />
-            <FilterPill
-              label={t('expenses.filterPayment')}
-              summary={paymentSummary}
-              active={selectedPayments.size > 0}
-              onPress={() => setOpenFilter('payment')}
-            />
-            {isSharedTrip ? (
-              <FilterPill
-                label={t('expenses.filterMember')}
-                summary={memberSummary}
-                active={selectedMembers.size > 0}
-                onPress={() => setOpenFilter('member')}
-              />
-            ) : null}
-            <FilterPill
-              label={t('expenses.filterLocation')}
-              summary={placeSummary}
-              active={selectedPlaces.size > 0}
-              onPress={() => setOpenFilter('place')}
-            />
-            <FilterPill
-              label={t('expenses.filterMonth')}
-              summary={monthSummary}
-              active={selectedMonths.size > 0}
-              onPress={() => setOpenFilter('month')}
-            />
-            {anyFilterActive ? (
-              <Pressable
-                onPress={handleClearAll}
-                style={[
-                  styles.clearButton,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-                accessibilityLabel={t('expenses.filterClearAll')}
-                hitSlop={6}
-              >
-                <Text style={[styles.clearButtonText, { color: theme.textSecondary }]}>
-                  ✕
-                </Text>
-              </Pressable>
-            ) : null}
-          </ScrollView>
+          <ExpenseFilterChips
+            isSharedTrip={isSharedTrip}
+            openFilter={openFilter}
+            onOpenFilter={setOpenFilter}
+            categoryOptions={categoryOptions}
+            paymentOptions={paymentOptions}
+            memberOptions={memberOptions}
+            placeOptions={placeOptions}
+            monthOptions={monthOptions}
+            selectedCategoryIds={selectedCategoryIds}
+            selectedPayments={selectedPayments}
+            selectedMembers={selectedMembers}
+            selectedPlaces={selectedPlaces}
+            selectedMonths={selectedMonths}
+            onSetCategoryIds={setSelectedCategoryIds}
+            onSetPayments={setSelectedPayments}
+            onSetMembers={setSelectedMembers}
+            onSetPlaces={setSelectedPlaces}
+            onSetMonths={setSelectedMonths}
+            onClearAll={handleClearAll}
+          />
         ) : null}
       </SafeAreaView>
 
@@ -627,106 +429,7 @@ export default function TripMapScreen() {
           />
         </SafeAreaView>
       ) : null}
-
-      <FilterModal
-        visible={openFilter === 'category'}
-        title={t('expenses.filterCategory')}
-        options={categoryOptions}
-        selectedIds={selectedCategoryIds}
-        onToggle={toggleIn(selectedCategoryIds, setSelectedCategoryIds)}
-        onSelectAll={() =>
-          setSelectedCategoryIds(new Set(categoryOptions.map((o) => o.id)))
-        }
-        onClear={() => setSelectedCategoryIds(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'payment'}
-        title={t('expenses.filterPayment')}
-        options={paymentOptions}
-        selectedIds={selectedPayments}
-        onToggle={toggleIn(selectedPayments, setSelectedPayments)}
-        onSelectAll={() =>
-          setSelectedPayments(new Set(paymentOptions.map((o) => o.id)))
-        }
-        onClear={() => setSelectedPayments(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'member'}
-        title={t('expenses.filterMember')}
-        options={memberOptions}
-        selectedIds={selectedMembers}
-        onToggle={toggleIn(selectedMembers, setSelectedMembers)}
-        onSelectAll={() =>
-          setSelectedMembers(new Set(memberOptions.map((o) => o.id)))
-        }
-        onClear={() => setSelectedMembers(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'place'}
-        title={t('expenses.filterLocation')}
-        options={placeOptions}
-        selectedIds={selectedPlaces}
-        onToggle={toggleIn(selectedPlaces, setSelectedPlaces)}
-        onSelectAll={() =>
-          setSelectedPlaces(new Set(placeOptions.map((o) => o.id)))
-        }
-        onClear={() => setSelectedPlaces(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
-      <FilterModal
-        visible={openFilter === 'month'}
-        title={t('expenses.filterMonth')}
-        options={monthOptions}
-        selectedIds={selectedMonths}
-        onToggle={toggleIn(selectedMonths, setSelectedMonths)}
-        onSelectAll={() =>
-          setSelectedMonths(new Set(monthOptions.map((o) => o.id)))
-        }
-        onClear={() => setSelectedMonths(new Set())}
-        onDone={() => setOpenFilter(null)}
-      />
     </View>
-  );
-}
-
-interface TrackedMarkerProps {
-  identity: string;
-  coordinate: { latitude: number; longitude: number };
-  anchor: { x: number; y: number };
-  onPress: () => void;
-  children: React.ReactNode;
-}
-
-// Wraps <Marker> so we can briefly enable tracksViewChanges on first render
-// and whenever the rendered content changes — Google Maps on Android needs
-// this to re-snapshot custom Views, otherwise pins draw as empty space.
-function TrackedMarker({
-  identity,
-  coordinate,
-  anchor,
-  onPress,
-  children,
-}: TrackedMarkerProps) {
-  const [tracks, setTracks] = useState(true);
-
-  useEffect(() => {
-    setTracks(true);
-    const handle = setTimeout(() => setTracks(false), 250);
-    return () => clearTimeout(handle);
-  }, [identity]);
-
-  return (
-    <Marker
-      coordinate={coordinate}
-      onPress={onPress}
-      anchor={anchor}
-      tracksViewChanges={tracks}
-    >
-      {children}
-    </Marker>
   );
 }
 
@@ -735,22 +438,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   topOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
-  pillRow: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    alignItems: 'center',
-  },
-  clearButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clearButtonText: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
   locateButton: {
     position: 'absolute',
     bottom: 80,
