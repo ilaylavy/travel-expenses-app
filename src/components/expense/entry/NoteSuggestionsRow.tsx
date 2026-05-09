@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { sizing, spacing, typography } from '@/constants/theme';
-import type { RecentNoteSuggestion } from '@/db/queries/expenses';
+import type { RecentNoteSuggestion } from '@/db/queries/expenseAnalytics';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 

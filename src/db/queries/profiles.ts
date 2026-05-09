@@ -1,4 +1,5 @@
 import { getDatabase } from '@/db/database';
+import type { ProfileRow } from '@/types/profile';
 
 import { enqueueSync } from './syncQueue';
 
@@ -9,15 +10,6 @@ export interface Profile {
   defaultCurrency: string;
   createdAt: string;
   updatedAt: string;
-}
-
-interface ProfileRow {
-  id: string;
-  name: string;
-  avatar_url: string | null;
-  default_currency: string;
-  created_at: string;
-  updated_at: string;
 }
 
 function rowToProfile(row: ProfileRow): Profile {

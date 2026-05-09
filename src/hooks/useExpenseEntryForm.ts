@@ -4,11 +4,11 @@ import { Keyboard } from 'react-native';
 import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
 import {
   categoryUsageForTrip,
-  getExpense,
   getRecentNotes,
   lastUsedPaymentMethodForTrip,
   type RecentNoteSuggestion,
-} from '@/db/queries/expenses';
+} from '@/db/queries/expenseAnalytics';
+import { getExpense } from '@/db/queries/expenses';
 import {
   getSplitsForExpense,
   type CreateSplitInput,

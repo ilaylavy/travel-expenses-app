@@ -1,18 +1,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { ExpensePhoto } from '@/types/expense';
+import type { ExpensePhoto, ExpensePhotoRow } from '@/types/expense';
 
-interface ExpensePhotoRow {
-  id: string;
-  expense_id: string;
-  storage_path: string;
-  local_uri: string | null;
-  sort_order: number;
-  created_at: string;
-}
-
-function rowToPhoto(row: ExpensePhotoRow): ExpensePhoto {
+export function rowToPhoto(row: ExpensePhotoRow): ExpensePhoto {
   return {
     id: row.id,
     expenseId: row.expense_id,
@@ -21,6 +12,29 @@ function rowToPhoto(row: ExpensePhotoRow): ExpensePhoto {
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };
+}
+
+export function photoToPayload(p: ExpensePhoto): Record<string, unknown> {
+  return {
+    id: p.id,
+    expense_id: p.expenseId,
+    storage_path: p.storagePath,
+    local_uri: p.localUri,
+    sort_order: p.sortOrder,
+    created_at: p.createdAt,
+  };
+}
+
+export async function insertPhoto(
+  db: SQLiteDatabase,
+  p: ExpensePhoto,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO expense_photos
+       (id, expense_id, storage_path, local_uri, sort_order, created_at)
+     VALUES (?, ?, ?, ?, ?, ?);`,
+    [p.id, p.expenseId, p.storagePath, p.localUri, p.sortOrder, p.createdAt],
+  );
 }
 
 export async function getPhotoById(

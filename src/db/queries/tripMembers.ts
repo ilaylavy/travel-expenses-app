@@ -1,31 +1,13 @@
 import { getDatabase } from '@/db/database';
-import type { Trip, TripMember } from '@/types/trip';
+import type {
+  PendingInviteRow,
+  Trip,
+  TripMember,
+  TripMemberRow,
+} from '@/types/trip';
 import { newId } from '@/utils/id';
 
 import { enqueueSync } from './syncQueue';
-
-interface TripMemberRow {
-  id: string;
-  trip_id: string;
-  user_id: string;
-  role: 'owner' | 'member';
-  invited_at: string;
-  joined_at: string | null;
-  budget: number | null;
-  updated_at: string | null;
-}
-
-interface PendingInviteRow extends TripMemberRow {
-  trip_name: string;
-  trip_emoji: string;
-  trip_start_date: string;
-  trip_end_date: string | null;
-  trip_base_currency: string;
-  trip_home_currency: string;
-  trip_owner_id: string;
-  trip_created_at: string;
-  trip_updated_at: string;
-}
 
 export interface PendingInvite {
   member: TripMember;
