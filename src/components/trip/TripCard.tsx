@@ -4,14 +4,46 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import type { TripWithStats } from '@/types/trip';
+import type { Trip, TripWithStats } from '@/types/trip';
 import { formatAmount } from '@/utils/currency';
-import { formatDateRange } from '@/utils/date';
+import { countDaysInRange, formatDateRange, todayIsoDate } from '@/utils/date';
 
 interface TripCardProps {
   trip: TripWithStats;
   onPress: () => void;
   onEdit?: () => void;
+}
+
+type TripPhase = 'upcoming' | 'ongoing' | 'past';
+type StatusInfo = { label: string; phase: TripPhase };
+
+type Translate = (key: string, opts?: Record<string, unknown>) => string;
+
+function getStatus(trip: Trip, t: Translate): StatusInfo {
+  const today = todayIsoDate();
+  if (trip.startDate > today) {
+    const daysUntil = countDaysInRange(today, trip.startDate) - 1;
+    if (daysUntil === 1) {
+      return { label: t('trips.statusStartsTomorrow'), phase: 'upcoming' };
+    }
+    return {
+      label: t('trips.statusStartsInDays', { count: daysUntil }),
+      phase: 'upcoming',
+    };
+  }
+  if (trip.endDate && trip.endDate < today) {
+    const total = countDaysInRange(trip.startDate, trip.endDate);
+    return { label: t('trips.statusWrappedDays', { count: total }), phase: 'past' };
+  }
+  const dayN = countDaysInRange(trip.startDate, today);
+  if (trip.endDate) {
+    const total = countDaysInRange(trip.startDate, trip.endDate);
+    return {
+      label: t('trips.statusDayOfTotal', { day: dayN, total }),
+      phase: 'ongoing',
+    };
+  }
+  return { label: t('trips.statusDay', { day: dayN }), phase: 'ongoing' };
 }
 
 export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
@@ -21,21 +53,46 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   const hasBudget =
     trip.budget != null && trip.budget > 0 && stats.budgetHome != null && stats.budgetHome > 0;
   const pct = hasBudget ? Math.min(1, stats.totalSpent / (stats.budgetHome ?? 1)) : 0;
-  const isOngoing = trip.endDate == null;
   const isShared = stats.memberCount > 1;
+  const status = getStatus(trip, t);
 
-  const barGradient =
-    pct > 0.9 ? null : pct > 0.7 ? theme.gradient2 : theme.gradient1;
-  const overBudgetColor = theme.red;
+  const barGradient = pct > 0.9 ? null : pct > 0.7 ? theme.gradient2 : theme.gradient1;
+
+  const statusBg =
+    status.phase === 'ongoing'
+      ? theme.tealSoft
+      : status.phase === 'upcoming'
+        ? theme.accentSoft
+        : theme.bgSoft;
+  const statusFg =
+    status.phase === 'ongoing'
+      ? theme.teal
+      : status.phase === 'upcoming'
+        ? theme.accentLight
+        : theme.textMuted;
+
+  const isOngoing = status.phase === 'ongoing';
 
   return (
-    <View style={styles.wrapper}>
-      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.wrapper, pressed && styles.pressed]}
+    >
       <LinearGradient
         colors={theme.cardGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.card, { borderColor: theme.border }]}
+        style={[
+          styles.card,
+          {
+            borderColor: isOngoing ? theme.accent : theme.border,
+            borderWidth: isOngoing ? 1.5 : 1,
+            shadowColor: isOngoing ? theme.accent : 'transparent',
+            shadowOpacity: isOngoing ? 0.35 : 0,
+            shadowRadius: isOngoing ? 20 : 0,
+            elevation: isOngoing ? 6 : 2,
+          },
+        ]}
       >
         <View style={styles.headerRow}>
           <View
@@ -54,18 +111,16 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
               {formatDateRange(trip.startDate, trip.endDate, t('common.ongoing'))}
             </Text>
           </View>
-          <View style={styles.badges}>
-            {isOngoing && (
-              <View style={[styles.badge, { backgroundColor: theme.tealSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.teal }]}>
-                  {t('trips.ongoingBadge')}
-                </Text>
-              </View>
-            )}
+          <View style={styles.pills}>
+            <View style={[styles.pill, { backgroundColor: statusBg }]}>
+              <Text style={[styles.pillText, { color: statusFg }]} numberOfLines={1}>
+                {status.label}
+              </Text>
+            </View>
             {isShared && (
-              <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-                <Text style={[styles.badgeText, { color: theme.accentLight }]}>
-                  {t('trips.sharedBadge')}
+              <View style={[styles.pill, { backgroundColor: theme.accentSoft }]}>
+                <Text style={[styles.pillText, { color: theme.accentLight }]}>
+                  {t('trips.memberCount', { count: stats.memberCount })}
                 </Text>
               </View>
             )}
@@ -77,28 +132,36 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
             <Text style={[styles.amountLabel, { color: theme.textMuted }]}>
               {t('trips.totalSpent')}
             </Text>
-            <Text style={[styles.amount, { color: theme.text }]}>
-              {formatAmount(stats.totalSpent, trip.homeCurrency)}
-            </Text>
+            <View style={styles.amountLine}>
+              <Text style={[styles.amount, { color: theme.text }]}>
+                {formatAmount(stats.totalSpent, trip.homeCurrency)}
+              </Text>
+              <Text style={[styles.amountCurrency, { color: theme.textMuted }]}>
+                {trip.homeCurrency}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.currencyChip, { backgroundColor: theme.accentSoft }]}>
-            <Text style={[styles.currencyChipText, { color: theme.accentLight }]}>
-              {trip.homeCurrency}
-            </Text>
-          </View>
+          {onEdit && (
+            <Pressable
+              onPress={onEdit}
+              hitSlop={8}
+              accessibilityLabel={t('tripSettings.title')}
+              style={({ pressed }) => [
+                styles.editButton,
+                {
+                  backgroundColor: theme.accentSoft,
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.editIcon, { color: theme.accent }]}>✎</Text>
+            </Pressable>
+          )}
         </View>
 
         {hasBudget && (
           <View style={styles.budgetBlock}>
-            <View style={styles.budgetHeader}>
-              <Text style={[styles.budgetLabel, { color: theme.textMuted }]}>
-                {t('trips.budget')}
-              </Text>
-              <Text style={[styles.budgetValue, { color: theme.textSecondary }]}>
-                {formatAmount(stats.totalSpent, trip.homeCurrency)} /{' '}
-                {formatAmount(stats.budgetHome ?? 0, trip.homeCurrency)}
-              </Text>
-            </View>
             <View style={[styles.track, { backgroundColor: theme.bgSoft }]}>
               {barGradient ? (
                 <LinearGradient
@@ -111,54 +174,37 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
                 <View
                   style={[
                     styles.trackFill,
-                    { width: `${Math.round(Math.min(pct, 1) * 100)}%`, backgroundColor: overBudgetColor },
+                    {
+                      width: `${Math.round(Math.min(pct, 1) * 100)}%`,
+                      backgroundColor: theme.red,
+                    },
                   ]}
                 />
               )}
             </View>
+            <View style={styles.budgetMeta}>
+              <Text style={[styles.budgetLabel, { color: theme.textMuted }]}>
+                {t('trips.budget')}
+              </Text>
+              <Text style={[styles.budgetValue, { color: theme.textSecondary }]}>
+                {formatAmount(stats.totalSpent, trip.homeCurrency)} /{' '}
+                {formatAmount(stats.budgetHome ?? 0, trip.homeCurrency)}
+              </Text>
+            </View>
           </View>
         )}
       </LinearGradient>
-      </Pressable>
-      {onEdit && (
-        <Pressable
-          onPress={onEdit}
-          hitSlop={12}
-          style={({ pressed }) => [
-            styles.editButton,
-            {
-              backgroundColor: theme.surfaceRaised,
-              borderColor: theme.borderLight,
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <Text style={styles.editIcon}>✏️</Text>
-        </Pressable>
-      )}
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { marginBottom: spacing.lg, position: 'relative' },
+  wrapper: { marginBottom: spacing.lg },
   pressed: { opacity: 0.85 },
-  editButton: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editIcon: { fontSize: 14 },
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
     padding: spacing.xl,
+    shadowOffset: { width: 0, height: 6 },
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   emojiBox: {
@@ -173,40 +219,41 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   name: { ...typography.itemTitle, marginBottom: 2 },
   dates: typography.secondary,
-  badges: { gap: 4, alignItems: 'flex-end' },
-  badge: {
+  pills: { gap: 4, alignItems: 'flex-end' },
+  pill: {
     borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
   },
-  badgeText: { ...typography.micro },
+  pillText: { ...typography.micro, textTransform: 'uppercase' },
   amountRow: {
+    marginTop: spacing.xl,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: spacing.xl,
+    gap: spacing.md,
   },
   amountCol: { flex: 1 },
-  amountLabel: { ...typography.micro, marginBottom: 4 },
+  amountLabel: { ...typography.micro, textTransform: 'uppercase', marginBottom: 4 },
+  amountLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   amount: typography.amountMedium,
-  currencyChip: {
-    borderRadius: sizing.radiusSmall,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  amountCurrency: { ...typography.caption, fontWeight: '700' },
+  editButton: {
+    width: sizing.headerButton,
+    height: sizing.headerButton,
+    borderRadius: sizing.headerButtonRadius,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  currencyChipText: { fontSize: 12, fontWeight: '700' },
-  budgetBlock: { marginTop: spacing.lg },
-  budgetHeader: {
+  editIcon: { fontSize: 18, fontWeight: '700' },
+  budgetBlock: { marginTop: spacing.lg, gap: 6 },
+  track: { height: 8, borderRadius: 8, overflow: 'hidden' },
+  trackFill: { height: '100%', borderRadius: 8 },
+  budgetMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
   },
   budgetLabel: typography.micro,
   budgetValue: typography.caption,
-  track: {
-    height: 6,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  trackFill: { height: '100%', borderRadius: 6 },
 });
