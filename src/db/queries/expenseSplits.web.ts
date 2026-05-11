@@ -100,18 +100,54 @@ export async function updateSplits(
   expenseId: string,
   splits: CreateSplitInput[],
 ): Promise<ExpenseSplit[]> {
-  // Same write pattern as native: soft-delete every existing non-deleted
-  // row, then insert the new set. Two server round-trips, no transaction
-  // primitive in PostgREST — but the trigger-maintained is_split flag still
-  // converges because the trigger fires on each statement.
+  // Upsert by (expense_id, user_id). The Postgres UNIQUE constraint on those
+  // columns is full-table, so the old soft-delete-then-insert pattern would
+  // collide with any leftover soft-deleted row from a prior edit. Upserting
+  // reuses the existing row's id, clears deleted_at if it was previously
+  // soft-deleted, and keeps the sync trail intact.
   const now = new Date().toISOString();
-  const { error: deleteError } = await supabase
+
+  // 1. Find users that should drop out of the split and soft-delete those
+  //    rows. Pulling all (any deleted_at state) so the diff is accurate.
+  const { data: existing, error: fetchError } = await supabase
     .from('expense_splits')
-    .update({ deleted_at: now, updated_at: now })
-    .eq('expense_id', expenseId)
-    .is('deleted_at', null);
-  if (deleteError) throw deleteError;
-  return createSplits(expenseId, splits);
+    .select('id, user_id, deleted_at')
+    .eq('expense_id', expenseId);
+  if (fetchError) throw fetchError;
+
+  const incomingUserIds = new Set(splits.map((s) => s.userId));
+  const toSoftDelete = (existing ?? [])
+    .filter((r) => r.deleted_at === null && !incomingUserIds.has(r.user_id))
+    .map((r) => r.id);
+  if (toSoftDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('expense_splits')
+      .update({ deleted_at: now, updated_at: now })
+      .in('id', toSoftDelete);
+    if (deleteError) throw deleteError;
+  }
+
+  if (splits.length === 0) return [];
+
+  // 2. Upsert the new set. Setting deleted_at: null in the payload resurrects
+  //    any previously soft-deleted row for that (expense_id, user_id) pair.
+  //    The BEFORE UPDATE trigger overrides updated_at on conflict; for fresh
+  //    inserts the default now() populates created_at/updated_at.
+  const { data, error } = await supabase
+    .from('expense_splits')
+    .upsert(
+      splits.map((s) => ({
+        expense_id: expenseId,
+        user_id: s.userId,
+        amount: s.amount,
+        is_payer: s.isPayer,
+        deleted_at: null,
+      })),
+      { onConflict: 'expense_id,user_id' },
+    )
+    .select('*');
+  if (error) throw error;
+  return ((data ?? []) as RemoteSplitRow[]).map(rowToSplit);
 }
 
 export async function deleteSplits(expenseId: string): Promise<void> {
