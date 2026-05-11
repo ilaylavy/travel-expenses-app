@@ -277,6 +277,48 @@ async function applyExpensePhoto(db: SQLiteDatabase, r: Remote): Promise<void> {
   );
 }
 
+async function applySettlementPayment(db: SQLiteDatabase, r: Remote): Promise<void> {
+  // UPSERT — no child FKs currently reference settlement_payments, but using
+  // UPSERT here keeps the convention uniform with other parent-style tables.
+  await db.runAsync(
+    `INSERT INTO settlement_payments
+       (id, trip_id, from_user_id, to_user_id, amount, currency,
+        exchange_rate, converted_amount, settled_date, note, expense_split_id,
+        created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       trip_id = excluded.trip_id,
+       from_user_id = excluded.from_user_id,
+       to_user_id = excluded.to_user_id,
+       amount = excluded.amount,
+       currency = excluded.currency,
+       exchange_rate = excluded.exchange_rate,
+       converted_amount = excluded.converted_amount,
+       settled_date = excluded.settled_date,
+       note = excluded.note,
+       expense_split_id = excluded.expense_split_id,
+       created_at = excluded.created_at,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at;`,
+    [
+      asString(r.id),
+      asString(r.trip_id),
+      asString(r.from_user_id),
+      asString(r.to_user_id),
+      asNumber(r.amount) ?? 0,
+      asString(r.currency) ?? 'USD',
+      asNumber(r.exchange_rate) ?? 1,
+      asNumber(r.converted_amount) ?? 0,
+      asString(r.settled_date) ?? '',
+      asString(r.note),
+      asString(r.expense_split_id),
+      asString(r.created_at) ?? new Date().toISOString(),
+      asString(r.updated_at) ?? new Date().toISOString(),
+      asString(r.deleted_at),
+    ],
+  );
+}
+
 export async function applyRemote(
   db: SQLiteDatabase,
   table: PullTable,
@@ -317,6 +359,9 @@ export async function applyRemote(
     case 'expense_photos':
       await applyExpensePhoto(db, remote);
       return true;
+    case 'settlement_payments':
+      await applySettlementPayment(db, remote);
+      return true;
   }
 }
 
@@ -341,6 +386,13 @@ async function doRefreshStores(): Promise<void> {
     if (state.activeTripId) await state.refresh();
   } catch (e) {
     console.warn('sync: failed to refresh expenseStore', e);
+  }
+  try {
+    const { useSettlementStore } = await import('@/stores/settlementStore');
+    const state = useSettlementStore.getState();
+    if (state.activeTripId) await state.refresh();
+  } catch (e) {
+    console.warn('sync: failed to refresh settlementStore', e);
   }
 }
 

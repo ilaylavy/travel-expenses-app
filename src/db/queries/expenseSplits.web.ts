@@ -9,8 +9,29 @@ import type {
 } from '@/types/expense';
 
 import type { ExpenseSplitsQueries } from './contract';
+import { SettlementAttributedError } from './errors';
 
 export type { CreateSplitInput };
+
+// Same check as expenses.web.ts hasActiveAttributedSettlementForExpense;
+// kept inline to avoid cross-importing.
+async function hasActiveAttributedSettlement(expenseId: string): Promise<boolean> {
+  const { data: splitIds, error: splitErr } = await supabase
+    .from('expense_splits')
+    .select('id')
+    .eq('expense_id', expenseId);
+  if (splitErr) throw splitErr;
+  const ids = (splitIds ?? []).map((r) => r.id as string);
+  if (ids.length === 0) return false;
+  const { count, error: settleErr } = await supabase
+    .from('settlement_payments')
+    .select('id', { count: 'exact', head: true })
+    .in('expense_split_id', ids)
+    .is('deleted_at', null)
+    .not('expense_split_id', 'is', null);
+  if (settleErr) throw settleErr;
+  return (count ?? 0) > 0;
+}
 
 interface RemoteSplitRow {
   id: string;
@@ -100,6 +121,9 @@ export async function updateSplits(
   expenseId: string,
   splits: CreateSplitInput[],
 ): Promise<ExpenseSplit[]> {
+  if (await hasActiveAttributedSettlement(expenseId)) {
+    throw new SettlementAttributedError();
+  }
   // Upsert by (expense_id, user_id). The Postgres UNIQUE constraint on those
   // columns is full-table, so the old soft-delete-then-insert pattern would
   // collide with any leftover soft-deleted row from a prior edit. Upserting
@@ -151,6 +175,9 @@ export async function updateSplits(
 }
 
 export async function deleteSplits(expenseId: string): Promise<void> {
+  if (await hasActiveAttributedSettlement(expenseId)) {
+    throw new SettlementAttributedError();
+  }
   const now = new Date().toISOString();
   const { error } = await supabase
     .from('expense_splits')

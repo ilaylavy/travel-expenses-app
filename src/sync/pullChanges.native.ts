@@ -16,6 +16,7 @@ const PULL_ORDER: PullTable[] = [
   'expenses',
   'expense_splits',
   'expense_photos',
+  'settlement_payments',
 ];
 
 const PAGE_SIZE = 500;

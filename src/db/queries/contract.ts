@@ -17,6 +17,10 @@ import type {
 } from '@/types/expense';
 import type { Profile, UpdateProfileInput } from '@/types/profile';
 import type {
+  CreateSettlementInput,
+  SettlementPayment,
+} from '@/types/settlement';
+import type {
   CreateTripInput,
   PendingInvite,
   Trip,
@@ -55,6 +59,20 @@ export interface ExpenseSplitsQueries {
 // -----------------------------------------------------------------------------
 export interface ExpensePhotosQueries {
   listPhotosForExpense: (expenseId: string) => Promise<ExpensePhoto[]>;
+}
+
+// -----------------------------------------------------------------------------
+// settlement_payments
+// -----------------------------------------------------------------------------
+export interface SettlementsQueries {
+  listSettlementsForTrip: (tripId: string) => Promise<SettlementPayment[]>;
+  listSettlementsForPair: (
+    tripId: string,
+    userA: string,
+    userB: string,
+  ) => Promise<SettlementPayment[]>;
+  createSettlement: (input: CreateSettlementInput) => Promise<SettlementPayment>;
+  deleteSettlement: (id: string) => Promise<void>;
 }
 
 // -----------------------------------------------------------------------------

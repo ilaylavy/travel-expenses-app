@@ -16,6 +16,7 @@ import { ExpenseSplitBreakdown } from '@/components/expense/detail/ExpenseSplitB
 import { FieldCard } from '@/components/expense/detail/FieldCard';
 import { PhotoGalleryModal } from '@/components/expense/photo/PhotoGalleryModal';
 import { sizing, spacing, typography } from '@/constants/theme';
+import { SettlementAttributedError } from '@/db/queries/errors';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -161,6 +162,10 @@ export default function ExpenseDetailScreen() {
           await deleteExpense(expense.id);
           router.back();
         } catch (error) {
+          if (error instanceof SettlementAttributedError) {
+            Alert.alert(t('balances.editBlockedTitle'), t('balances.editBlockedBody'));
+            return;
+          }
           console.warn('Failed to delete expense:', error);
           Alert.alert(t('expenseDetail.deleteFailedTitle'));
         }

@@ -112,7 +112,7 @@ TRAVEL-EXPENSES-APP/
 │   ├── stores/                   # Zustand stores (auth, trip, category, expense, settings, sync)
 │   ├── hooks/                    # useExchangeRate, useExpenseEntryForm, usePhotoCapture, useExpenseClustering, useExpenseShareGetter, useTheme, useTranslation, useDismissKeyboard
 │   ├── utils/                    # Pure helpers
-│   │   ├── balance.ts            # computeBalance — split-aware shares + pairwise settlement
+│   │   ├── balance.ts            # computeBalance — split-aware shares + pairwise netting, net of settlement_payments
 │   │   ├── category/             # color.ts, name.ts, index.ts (re-exports)
 │   │   ├── currency/             # format.ts, index.ts
 │   │   ├── date.ts               # formatDay, formatReadableDate, countDaysInRange, …
@@ -237,6 +237,44 @@ CREATE TABLE public.expense_splits (
     UNIQUE(expense_id, user_id)
 );
 
+-- Settlement Payments (debt-settlement events between two trip members)
+-- Layered on top of expense_splits. A payment may be:
+--   (a) Unattributed (expense_split_id IS NULL) — pair-level / amount-based.
+--       balance_ledger nets it via inverse-debt accumulation.
+--   (b) Attributed (expense_split_id REFERENCES expense_splits) — per-expense.
+--       balance_ledger removes the matching split from gross-debt accumulation
+--       instead of netting via inverse-debt. A split can have at most one
+--       active attributed settlement (partial UNIQUE index); reversing a
+--       settlement frees the slot.
+-- exchange_rate is locked at recording time so historical entries don't drift
+-- if rates fluctuate later. App code blocks edit/delete of expenses (or splits)
+-- that have at least one attributed settlement — "reverse the settlement first."
+CREATE TABLE public.settlement_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    trip_id UUID NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
+    from_user_id UUID NOT NULL REFERENCES public.profiles(id),  -- payer
+    to_user_id UUID NOT NULL REFERENCES public.profiles(id),    -- receiver
+    amount DECIMAL(12,2) NOT NULL,                              -- in `currency`
+    currency TEXT NOT NULL,                                     -- trip or home currency
+    exchange_rate DECIMAL(12,6) NOT NULL,                       -- currency → home_currency, locked
+    converted_amount DECIMAL(12,2) NOT NULL,                    -- in trip.home_currency
+    settled_date DATE NOT NULL,
+    note TEXT,
+    expense_split_id UUID REFERENCES public.expense_splits(id) ON DELETE SET NULL,
+                                                                -- NULL = pair-level; non-NULL = per-expense
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,                                     -- soft-delete = reverse
+    CHECK (from_user_id <> to_user_id),
+    CHECK (amount > 0)
+);
+
+-- Partial UNIQUE: at most one ACTIVE attributed settlement per split.
+-- Reversing (deleted_at IS NOT NULL) frees the slot for a fresh settlement.
+CREATE UNIQUE INDEX idx_settlement_payments_one_per_split
+    ON public.settlement_payments(expense_split_id)
+    WHERE deleted_at IS NULL AND expense_split_id IS NOT NULL;
+
 -- Expense Photos
 CREATE TABLE public.expense_photos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -268,6 +306,15 @@ CREATE INDEX idx_trip_members_user_id ON public.trip_members(user_id);
 CREATE INDEX idx_categories_trip_id ON public.categories(trip_id);
 CREATE INDEX idx_expense_splits_expense_id ON public.expense_splits(expense_id);
 CREATE INDEX idx_expense_splits_user_id ON public.expense_splits(user_id);
+-- Partial indexes on the active subset (deleted_at IS NULL).
+CREATE INDEX idx_settlement_payments_trip_id ON public.settlement_payments(trip_id)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_settlement_payments_pair ON public.settlement_payments(trip_id, from_user_id, to_user_id)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_settlement_payments_from_user ON public.settlement_payments(from_user_id)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_settlement_payments_to_user ON public.settlement_payments(to_user_id)
+    WHERE deleted_at IS NULL;
 ```
 
 ### 3.2 Local SQLite — Mirrors remote + sync tables
@@ -379,8 +426,10 @@ Remote change (partner adds expense in shared trip)
 Tables push and pull in dependency order so foreign-key parents land before children:
 
 ```
-profiles → trips → trip_members → categories → expenses → expense_splits → expense_photos
+profiles → trips → trip_members → categories → expenses → expense_splits → expense_photos → settlement_payments
 ```
+
+`settlement_payments` is a leaf — no child FK currently references it, so its position at the end is convention rather than constraint.
 
 ### Conflict Resolution
 
@@ -437,7 +486,9 @@ Body: {
    - distinct category names used in the trip
    - aggregate stats (count, total in base currency, total in home currency, first/last expense date), excluding refunds and excluded-from-metrics rows
    - distinct payment methods and place names (capped)
-   - boolean flags: `has_refunds`, `has_excluded_expenses`, `has_spread_expenses`
+   - boolean flags: `has_refunds`, `has_excluded_expenses`, `has_spread_expenses`, `has_splits`, `has_settlements`, `has_any_budget`
+   - `settlement_count` (non-reversed payments recorded on the trip)
+   - `balance_summary` — pre-formatted "X owes Y €Z · …" string for the OUTSTANDING balance, sourced from the `balance_ledger` view (which already nets settlement payments against split debts)
 
 3. **Intent + SQL generation.** One call to `gpt-4o-mini` with `response_format: 'json_object'`. The system prompt embeds the static schema and 12 critical query rules; the user prompt embeds the trip context, conversation history, and current question. Output:
    ```

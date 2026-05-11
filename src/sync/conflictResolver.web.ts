@@ -26,6 +26,13 @@ async function doRefreshStores(): Promise<void> {
   } catch (e) {
     console.warn('sync: failed to refresh expenseStore', e);
   }
+  try {
+    const { useSettlementStore } = await import('@/stores/settlementStore');
+    const state = useSettlementStore.getState();
+    if (state.activeTripId) await state.refresh();
+  } catch (e) {
+    console.warn('sync: failed to refresh settlementStore', e);
+  }
 }
 
 export async function refreshStores(): Promise<void> {

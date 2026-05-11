@@ -1,6 +1,13 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { V1_STATEMENTS, V3_STATEMENTS, V4_STATEMENTS, V5_STATEMENTS } from './schema';
+import {
+  V1_STATEMENTS,
+  V3_STATEMENTS,
+  V4_STATEMENTS,
+  V5_STATEMENTS,
+  V6_STATEMENTS,
+  V7_STATEMENTS,
+} from './schema';
 
 // Migrations are append-only. Once a version has shipped, do NOT edit its SQL
 // or the baseline DDL it depends on (the Vn_STATEMENTS in schema.ts) — every
@@ -51,6 +58,24 @@ export const MIGRATIONS: readonly Migration[] = [
     name: 'per_user_trip_budgets',
     run: async (db) => {
       for (const stmt of V5_STATEMENTS) {
+        await db.execAsync(stmt);
+      }
+    },
+  },
+  {
+    version: 6,
+    name: 'settlement_payments',
+    run: async (db) => {
+      for (const stmt of V6_STATEMENTS) {
+        await db.execAsync(stmt);
+      }
+    },
+  },
+  {
+    version: 7,
+    name: 'settlement_per_expense_attribution',
+    run: async (db) => {
+      for (const stmt of V7_STATEMENTS) {
         await db.execAsync(stmt);
       }
     },

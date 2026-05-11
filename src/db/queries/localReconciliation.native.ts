@@ -137,8 +137,9 @@ export async function wipeLostTripLocal(
     }
 
     // Drop pending sync_queue entries for this trip. We can identify them
-    // either by record_id (for trip itself, trip_members, expenses, categories)
-    // or by joining to their parents (for splits and photos).
+    // either by record_id (for trip itself, trip_members, expenses, categories,
+    // settlement_payments) or by joining to their parents (for splits and
+    // photos, which key off the parent expense's trip_id).
     await db.runAsync(
       `DELETE FROM sync_queue
          WHERE synced_at IS NULL
@@ -162,8 +163,12 @@ export async function wipeLostTripLocal(
                      JOIN expenses e ON e.id = p.expense_id
                      WHERE e.trip_id = ?
                  ))
+             OR (table_name = 'settlement_payments'
+                 AND record_id IN (
+                   SELECT id FROM settlement_payments WHERE trip_id = ?
+                 ))
            );`,
-      [tripId, tripId, tripId, tripId, tripId, tripId],
+      [tripId, tripId, tripId, tripId, tripId, tripId, tripId],
     );
 
     // Hard-delete trip-scoped children. ON DELETE CASCADE on the schema would
@@ -177,6 +182,13 @@ export async function wipeLostTripLocal(
     await db.runAsync(
       `DELETE FROM expense_photos
          WHERE expense_id IN (SELECT id FROM expenses WHERE trip_id = ?);`,
+      [tripId],
+    );
+
+    // Hard-delete settlement_payments. Pair-level events with no children of
+    // their own, and the user has lost access so there's nothing to keep.
+    await db.runAsync(
+      'DELETE FROM settlement_payments WHERE trip_id = ?;',
       [tripId],
     );
 

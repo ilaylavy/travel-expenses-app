@@ -19,8 +19,35 @@ import type {
 } from '@/types/expense';
 
 import type { ExpenseQueries } from './contract';
+import { SettlementAttributedError } from './errors';
 
 export type { CreateExpenseInput, UpdateExpenseInput };
+
+// True when any non-deleted split of this expense has an active attributed
+// settlement. Pulls expense_split_id-filtered settlement rows joined to splits
+// of this expense; any match blocks the operation.
+async function hasActiveAttributedSettlementForExpense(
+  expenseId: string,
+): Promise<boolean> {
+  // Two-step: pull split ids, then check settlements. PostgREST doesn't do
+  // arbitrary cross-table joins in a single query, so the round-trip pattern
+  // mirrors what other multi-table reads in this file do.
+  const { data: splitIds, error: splitErr } = await supabase
+    .from('expense_splits')
+    .select('id')
+    .eq('expense_id', expenseId);
+  if (splitErr) throw splitErr;
+  const ids = (splitIds ?? []).map((r) => r.id as string);
+  if (ids.length === 0) return false;
+  const { count, error: settleErr } = await supabase
+    .from('settlement_payments')
+    .select('id', { count: 'exact', head: true })
+    .in('expense_split_id', ids)
+    .is('deleted_at', null)
+    .not('expense_split_id', 'is', null);
+  if (settleErr) throw settleErr;
+  return (count ?? 0) > 0;
+}
 
 interface RemoteExpenseRow {
   id: string;
@@ -240,6 +267,9 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
 }
 
 export async function updateExpense(input: UpdateExpenseInput): Promise<Expense> {
+  if (await hasActiveAttributedSettlementForExpense(input.id)) {
+    throw new SettlementAttributedError();
+  }
   const patch: Record<string, unknown> = {};
   if (input.amount !== undefined) patch.amount = input.amount;
   if (input.currency !== undefined) patch.currency = input.currency;
@@ -273,6 +303,9 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
 }
 
 export async function softDeleteExpense(id: string): Promise<void> {
+  if (await hasActiveAttributedSettlementForExpense(id)) {
+    throw new SettlementAttributedError();
+  }
   const now = new Date().toISOString();
   const { error } = await supabase
     .from('expenses')

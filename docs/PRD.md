@@ -280,25 +280,40 @@ Single scrollable screen within the trip tab. Sections:
 - Enters partner's email
 - Partner receives an in-app notification (or email) with an invite
 - Partner accepts → trip appears in their trip list
-- MVP: maximum 2 members per trip (can expand later)
+- N-person trips are supported (no hard cap)
 
 **Shared behavior:**
-- Both members see all expenses in the trip (except private ones — see below)
+- Members see all expenses in the trip (except private ones — see below)
 - Each expense shows who logged it
-- Each member can edit and delete only their own expenses; both can add new ones
+- Each member can edit and delete only their own expenses; everyone can add new ones
 - Stats show individual breakdowns and balance
 
 **Private expenses:**
 - When logging or editing an expense in a shared trip, the author can mark it private
-- Private expenses are visible only to the author — they are excluded from the other member's expense list, stats, map view, AI query answers, and split-balance calculations
+- Private expenses are visible only to the author — they are excluded from the other members' expense list, stats, map view, AI query answers, and split-balance calculations
 - A private expense still counts toward the author's own totals, budget progress, categories, and AI answers
-- Use case: a surprise gift, a personal purchase the author doesn't want to split, or anything they'd rather not share with their travel partner
+- Use case: a surprise gift, a personal purchase the author doesn't want to split, or anything they'd rather not share with their travel companions
 
 **Balance:**
 - Balance calculation accounts for expense splits. Non-split expenses generate no debt. Split expenses create debt from non-payers to the payer based on each person's share.
 - Each member's "share" totals their split rows (when split) plus their own non-split expenses. Pairwise debts are netted across all split expenses.
+- Recorded settlement payments (see below) are netted in too — the displayed balance shows what's still OUTSTANDING, not the original split debt.
 - Private expenses are excluded from balance calculations (they only affect the author's personal view)
-- Displayed in stats screen
+- Displayed in stats screen as a tappable chip that opens the Balances screen
+
+**Settle up:**
+- Dedicated Balances screen (`/trip/[id]/balances`) accessible from a tap on the Stats balance chip or from a "Balances" entry in trip settings
+- Lists every member's share total, every outstanding pairwise debt, and a history of recorded payments
+- Each pair card has two ways to settle:
+  - **Settle full amount** — opens a modal pre-filled with the current net (pair-level settlement, amount-based)
+  - **Expenses ▾** — expands to show every expense contributing to the pair's gross debt; tapping the per-row "Settle" button opens the modal locked to that specific expense's share (per-expense attributed settlement)
+- Per-expense settlement is for moments when it's natural to clear one expense right after it happens (e.g. just paid for the flights together). Pair-level is for casual end-of-trip clean-up. Both compose: the displayed net subtracts both kinds.
+- Trip currency is the default for the payment amount; toggle to home currency in the modal. Date defaults to today and can be backdated; optional note.
+- exchange_rate is locked at recording time, mirroring expenses — historical settlements don't drift if rates change later
+- Anyone in the trip can record a payment between any two members (third-party / bookkeeper UX); the payer is locked to whichever member currently owes when entering via a pair card or per-expense row
+- Long-press a payment in the history list to reverse it; reversal restores the balance as if the payment never happened (soft-delete, hidden from history). For attributed settlements, reversing re-opens that expense's debt.
+- Editing or deleting an expense that has at least one attributed settlement is blocked with a "Reverse the settlement first" message — keeps recorded payment amounts truthful.
+- The AI assistant (Ask page) is settlement-aware: questions like "are we even?", "did Alex pay me back?", "which expenses did Alice settle?", or "how much have we settled?" all return live, netted answers
 
 ### 3.12 Sync
 
