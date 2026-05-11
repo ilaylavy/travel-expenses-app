@@ -116,42 +116,84 @@ export async function updateSplits(
 ): Promise<ExpenseSplit[]> {
   const db = await getDatabase();
   const now = new Date().toISOString();
-  const newRows: ExpenseSplit[] = splits.map((s) => ({
-    id: newId(),
-    expenseId,
-    userId: s.userId,
-    amount: s.amount,
-    isPayer: s.isPayer,
-    createdAt: now,
-    updatedAt: now,
-    deletedAt: null,
-  }));
+
+  // Pull every existing row for the expense, INCLUDING soft-deleted ones.
+  // The UNIQUE (expense_id, user_id) constraint is full-table (not partial),
+  // so a previously soft-deleted row still blocks a fresh INSERT for the
+  // same (expense_id, user_id) pair. Reusing the existing row's id avoids
+  // the collision entirely — and resurrects soft-deletes by clearing
+  // deleted_at when a user comes back into the split.
+  const existingRows = await db.getAllAsync<ExpenseSplitRow>(
+    'SELECT * FROM expense_splits WHERE expense_id = ?;',
+    [expenseId],
+  );
+  const existingByUser = new Map<string, ExpenseSplitRow>();
+  for (const row of existingRows) existingByUser.set(row.user_id, row);
+
+  const incomingByUser = new Set<string>();
+  for (const s of splits) incomingByUser.add(s.userId);
+
+  const result: ExpenseSplit[] = [];
 
   await db.withTransactionAsync(async () => {
-    // Soft-delete every existing non-deleted row for this expense.
-    const existing = await db.getAllAsync<{ id: string }>(
-      'SELECT id FROM expense_splits WHERE expense_id = ? AND deleted_at IS NULL;',
-      [expenseId],
-    );
-    for (const row of existing) {
+    // Upsert each incoming split by user_id. Existing → UPDATE in place;
+    // new user → INSERT a fresh row.
+    for (const incoming of splits) {
+      const existing = existingByUser.get(incoming.userId);
+      if (existing) {
+        const next: ExpenseSplit = {
+          id: existing.id,
+          expenseId,
+          userId: incoming.userId,
+          amount: incoming.amount,
+          isPayer: incoming.isPayer,
+          createdAt: existing.created_at,
+          updatedAt: now,
+          deletedAt: null,
+        };
+        await db.runAsync(
+          `UPDATE expense_splits
+             SET amount = ?, is_payer = ?, deleted_at = NULL, updated_at = ?
+             WHERE id = ?;`,
+          [next.amount, next.isPayer ? 1 : 0, now, next.id],
+        );
+        await enqueueSync(db, 'expense_splits', next.id, 'update', splitToPayload(next));
+        result.push(next);
+      } else {
+        const next: ExpenseSplit = {
+          id: newId(),
+          expenseId,
+          userId: incoming.userId,
+          amount: incoming.amount,
+          isPayer: incoming.isPayer,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        };
+        await insertSplit(db, next);
+        await enqueueSync(db, 'expense_splits', next.id, 'create', splitToPayload(next));
+        result.push(next);
+      }
+    }
+
+    // Soft-delete rows whose user dropped out of the new set. Skip rows that
+    // are already soft-deleted — no need to re-queue an idempotent delete.
+    for (const existing of existingRows) {
+      if (existing.deleted_at !== null) continue;
+      if (incomingByUser.has(existing.user_id)) continue;
       await db.runAsync(
         'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id = ?;',
-        [now, now, row.id],
+        [now, now, existing.id],
       );
-      await enqueueSync(db, 'expense_splits', row.id, 'delete', {
-        id: row.id,
+      await enqueueSync(db, 'expense_splits', existing.id, 'delete', {
+        id: existing.id,
         deleted_at: now,
         updated_at: now,
       });
     }
-    // Insert new rows.
-    for (const row of newRows) {
-      await insertSplit(db, row);
-      await enqueueSync(db, 'expense_splits', row.id, 'create', splitToPayload(row));
-    }
   });
 
-  return newRows;
+  return result;
 }
 
 export async function deleteSplits(expenseId: string): Promise<void> {
