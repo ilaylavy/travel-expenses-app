@@ -248,7 +248,7 @@ export default function SettingsScreen() {
   })();
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}

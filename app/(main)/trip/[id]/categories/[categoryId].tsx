@@ -34,7 +34,7 @@ export default function EditCategoryScreen() {
 
   if (!category) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
         <View style={styles.missing}>
           <Text style={[styles.missingText, { color: theme.textSecondary }]}>
             {t('categories.notFound')}
@@ -55,7 +55,7 @@ export default function EditCategoryScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}

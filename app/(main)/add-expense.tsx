@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdvancedTogglesSection } from '@/components/expense/entry/AdvancedTogglesSection';
 import { AmountSection } from '@/components/expense/entry/AmountSection';
@@ -38,7 +38,6 @@ export default function AddExpenseScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const isRTL = useIsRTL();
   const params = useLocalSearchParams<{
     tripId?: string | string[];
@@ -70,7 +69,9 @@ export default function AddExpenseScreen() {
   }, [form, photos]);
 
   // Floating Save FAB rides above whatever is at the bottom: numpad bar,
-  // system keyboard, or just the safe-area edge.
+  // system keyboard, or just the safe-area edge. The bottom system-nav
+  // inset is handled by SafeAreaView (edges include 'bottom'), so this
+  // offset is measured from above the nav bar.
   const fabBottomOffset = useMemo(() => {
     if (form.activeInput === 'numpad') {
       return NUMPAD_BAR_HEIGHT + spacing.lg;
@@ -78,12 +79,12 @@ export default function AddExpenseScreen() {
     if (form.activeInput === 'text' && form.keyboardHeight > 0) {
       return form.keyboardHeight + spacing.lg;
     }
-    return Math.max(insets.bottom, spacing.md) + spacing.lg;
-  }, [form.activeInput, form.keyboardHeight, insets.bottom]);
+    return spacing.md + spacing.lg;
+  }, [form.activeInput, form.keyboardHeight]);
 
   if (!tripId) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
         <View style={styles.centered}>
           <Text style={{ color: theme.textSecondary }}>{t('trips.notFound')}</Text>
         </View>
@@ -92,7 +93,7 @@ export default function AddExpenseScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}

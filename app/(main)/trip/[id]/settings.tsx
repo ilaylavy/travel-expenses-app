@@ -61,7 +61,7 @@ export default function TripSettingsScreen() {
 
   if (!trip || !tripId) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
         <View style={styles.missing}>
           <Text style={[styles.missingText, { color: theme.textSecondary }]}>
             {t('trips.notFound')}
@@ -145,7 +145,7 @@ export default function TripSettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
