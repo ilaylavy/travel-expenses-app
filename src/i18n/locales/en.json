@@ -446,6 +446,13 @@
     "errorTitle": "Sync failed",
     "errorBody": "We couldn't reach the server. We'll retry automatically."
   },
+  "notifications": {
+    "removedFromTrip": {
+      "title": "Removed from trip",
+      "body": "You no longer have access to {{tripName}}.",
+      "a11yDismiss": "Dismiss notification"
+    }
+  },
   "ask": {
     "title": "Ask about your trip",
     "subtitle": "Ask anything about your spending",

@@ -1,4 +1,5 @@
 import NetInfo, { type NetInfoSubscription } from '@react-native-community/netinfo';
+import { AppState, type NativeEventSubscription } from 'react-native';
 
 import { getDatabase } from '@/db/database';
 import { supabase } from '@/services/supabase';
@@ -10,13 +11,13 @@ import { pullChanges } from './pullChanges';
 import { pushChanges } from './pushChanges';
 import { subscribeToRealtime } from './realtimeSubscription';
 import { getPendingCount } from './syncQueue';
-
-const INTERVAL_MS = 60_000;
+import { setSyncTrigger } from './triggerDebounced';
 
 let isRunning = false;
+let pendingRerun = false;
 let isStarted = false;
-let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let netInfoUnsubscribe: NetInfoSubscription | null = null;
+let appStateSubscription: NativeEventSubscription | null = null;
 let realtimeUnsubscribe: (() => void) | null = null;
 let wasOnline = true;
 
@@ -31,7 +32,14 @@ async function refreshPendingCount(): Promise<void> {
 }
 
 export async function triggerSync(): Promise<void> {
-  if (isRunning) return;
+  // Trigger model is mutation-driven: each enqueueSync schedules one of
+  // these. If a sync is already in flight, mark a trailing rerun so a write
+  // that lands mid-cycle still gets pushed — without the flag, in-flight
+  // writes would sit in sync_queue until the next foreground / reconnect.
+  if (isRunning) {
+    pendingRerun = true;
+    return;
+  }
   isRunning = true;
   useSyncStore.getState().setStatus('syncing');
   try {
@@ -53,6 +61,10 @@ export async function triggerSync(): Promise<void> {
   } finally {
     await refreshPendingCount();
     isRunning = false;
+    if (pendingRerun) {
+      pendingRerun = false;
+      void triggerSync();
+    }
   }
 }
 
@@ -64,15 +76,27 @@ export async function start(): Promise<void> {
 
   realtimeUnsubscribe = subscribeToRealtime(supabase);
 
+  // Reconnect: if internet returns, flush queued work and reconcile.
   netInfoUnsubscribe = NetInfo.addEventListener((state) => {
     const online = Boolean(state.isConnected && state.isInternetReachable !== false);
     if (online && !wasOnline) void triggerSync();
     wasOnline = online;
   });
 
-  intervalHandle = setInterval(() => {
+  // Foreground: when the user brings the app back, run a sync so they see
+  // anything that changed while they were away (including server-side
+  // revocations that the realtime sub never delivered). This is the only
+  // passive catch-up path now that the polling interval is gone.
+  appStateSubscription = AppState.addEventListener('change', (state) => {
+    if (state === 'active') void triggerSync();
+  });
+
+  // Wire the per-mutation debounced trigger. enqueueSync calls requestSync()
+  // after every write; the registered callback fires triggerSync ~150ms
+  // later, coalescing batched writes into a single cycle.
+  setSyncTrigger(() => {
     void triggerSync();
-  }, INTERVAL_MS);
+  });
 
   // Kick off an immediate sync for queued work from a previous session.
   void triggerSync();
@@ -82,20 +106,22 @@ export function stop(): void {
   if (!isStarted) return;
   isStarted = false;
 
-  if (intervalHandle) {
-    clearInterval(intervalHandle);
-    intervalHandle = null;
-  }
   if (netInfoUnsubscribe) {
     netInfoUnsubscribe();
     netInfoUnsubscribe = null;
+  }
+  if (appStateSubscription) {
+    appStateSubscription.remove();
+    appStateSubscription = null;
   }
   if (realtimeUnsubscribe) {
     realtimeUnsubscribe();
     realtimeUnsubscribe = null;
   }
+  setSyncTrigger(null);
   useSyncStore.getState().reset();
   isRunning = false;
+  pendingRerun = false;
   wasOnline = true;
 }
 

@@ -1,9 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { useAuthStore } from '@/stores/authStore';
 import type { PullTable } from '@/types/sync';
 
 import { applyRemote, refreshStores } from './conflictResolver';
+import { reconcileVisibility } from './reconcileVisibility';
 import { getLastPulledAt, setLastPulledAt } from './syncQueue';
 
 const PULL_ORDER: PullTable[] = [
@@ -121,6 +123,21 @@ export async function pullChanges(
   }
 
   total += await backfillMissingProfiles(db, supabase, allMemberUserIds);
+
+  // Visibility reconciliation closes the RLS-driven cursor blind spot:
+  // rows that became invisible to this user (privacy flip, membership lost)
+  // cannot ride a cursor pull or a realtime event, so we ask the server
+  // directly what IDs are still visible and diff against local. See
+  // reconcileVisibility.native.ts for the full reasoning.
+  const userId = useAuthStore.getState().user?.id ?? null;
+  if (userId) {
+    try {
+      const r = await reconcileVisibility(db, supabase, userId);
+      total += r.revoked + r.granted + r.tripsLost;
+    } catch (err) {
+      console.warn('sync: reconcileVisibility failed', err);
+    }
+  }
 
   if (total > 0) await refreshStores();
   return { pulled: total };

@@ -2,6 +2,7 @@ import { Redirect, Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
+import { TripLossToast } from '@/components/notifications/TripLossToast';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
 import { syncEngine } from '@/sync/syncEngine';
@@ -33,11 +34,14 @@ export default function MainLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: theme.bg },
-      }}
-    />
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.bg },
+        }}
+      />
+      <TripLossToast />
+    </View>
   );
 }

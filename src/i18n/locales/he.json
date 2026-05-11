@@ -446,6 +446,13 @@
     "errorTitle": "הסנכרון נכשל",
     "errorBody": "לא הצלחנו להתחבר לשרת. ננסה שוב אוטומטית."
   },
+  "notifications": {
+    "removedFromTrip": {
+      "title": "",
+      "body": "",
+      "a11yDismiss": ""
+    }
+  },
   "ask": {
     "title": "שאל על הטיול שלך",
     "subtitle": "שאל כל שאלה על ההוצאות שלך",
