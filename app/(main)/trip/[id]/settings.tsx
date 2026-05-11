@@ -190,6 +190,24 @@ export default function TripSettingsScreen() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() => router.push(href(`/trip/${trip.id}/balances`))}
+              style={({ pressed }) => [
+                styles.manageButton,
+                {
+                  backgroundColor: theme.accentSoft,
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.manageText, { color: theme.accent }]}>
+                {t('balances.openFromTrip')}
+              </Text>
+              <Text style={[styles.manageHint, { color: theme.textSecondary }]}>
+                {t('balances.openFromTripSubtitle')}
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push(href(`/trip/${trip.id}/categories`))}
               style={({ pressed }) => [
                 styles.manageButton,
@@ -263,8 +281,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     paddingVertical: 14,
     alignItems: 'center',
+    gap: 2,
   },
   manageText: { fontSize: 14, fontWeight: '700' },
+  manageHint: { fontSize: 12, fontWeight: '500' },
   deleteButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,

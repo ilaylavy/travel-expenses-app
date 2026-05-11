@@ -7,7 +7,8 @@ export type SyncTable =
   | 'expenses'
   | 'expense_splits'
   | 'expense_photos'
-  | 'categories';
+  | 'categories'
+  | 'settlement_payments';
 
 export type SyncStatus = 'synced' | 'pending' | 'syncing' | 'error';
 

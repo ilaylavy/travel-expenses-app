@@ -174,6 +174,47 @@ export const V5_STATEMENTS: readonly string[] = [
   "DELETE FROM sync_metadata WHERE key = 'last_pulled_trip_members';",
 ] as const;
 
+// V6: settlement_payments — record actual debt-settlement events between two
+// trip members. Pair-level events; balance.ts nets them against debts from
+// expense_splits. Same locked-exchange-rate pattern as expenses.
+export const V6_STATEMENTS: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS settlement_payments (
+    id TEXT PRIMARY KEY,
+    trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    from_user_id TEXT NOT NULL,
+    to_user_id TEXT NOT NULL,
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL,
+    exchange_rate REAL NOT NULL,
+    converted_amount REAL NOT NULL,
+    settled_date TEXT NOT NULL,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    CHECK (from_user_id <> to_user_id),
+    CHECK (amount > 0)
+  );`,
+  'CREATE INDEX IF NOT EXISTS idx_settlement_payments_trip_id ON settlement_payments(trip_id);',
+  'CREATE INDEX IF NOT EXISTS idx_settlement_payments_pair ON settlement_payments(trip_id, from_user_id, to_user_id);',
+  'CREATE INDEX IF NOT EXISTS idx_settlement_payments_from_user ON settlement_payments(from_user_id);',
+  'CREATE INDEX IF NOT EXISTS idx_settlement_payments_to_user ON settlement_payments(to_user_id);',
+] as const;
+
+// V7: per-expense settlement attribution. When non-null, a settlement covers
+// a specific expense_splits row and balance.ts removes that split's debt from
+// the gross instead of doing inverse-debt netting. Unattributed settlements
+// (the existing pair-level flow) continue working unchanged.
+export const V7_STATEMENTS: readonly string[] = [
+  'ALTER TABLE settlement_payments ADD COLUMN expense_split_id TEXT;',
+  // Partial UNIQUE index: at most one active attributed settlement per split.
+  // SQLite supports partial indexes (https://sqlite.org/partialindex.html).
+  // Reversing a settlement (deleted_at IS NOT NULL) frees the slot.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_settlement_payments_one_per_split
+     ON settlement_payments(expense_split_id)
+     WHERE deleted_at IS NULL AND expense_split_id IS NOT NULL;`,
+] as const;
+
 export const ALL_TABLES = [
   'profiles',
   'trips',
@@ -183,6 +224,7 @@ export const ALL_TABLES = [
   'expense_splits',
   'expense_photos',
   'exchange_rates',
+  'settlement_payments',
   'sync_queue',
   'sync_metadata',
 ] as const;

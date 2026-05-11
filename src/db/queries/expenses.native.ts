@@ -14,8 +14,29 @@ import type {
 import { newId } from '@/utils/id';
 
 import type { ExpenseQueries } from './contract';
+import { SettlementAttributedError } from './errors';
 import { insertPhoto, photoToPayload, rowToPhoto } from './expensePhotos';
 import { enqueueSync } from './syncQueue';
+
+// True when any non-deleted split of this expense has an active attributed
+// settlement. Used to block edits/deletes that would silently invalidate
+// previously-recorded settlement amounts.
+async function hasActiveAttributedSettlementForExpense(
+  db: SQLiteDatabase,
+  expenseId: string,
+): Promise<boolean> {
+  const row = await db.getFirstAsync<{ found: number }>(
+    `SELECT 1 AS found
+       FROM settlement_payments sp
+       JOIN expense_splits es ON es.id = sp.expense_split_id
+       WHERE es.expense_id = ?
+         AND sp.deleted_at IS NULL
+         AND sp.expense_split_id IS NOT NULL
+       LIMIT 1;`,
+    [expenseId],
+  );
+  return row !== null;
+}
 
 // Inputs live in @/types/expense; re-exported here so existing consumers
 // keep working through the @/db/queries/expenses path.
@@ -174,6 +195,9 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
   const db = await getDatabase();
   const existing = await getExpense(input.id);
   if (!existing) throw new Error('Expense not found');
+  if (await hasActiveAttributedSettlementForExpense(db, input.id)) {
+    throw new SettlementAttributedError();
+  }
 
   const next: Expense = {
     ...existing,
@@ -241,6 +265,9 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
 
 export async function softDeleteExpense(id: string): Promise<void> {
   const db = await getDatabase();
+  if (await hasActiveAttributedSettlementForExpense(db, id)) {
+    throw new SettlementAttributedError();
+  }
   const now = new Date().toISOString();
   // Snapshot photos so we can clean up local files after commit and queue
   // Storage deletions for the sync engine to process.

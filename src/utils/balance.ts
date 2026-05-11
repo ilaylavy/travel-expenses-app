@@ -1,4 +1,5 @@
 import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
+import type { SettlementPayment } from '@/types/settlement';
 import { roundAmount } from '@/utils/currency';
 
 export interface MemberShareTotal {
@@ -20,10 +21,15 @@ export interface BalanceSummary {
 export interface ComputeBalanceInput {
   expenses: ExpenseWithPhotos[];
   splits: ExpenseSplit[];
+  // Optional. Recorded debt-settlement events that reduce pairwise debts.
+  // Each payment cancels (or flips, if it exceeds the existing debt) the
+  // amount one member owes another. byMember is unaffected — settlements
+  // don't change anyone's share of trip cost.
+  settlementPayments?: SettlementPayment[];
 }
 
 // Compute each member's share of trip cost and the netted pairwise settlements
-// produced by per-expense splitting.
+// produced by per-expense splitting (and reduced by any recorded payments).
 //
 //   - Non-split expenses: the payer (expense.user_id) absorbs the full
 //     converted amount as their share. They generate no debt.
@@ -35,7 +41,18 @@ export interface ComputeBalanceInput {
 //   - Refunds: the negative converted amount flows through naturally (each
 //     member's share goes down) and split refunds simply produce a negative
 //     debt.
-export function computeBalance({ expenses, splits }: ComputeBalanceInput): BalanceSummary {
+//   - Settlement payments come in two flavors:
+//       * Attributed (expenseSplitId != null): the matching split is removed
+//         from gross-debt accumulation. byMember is unaffected — the user
+//         still bears the trip-cost share, they've just paid it.
+//       * Unattributed (expenseSplitId == null): the legacy pair-level flow.
+//         Recorded as an inverse debt (to owes from); the pairwise netter
+//         cancels it against any real debt. Over-settling flips direction.
+export function computeBalance({
+  expenses,
+  splits,
+  settlementPayments,
+}: ComputeBalanceInput): BalanceSummary {
   const active = expenses.filter((e) => e.deletedAt === null && !e.isPrivate);
 
   // Index splits by expense id for O(1) lookup.
@@ -45,6 +62,17 @@ export function computeBalance({ expenses, splits }: ComputeBalanceInput): Balan
     const list = splitsByExpense.get(s.expenseId) ?? [];
     list.push(s);
     splitsByExpense.set(s.expenseId, list);
+  }
+
+  // Build set of split IDs that have an active attributed settlement. These
+  // splits contribute to byMember (the user still bears the cost share) but
+  // not to gross debt (already paid).
+  const attributedSettledSplits = new Set<string>();
+  if (settlementPayments) {
+    for (const p of settlementPayments) {
+      if (p.deletedAt !== null) continue;
+      if (p.expenseSplitId !== null) attributedSettledSplits.add(p.expenseSplitId);
+    }
   }
 
   // Per-member share total (in home currency).
@@ -86,9 +114,23 @@ export function computeBalance({ expenses, splits }: ComputeBalanceInput): Balan
       const ratio = totalAmount === 0 ? 0 : s.amount / totalAmount;
       const sharedConverted = roundAmount(totalConverted * ratio);
       addShare(s.userId, sharedConverted);
-      if (!s.isPayer) {
+      if (!s.isPayer && !attributedSettledSplits.has(s.id)) {
         addDebt(s.userId, payerId, sharedConverted);
       }
+    }
+  }
+
+  // Apply UNATTRIBUTED settlement payments only. Attributed ones are already
+  // handled above by skipping the matching split's debt contribution.
+  // A from→to payment reduces from's debt to to — modeled as "to owes from"
+  // in the bookkeeping so the existing pairwise netter cancels it naturally.
+  // Over-settling flips the direction (receiver now owes payer), which is
+  // correct.
+  if (settlementPayments) {
+    for (const p of settlementPayments) {
+      if (p.deletedAt !== null) continue;
+      if (p.expenseSplitId !== null) continue;
+      addDebt(p.toUserId, p.fromUserId, p.convertedAmount);
     }
   }
 

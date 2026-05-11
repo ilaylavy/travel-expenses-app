@@ -32,4 +32,5 @@ export const BOOL_FIELDS_BY_TABLE: Record<SyncTable, readonly string[]> = {
   expenses: ['is_refund', 'is_excluded_from_daily_metrics', 'is_private', 'is_split'],
   expense_splits: ['is_payer'],
   expense_photos: [],
+  settlement_payments: [],
 };

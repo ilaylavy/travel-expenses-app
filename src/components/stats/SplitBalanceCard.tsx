@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
 import { sizing, spacing, typography } from '@/constants/theme';
@@ -14,6 +14,7 @@ interface Props {
   currency: string;
   currentUserId: string | null;
   memberNames: Record<string, string>;
+  onOpenBalances?: () => void;
 }
 
 export function SplitBalanceCard({
@@ -22,6 +23,7 @@ export function SplitBalanceCard({
   currency,
   currentUserId,
   memberNames,
+  onOpenBalances,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -95,11 +97,23 @@ export function SplitBalanceCard({
       <Text style={[styles.netLabel, { color: theme.textMuted }]}>
         {t('balance.netSettlement')}
       </Text>
-      <View style={[styles.settlement, { backgroundColor: bgColor }]}>
+      <Pressable
+        onPress={onOpenBalances}
+        disabled={!onOpenBalances}
+        style={({ pressed }) => [
+          styles.settlement,
+          { backgroundColor: bgColor, opacity: pressed && onOpenBalances ? 0.85 : 1 },
+        ]}
+      >
         <Text style={[styles.settlementText, { color: textColor }]}>
           {settlementText}
         </Text>
-      </View>
+        {onOpenBalances ? (
+          <Text style={[styles.settlementHint, { color: textColor }]}>
+            {t('balance.tapToSettle')} ›
+          </Text>
+        ) : null}
+      </Pressable>
     </StatsSectionCard>
   );
 }
@@ -128,6 +142,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
+    gap: 2,
   },
   settlementText: { ...typography.subtitle },
+  settlementHint: { fontSize: 11, fontWeight: '600', opacity: 0.8 },
 });

@@ -9,7 +9,28 @@ import type {
 import { newId } from '@/utils/id';
 
 import type { ExpenseSplitsQueries } from './contract';
+import { SettlementAttributedError } from './errors';
 import { enqueueSync } from './syncQueue';
+
+// Same check used by expenses.native.ts; duplicated here to avoid a circular
+// import. Any non-deleted attributed settlement that points at one of this
+// expense's splits blocks the operation.
+async function hasActiveAttributedSettlementForExpense(
+  db: SQLiteDatabase,
+  expenseId: string,
+): Promise<boolean> {
+  const row = await db.getFirstAsync<{ found: number }>(
+    `SELECT 1 AS found
+       FROM settlement_payments sp
+       JOIN expense_splits es ON es.id = sp.expense_split_id
+       WHERE es.expense_id = ?
+         AND sp.deleted_at IS NULL
+         AND sp.expense_split_id IS NOT NULL
+       LIMIT 1;`,
+    [expenseId],
+  );
+  return row !== null;
+}
 
 export type { CreateSplitInput };
 
@@ -115,6 +136,9 @@ export async function updateSplits(
   splits: CreateSplitInput[],
 ): Promise<ExpenseSplit[]> {
   const db = await getDatabase();
+  if (await hasActiveAttributedSettlementForExpense(db, expenseId)) {
+    throw new SettlementAttributedError();
+  }
   const now = new Date().toISOString();
 
   // Pull every existing row for the expense, INCLUDING soft-deleted ones.
@@ -198,6 +222,9 @@ export async function updateSplits(
 
 export async function deleteSplits(expenseId: string): Promise<void> {
   const db = await getDatabase();
+  if (await hasActiveAttributedSettlementForExpense(db, expenseId)) {
+    throw new SettlementAttributedError();
+  }
   const now = new Date().toISOString();
 
   await db.withTransactionAsync(async () => {

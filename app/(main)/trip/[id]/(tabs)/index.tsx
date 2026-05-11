@@ -22,6 +22,7 @@ import type { FilterOption } from '@/components/ui/FilterModal';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { sizing, spacing, typography } from '@/constants/theme';
+import { SettlementAttributedError } from '@/db/queries/errors';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
 import { useExpenseShareGetter } from '@/hooks/useExpenseShareGetter';
@@ -278,6 +279,10 @@ export default function TripExpensesScreen() {
       try {
         await deleteExpense(expense.id);
       } catch (error) {
+        if (error instanceof SettlementAttributedError) {
+          Alert.alert(t('balances.editBlockedTitle'), t('balances.editBlockedBody'));
+          return;
+        }
         console.warn('Failed to delete expense:', error);
         Alert.alert(t('expensesList.deleteFailedTitle'));
       }

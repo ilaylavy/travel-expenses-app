@@ -1,4 +1,5 @@
 import type { ExpenseSplit, ExpenseWithPhotos, PaymentMethod } from '@/types/expense';
+import type { SettlementPayment } from '@/types/settlement';
 import type { Trip } from '@/types/trip';
 import { computeBalance } from '@/utils/balance';
 import { roundAmount } from '@/utils/currency';
@@ -103,6 +104,11 @@ export interface AggregateInput {
   // legacy full-amount behaviour because share == full amount when the
   // caller is the only payer.
   currentUserId: string | null;
+  // Optional. Recorded debt-settlement events. Feeds into the split-balance
+  // calculation so the displayed pairwise debt reflects what's still owed
+  // after payments. Has no effect on totals, by-day, by-category, or
+  // by-payment-method — settlements aren't spending.
+  settlementPayments?: SettlementPayment[];
 }
 
 export function aggregate({
@@ -111,6 +117,7 @@ export function aggregate({
   trip,
   today,
   currentUserId,
+  settlementPayments,
 }: AggregateInput): TripStats {
   const active = expenses.filter((e) => e.deletedAt === null);
 
@@ -248,9 +255,10 @@ export function aggregate({
 
   // ----- By member + settlement (split-aware) -----
   // Each member's share = sum of their split rows + sum of non-split expenses
-  // they paid for. Settlement is netted pairwise across split debts.
+  // they paid for. Settlement is netted pairwise across split debts and
+  // reduced by any recorded settlement payments.
   // Private expenses are excluded (the logger's own cost).
-  const balance = computeBalance({ expenses: active, splits });
+  const balance = computeBalance({ expenses: active, splits, settlementPayments });
   const byMember: MemberTotal[] = balance.byMember.map((m) => ({
     userId: m.userId,
     total: m.total,

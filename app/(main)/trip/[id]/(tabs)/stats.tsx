@@ -20,6 +20,7 @@ import {
   useCategoryStore,
 } from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
+import { useSettlementStore } from '@/stores/settlementStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
 import { todayIsoDate } from '@/utils/date';
@@ -38,6 +39,9 @@ export default function TripStatsScreen() {
   const splits = useExpenseStore((s) => s.splits);
   const activeTripId = useExpenseStore((s) => s.activeTripId);
   const loadForTrip = useExpenseStore((s) => s.loadForTrip);
+  const settlements = useSettlementStore((s) => s.settlements);
+  const activeSettlementTripId = useSettlementStore((s) => s.activeTripId);
+  const loadSettlements = useSettlementStore((s) => s.loadForTrip);
   const allCategories = useCategoryStore((s) => s.categories);
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
@@ -47,6 +51,10 @@ export default function TripStatsScreen() {
   useEffect(() => {
     if (tripId && activeTripId !== tripId) void loadForTrip(tripId);
   }, [tripId, activeTripId, loadForTrip]);
+
+  useEffect(() => {
+    if (tripId && activeSettlementTripId !== tripId) void loadSettlements(tripId);
+  }, [tripId, activeSettlementTripId, loadSettlements]);
 
   useEffect(() => {
     if (!tripId) return;
@@ -82,8 +90,15 @@ export default function TripStatsScreen() {
   const today = todayIsoDate();
   const stats = useMemo(() => {
     if (!trip) return null;
-    return aggregate({ expenses, splits, trip, today, currentUserId });
-  }, [expenses, splits, trip, today, currentUserId]);
+    return aggregate({
+      expenses,
+      splits,
+      trip,
+      today,
+      currentUserId,
+      settlementPayments: settlements,
+    });
+  }, [expenses, splits, trip, today, currentUserId, settlements]);
 
   if (!trip || !tripId) {
     return (
@@ -167,6 +182,7 @@ export default function TripStatsScreen() {
               currency={currency}
               currentUserId={currentUserId}
               memberNames={memberNames}
+              onOpenBalances={() => router.push(href(`/trip/${tripId}/balances`))}
             />
           ) : null}
           <PaymentBreakdownCard

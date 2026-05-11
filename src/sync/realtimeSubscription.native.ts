@@ -17,6 +17,7 @@ const TABLES: PullTable[] = [
   'expenses',
   'expense_splits',
   'expense_photos',
+  'settlement_payments',
 ];
 
 const STUCK_ERROR_DELAY_MS = 10_000;

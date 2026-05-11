@@ -135,15 +135,23 @@ interface TripContext {
     has_excluded_expenses: boolean;
     has_spread_expenses: boolean;
     has_splits: boolean;
+    // True if at least one non-deleted settlement payment exists in the
+    // trip. Gates settlement-related follow-up questions.
+    has_settlements: boolean;
     // True when trips.budget is set OR any active member has a non-null
     // trip_members.budget. The follow-up filter and the LLM both rely on
     // this to decide whether budget-related questions are sensible.
     has_any_budget: boolean;
   };
-  // Pre-formatted current balance, e.g. "Maya owes Ilay €54.75". Empty
-  // string when the trip is solo or has no splits. Lets the summarizer
-  // answer "what's the balance?" without re-deriving math from raw rows.
+  // Pre-formatted current OUTSTANDING balance (net of recorded payments),
+  // e.g. "Maya owes Ilay €24.75". Empty string when the trip is solo or
+  // has no debts. Lets the summarizer answer "what's the balance?" without
+  // re-deriving math from raw rows.
   balance_summary: string;
+  // Total count of recorded (non-reversed) settlement payments. Useful
+  // signal for the summarizer when answering "have we settled anything?"
+  // without needing a query.
+  settlement_count: number;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -215,12 +223,12 @@ async function callOpenAIJson(
 
 const PLANNER_SYSTEM_TEMPLATE = `You are the planner for a travel expense AI assistant. Decide what the user wants and, when they want data, write a Postgres SELECT/WITH query against the analytics views below.
 
-The views have already done the hard work: splits are exploded into per-share rows, refund signs are baked in, spread expenses are split across days, balances are netted pairwise, and budget math is pre-computed. You pick the right view, apply simple filters, and let the result rows speak for themselves.
+The views have already done the hard work: splits are exploded into per-share rows, refund signs are baked in, spread expenses are split across days, balances are netted pairwise (including recorded settlement payments), and budget math is pre-computed. You pick the right view, apply simple filters, and let the result rows speak for themselves.
 
-NEVER query raw tables (expenses, expense_splits, trip_members, categories, profiles, trips). Use the views.
+NEVER query raw tables (expenses, expense_splits, trip_members, categories, profiles, trips, settlement_payments). Use the views.
 
 ═══════════════════════════════════════
-THE FOUR VIEWS
+THE FIVE VIEWS
 ═══════════════════════════════════════
 
 ══ expense_analysis — one row per (expense × share owner) ══
@@ -282,7 +290,7 @@ Use for: "am I on budget", "how much have I spent total", "daily average", "days
   budget_percent                        (nullable; 0–100+, where 100 = at limit)
 
 ══ balance_ledger — one row per (trip, debtor, creditor) ══
-Use for: "who owes whom", "how much do I owe", "settle up", "are we even".
+Use for: "who owes whom", "how much do I owe", "settle up", "are we even", "what's the outstanding balance".
 
   trip_id
   from_user_id, from_user_name   — debtor (owes money)
@@ -290,7 +298,30 @@ Use for: "who owes whom", "how much do I owe", "settle up", "are we even".
   net_amount                     decimal, always positive, in home_currency
   currency                       — same as trip's home_currency
 
-Empty rows = everyone is settled up (or the trip has no splits). NEVER do math here — the netting is already done.
+Already net of recorded settlement payments — net_amount is what's STILL outstanding, not the original split debt. Empty rows = everyone is settled up (or the trip has no splits). NEVER do math here — the netting is already done.
+
+══ settlement_history — one row per recorded payment ══
+Use for: "did X pay me back?", "how much have we settled?", "what payments were made", date-bounded payment questions, "show me recent settlements", "which expense did Alice settle?".
+
+  trip_id
+  from_user_id, from_user_name   — payer (the one who handed over money)
+  to_user_id, to_user_name       — receiver
+  amount, currency               — payment in the currency the user picked at recording time
+  exchange_rate                  — locked at recording time, currency → home_currency
+  amount_home                    — same payment, in home_currency (rounded to 2dp)
+  settled_date                   date
+  note                           text (nullable)
+  created_at                     timestamptz
+  expense_split_id               UUID (nullable) — when set, the payment is
+                                 attributed to a specific expense_splits row.
+                                 NULL = pair-level (amount-based) settlement.
+  linked_expense_id              UUID (nullable) — parent expense for the
+                                 attributed split. Use this to JOIN against
+                                 expense_analysis when the user asks about
+                                 the expense covered (e.g. "what did Alice
+                                 settle?").
+
+Excludes reversed (soft-deleted) payments. Empty = no payments recorded yet on this trip.
 
 ═══════════════════════════════════════
 RULES
@@ -305,7 +336,8 @@ RULES
 4. "I/me/my" → share_owner_id = '<<CALLER_ID>>' (or user_id = '<<CALLER_ID>>' for trip_summary). Named members from TRIP CONTEXT → match share_owner_name (or user_name) verbatim.
 5. Trip-wide totals (no specific owner): aggregate across all rows; do NOT filter by share owner.
 6. Currency: use the _home columns when summing across multiple rows. Use original-currency columns only when displaying a single expense or when the user explicitly says "in trip currency".
-7. Settlement / balance / "who owes whom" / "are we even" → SELECT * FROM balance_ledger WHERE trip_id = '<<TRIP_ID>>'. NEVER recompute. Empty result = settled up.
+7. Settlement / balance / "who owes whom" / "are we even" → SELECT * FROM balance_ledger WHERE trip_id = '<<TRIP_ID>>'. NEVER recompute. Empty result = settled up (after recorded payments are netted).
+7b. Payment history / "did X pay me back?" / "how much have we settled?" / "recent payments" → SELECT * FROM settlement_history WHERE trip_id = '<<TRIP_ID>>'. Filter / order as needed. NEVER recompute amounts.
 8. Budget / "on track" / daily average / days remaining → SELECT * FROM trip_summary WHERE trip_id = '<<TRIP_ID>>' AND user_id = '<<CALLER_ID>>'. Numbers are already there.
 9. Daily charts / "most expensive day" / spending on date X → use daily_spending.
 10. Percentages: compute in SQL with window functions (e.g. SUM(user_share_home) * 100.0 / SUM(SUM(user_share_home)) OVER ()). Don't ask the LLM to divide.
@@ -334,6 +366,34 @@ QUESTION → QUERY PATTERNS
 "Who owes whom?" / "Are we even?" / "How much do I owe?"
   SELECT from_user_name, to_user_name, net_amount, currency
   FROM balance_ledger WHERE trip_id = '<<TRIP_ID>>'
+
+"Did Maya pay me back?" / "How much has Maya paid me?"
+  SELECT settled_date, amount, currency, amount_home, note
+  FROM settlement_history
+  WHERE trip_id = '<<TRIP_ID>>' AND from_user_name = 'Maya' AND to_user_id = '<<CALLER_ID>>'
+  ORDER BY settled_date DESC LIMIT 100
+
+"How much have we settled in total?"
+  SELECT ROUND(SUM(amount_home)::numeric, 2) AS total_settled_home,
+         COUNT(*) AS payment_count
+  FROM settlement_history WHERE trip_id = '<<TRIP_ID>>'
+
+"Recent payments / settlements"
+  SELECT settled_date, from_user_name, to_user_name, amount, currency, note
+  FROM settlement_history WHERE trip_id = '<<TRIP_ID>>'
+  ORDER BY settled_date DESC, created_at DESC LIMIT 10
+
+"Which expenses has Alice settled?" / "Did Alice settle the flight?"
+  SELECT sh.settled_date, sh.amount, sh.currency, sh.amount_home, sh.note,
+         ea.category_name, ea.category_emoji
+  FROM settlement_history sh
+  LEFT JOIN expense_analysis ea
+    ON ea.expense_id = sh.linked_expense_id
+   AND ea.share_owner_id = sh.from_user_id
+  WHERE sh.trip_id = '<<TRIP_ID>>' AND sh.from_user_name = 'Alice'
+    AND sh.expense_split_id IS NOT NULL
+    AND (ea.is_private = false OR ea.share_owner_id = '<<CALLER_ID>>')
+  ORDER BY sh.settled_date DESC LIMIT 100
 
 "Am I on budget?"
   SELECT * FROM trip_summary
@@ -379,7 +439,7 @@ INTENT
 
 Default to DATA_QUERY. Pick a non-DATA_QUERY intent only when clearly warranted.
 
-DATA_QUERY: any expense-related word (food, transport, hotel, spend, cost, budget, paid, owe, balance, settle, even, category, cash, card, day, location, place, member name, currency, refund, average, total, days). Member comparisons. Trip metadata. Yes/no questions about state.
+DATA_QUERY: any expense-related word (food, transport, hotel, spend, cost, budget, paid, owe, balance, settle, settled, settlement, payment, even, category, cash, card, day, location, place, member name, currency, refund, average, total, days, reimburse, pay back). Member comparisons. Trip metadata. Yes/no questions about state.
   - Empty result is fine: a non-existent category, settlement on a no-split trip, etc. — emit the query, the summarizer explains.
   - Some questions are answerable from TRIP CONTEXT alone (e.g. "what currency does this trip use?", "who's on this trip?", "what categories do we have?"). For those, set queries: [] — the summarizer will read TRIP CONTEXT and answer directly. Use sparingly; default to a query.
 
@@ -442,7 +502,8 @@ NEVER COMPUTE:
 - If a number isn't in the result rows, don't make one up.
 
 EMPTY RESULTS:
-- Empty balance_ledger: "Everyone's settled up on this trip — nothing to settle." If the trip has no splits per TRIP CONTEXT, say "No split expenses yet, so there's nothing to settle."
+- Empty balance_ledger: "Everyone's settled up on this trip — nothing to settle." If the trip has no splits per TRIP CONTEXT, say "No split expenses yet, so there's nothing to settle." If has_splits is true and settlement_count > 0, mention that payments have already balanced things out.
+- Empty settlement_history: "No payments have been recorded yet on this trip." If the user asked about a specific pair ("did X pay me?"), name them: "No payments from X to you have been recorded yet."
 - Empty category/payment/place result: "I don't see any [X] expenses logged yet on this trip."
 - Other empty: "I don't see any expenses matching that yet."
 - If results are empty AND the question is answerable from TRIP CONTEXT (e.g. "what currency?", "who's on the trip?", "what categories do we use?"), answer directly from context.
@@ -456,7 +517,8 @@ TONE: casual, friendly, slightly playful — travel app, not bank statement. Emo
 FOLLOW-UPS (2-3): phrased like a friend would ask ("What about transport?", not "Query transport category"). Filter by trip shape from TRIP CONTEXT.flags:
   · skip budget questions when has_any_budget = false;
   · skip "who spent more" / member comparisons when members.length < 2;
-  · skip balance / settlement / "who owes whom" when has_splits = false.
+  · skip balance / "who owes whom" when has_splits = false AND has_settlements = false;
+  · skip "what payments / settlements" / "did X pay me back" when has_settlements = false (a "Want to settle up?" prompt is fine when has_splits = true but has_settlements = false).
 
 Respond as JSON only:
 { "answer": "...", "followUps": ["...", "..."] }`;
@@ -495,10 +557,11 @@ const DEFAULT_LIMIT = 100;
 // Word boundaries (\b) deliberately do NOT match `expense_analysis` because
 // the trailing `_` is a word character (good — views still pass through).
 const RAW_TABLE_RES: ReadonlyArray<{ name: string; re: RegExp }> = [
-  { name: 'expenses',       re: /\bexpenses\b/i },
-  { name: 'expense_splits', re: /\bexpense_splits\b/i },
-  { name: 'trip_members',   re: /\btrip_members\b/i },
-  { name: 'profiles',       re: /\bprofiles\b/i },
+  { name: 'expenses',            re: /\bexpenses\b/i },
+  { name: 'expense_splits',      re: /\bexpense_splits\b/i },
+  { name: 'trip_members',        re: /\btrip_members\b/i },
+  { name: 'profiles',            re: /\bprofiles\b/i },
+  { name: 'settlement_payments', re: /\bsettlement_payments\b/i },
 ];
 
 function ensureLimit(sql: string): string {
@@ -623,45 +686,39 @@ async function buildTripContext(
     limit 50
   `;
 
-  // Detect whether this trip has any split expenses, then (when shared and
-  // splits exist) pre-compute who owes whom so the summarizer can quote it
-  // without re-deriving the math.
-  const splitsRows = await sql`
-    select exists(
-      select 1 from public.expenses
-      where trip_id = ${tripId}
-        and deleted_at is null
-        and is_split = true
-    ) as has_splits
+  // Detect whether this trip has any split expenses or recorded payments.
+  // Used downstream both to gate the balance summary computation and to
+  // populate trip-shape flags for the planner / follow-up filter.
+  const shapeRows = await sql`
+    select
+      exists(
+        select 1 from public.expenses
+        where trip_id = ${tripId}
+          and deleted_at is null
+          and is_split = true
+      ) as has_splits,
+      (
+        select count(*)::int from public.settlement_payments
+        where trip_id = ${tripId} and deleted_at is null
+      ) as settlement_count
   `;
-  const hasSplits = splitsRows[0]?.has_splits ?? false;
+  const hasSplits = shapeRows[0]?.has_splits ?? false;
+  const settlementCount: number = shapeRows[0]?.settlement_count ?? 0;
+  const hasSettlements = settlementCount > 0;
 
+  // Read the post-netting balance straight from balance_ledger so a single
+  // source of truth (the view) drives the summary the LLM quotes verbatim.
+  // The view already nets recorded settlement payments against split debts.
   let balanceSummary = '';
-  if (members.length > 1 && hasSplits) {
+  if (members.length > 1 && (hasSplits || hasSettlements)) {
     const balanceRows = await sql`
-      select
-        payer_profile.name as payer_name,
-        debtor_profile.name as debtor_name,
-        sum(es_debtor.amount)::text as total_owed
-      from public.expense_splits es_payer
-      join public.expense_splits es_debtor
-        on es_debtor.expense_id = es_payer.expense_id
-        and es_debtor.is_payer = false
-        and es_debtor.deleted_at is null
-      join public.expenses e
-        on e.id = es_payer.expense_id
-        and e.deleted_at is null
-        and (e.is_private = false or e.user_id = ${callerId})
-      join public.profiles payer_profile on payer_profile.id = es_payer.user_id
-      join public.profiles debtor_profile on debtor_profile.id = es_debtor.user_id
-      where es_payer.is_payer = true
-        and es_payer.deleted_at is null
-        and e.trip_id = ${tripId}
-      group by payer_profile.name, debtor_profile.name
+      select from_user_name, to_user_name, net_amount::text as net_amount
+      from public.balance_ledger
+      where trip_id = ${tripId}
     `;
-    balanceSummary = formatBalanceSummary(
-      balanceRows as Array<{ payer_name: string; debtor_name: string; total_owed: string }>,
-      trip.base_currency,
+    balanceSummary = formatLedgerSummary(
+      balanceRows as Array<{ from_user_name: string; to_user_name: string; net_amount: string }>,
+      trip.home_currency,
     );
   }
 
@@ -692,9 +749,11 @@ async function buildTripContext(
       has_excluded_expenses: stats.has_excluded_expenses ?? false,
       has_spread_expenses: stats.has_spread_expenses ?? false,
       has_splits: hasSplits,
+      has_settlements: hasSettlements,
       has_any_budget: hasAnyBudget,
     },
     balance_summary: balanceSummary,
+    settlement_count: settlementCount,
   };
 }
 
@@ -713,34 +772,18 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   AUD: 'A$',
 };
 
-function formatBalanceSummary(
-  rows: Array<{ payer_name: string; debtor_name: string; total_owed: string }>,
+function formatLedgerSummary(
+  rows: Array<{ from_user_name: string; to_user_name: string; net_amount: string }>,
   currency: string,
 ): string {
-  // pair key = sorted(name1, name2). Track signed net from the alphabetically-
-  // first name to the second (positive = first owes second).
-  const pairs = new Map<string, { a: string; b: string; net: number }>();
-  for (const row of rows) {
-    const owed = Number(row.total_owed);
-    if (!Number.isFinite(owed) || owed === 0) continue;
-    const a = row.debtor_name < row.payer_name ? row.debtor_name : row.payer_name;
-    const b = row.debtor_name < row.payer_name ? row.payer_name : row.debtor_name;
-    const key = `${a}|${b}`;
-    const sign = row.debtor_name === a ? 1 : -1;
-    const existing = pairs.get(key) ?? { a, b, net: 0 };
-    existing.net += sign * owed;
-    pairs.set(key, existing);
-  }
-
+  // The view already emits one row per non-zero debt direction with the
+  // positive net_amount, so we just format each row.
   const symbol = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
   const lines: string[] = [];
-  for (const { a, b, net } of pairs.values()) {
-    const rounded = Math.round(net * 100) / 100;
-    if (Math.abs(rounded) < 0.01) continue;
-    const debtor = rounded > 0 ? a : b;
-    const payer = rounded > 0 ? b : a;
-    const amount = Math.abs(rounded).toFixed(2);
-    lines.push(`${debtor} owes ${payer} ${symbol}${amount}`);
+  for (const row of rows) {
+    const amount = Number(row.net_amount);
+    if (!Number.isFinite(amount) || amount < 0.005) continue;
+    lines.push(`${row.from_user_name} owes ${row.to_user_name} ${symbol}${amount.toFixed(2)}`);
   }
   if (lines.length === 0) return 'All members are settled up';
   return lines.join(' · ');
@@ -780,6 +823,7 @@ interface FollowUpCandidate {
   requiresBudget?: boolean;
   requiresMultipleMembers?: boolean;
   requiresSplits?: boolean;
+  requiresSettlements?: boolean;
 }
 
 const FOLLOWUP_POOL: Record<Language, FollowUpCandidate[]> = {
@@ -788,6 +832,8 @@ const FOLLOWUP_POOL: Record<Language, FollowUpCandidate[]> = {
     { question: 'What category am I spending the most on?' },
     { question: 'How am I doing against my budget?', requiresBudget: true },
     { question: 'Who owes whom?', requiresSplits: true },
+    { question: 'How much have we settled?', requiresSettlements: true },
+    { question: 'What payments were recorded recently?', requiresSettlements: true },
     { question: 'Who spent more on this trip?', requiresMultipleMembers: true },
     { question: 'What is my daily average?' },
     { question: 'What was my most expensive day?' },
@@ -810,13 +856,18 @@ function contextualFollowUps(language: Language, context: TripContext | null): s
   const hasBudget = context.flags.has_any_budget;
   const multipleMembers = context.members.length > 1;
   const hasSplits = context.flags.has_splits;
+  const hasSettlements = context.flags.has_settlements;
   const filtered = pool.filter((c) => {
     if (c.requiresBudget && !hasBudget) return false;
     if (c.requiresMultipleMembers && !multipleMembers) return false;
     if (c.requiresSplits && !hasSplits) return false;
+    if (c.requiresSettlements && !hasSettlements) return false;
     return true;
   });
-  return filtered.slice(0, 3).map((c) => c.question);
+  return filtered
+    .filter((c) => c.question.trim().length > 0)
+    .slice(0, 3)
+    .map((c) => c.question);
 }
 
 function clampStringArray(value: unknown, max: number): string[] {

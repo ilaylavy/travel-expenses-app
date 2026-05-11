@@ -21,6 +21,7 @@ const TABLE_ORDER: SyncTable[] = [
   'expenses',
   'expense_splits',
   'expense_photos',
+  'settlement_payments',
 ];
 
 // is_archived is stored as INTEGER 0/1 locally but Postgres expects boolean.

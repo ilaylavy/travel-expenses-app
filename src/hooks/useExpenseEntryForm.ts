@@ -8,6 +8,7 @@ import {
   lastUsedPaymentMethodForTrip,
   type RecentNoteSuggestion,
 } from '@/db/queries/expenseAnalytics';
+import { SettlementAttributedError } from '@/db/queries/errors';
 import { getExpense } from '@/db/queries/expenses';
 import {
   getSplitsForExpense,
@@ -699,6 +700,10 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
 
         onComplete();
       } catch (e) {
+        if (e instanceof SettlementAttributedError) {
+          setError(t('balances.editBlockedBody'));
+          return;
+        }
         console.warn('Failed to save expense:', e);
         setError(e instanceof Error ? e.message : t('expense.errors.saveFailed'));
       } finally {
