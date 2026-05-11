@@ -76,7 +76,7 @@ export default function TripListScreen() {
   }, [reloadInvites]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>{t('trips.title')}</Text>
         <View style={styles.headerActions}>

@@ -175,7 +175,7 @@ export default function ExpenseDetailScreen() {
 
   if (!expense || !trip) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
@@ -204,7 +204,7 @@ export default function ExpenseDetailScreen() {
   const showConverted = expense.currency !== trip.homeCurrency;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
