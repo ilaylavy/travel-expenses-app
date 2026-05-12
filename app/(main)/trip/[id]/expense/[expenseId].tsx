@@ -15,7 +15,7 @@ import { ExpensePhotosSection } from '@/components/expense/detail/ExpensePhotosS
 import { ExpenseSplitBreakdown } from '@/components/expense/detail/ExpenseSplitBreakdown';
 import { FieldCard } from '@/components/expense/detail/FieldCard';
 import { PhotoGalleryModal } from '@/components/expense/photo/PhotoGalleryModal';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { SettlementAttributedError } from '@/db/queries/errors';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
@@ -223,9 +223,13 @@ export default function ExpenseDetailScreen() {
           <Pressable
             onPress={handleEdit}
             hitSlop={8}
-            style={[
+            style={({ pressed }) => [
               styles.headerButton,
-              { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+              {
+                backgroundColor: theme.accentSoft,
+                borderColor: theme.accent,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
             ]}
           >
             <Text style={[styles.headerButtonText, { color: theme.accent }]}>✎</Text>
@@ -359,9 +363,13 @@ export default function ExpenseDetailScreen() {
       >
         <Pressable
           onPress={handleShare}
-          style={[
+          style={({ pressed }) => [
             styles.secondaryButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
           ]}
         >
           <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
@@ -371,7 +379,13 @@ export default function ExpenseDetailScreen() {
         {canMutate ? (
           <Pressable
             onPress={handleDelete}
-            style={[styles.deleteButton, { backgroundColor: theme.redSoft }]}
+            style={({ pressed }) => [
+              styles.deleteButton,
+              {
+                backgroundColor: theme.redSoft,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
+            ]}
           >
             <Text style={[styles.deleteButtonText, { color: theme.red }]}>
               {t('expenseDetail.deleteButton')}
@@ -404,7 +418,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -426,13 +440,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     padding: spacing.base,
-    borderTopWidth: 1,
+    borderTopWidth: borderWidth.hairline,
   },
   secondaryButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 14, // button tall geometry
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     alignItems: 'center',
   },
   secondaryButtonText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },

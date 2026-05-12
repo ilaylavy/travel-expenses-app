@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SettleUpModal } from '@/components/balance/SettleUpModal';
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { listTripMembers } from '@/db/queries/trips';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
@@ -431,7 +431,10 @@ function PairDebtCard({
           onPress={onSettlePress}
           style={({ pressed }) => [
             styles.settleButton,
-            { backgroundColor: fg, opacity: pressed ? 0.85 : 1 },
+            {
+              backgroundColor: fg,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+            },
           ]}
         >
           <Text style={styles.settleButtonText}>{t('balances.settleFull')}</Text>
@@ -442,7 +445,10 @@ function PairDebtCard({
             hitSlop={6}
             style={({ pressed }) => [
               styles.expandToggle,
-              { borderColor: fg, opacity: pressed ? 0.7 : 1 },
+              {
+                borderColor: fg,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
+              },
             ]}
           >
             <Text style={[styles.expandToggleText, { color: fg }]}>
@@ -477,7 +483,10 @@ function PairDebtCard({
                 onPress={() => onSettleSplitPress(s)}
                 style={({ pressed }) => [
                   styles.splitSettleButton,
-                  { backgroundColor: fg, opacity: pressed ? 0.85 : 1 },
+                  {
+                    backgroundColor: fg,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  },
                 ]}
               >
                 <Text style={styles.splitSettleButtonText}>
@@ -554,7 +563,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -580,7 +589,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: sizing.categoryIconSmall,
     height: sizing.categoryIconSmall,
-    borderRadius: sizing.categoryIconSmall / 2,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -611,9 +620,9 @@ const styles = StyleSheet.create({
   settleButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   expandToggle: {
     borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.md,
-    paddingVertical: 8,
+    paddingVertical: 8, // chip compact geometry
   },
   expandToggleText: { fontSize: 12, fontWeight: '700' },
   splitsList: { gap: spacing.xs, marginTop: spacing.xs },
@@ -644,7 +653,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

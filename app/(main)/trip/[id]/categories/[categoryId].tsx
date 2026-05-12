@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryForm, type CategoryFormValues } from '@/components/expense/category/CategoryForm';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -59,7 +59,14 @@ export default function EditCategoryScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={[styles.backButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          style={({ pressed }) => [
+            styles.backButton,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
+          ]}
           hitSlop={8}
         >
           <Text style={[styles.backButtonText, { color: theme.text }]}>‹</Text>
@@ -84,7 +91,7 @@ export default function EditCategoryScreen() {
               {
                 backgroundColor: theme.surface,
                 borderColor: theme.border,
-                opacity: pressed ? 0.8 : 1,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
               },
             ]}
           >
@@ -113,7 +120,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -123,8 +130,8 @@ const styles = StyleSheet.create({
   archiveButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
-    paddingVertical: 14,
+    borderWidth: borderWidth.base,
+    paddingVertical: 14, // button tall geometry
     alignItems: 'center',
   },
   archiveText: { fontSize: 14, fontWeight: '700' },
