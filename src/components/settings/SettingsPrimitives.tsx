@@ -1,15 +1,13 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 export function SectionHeader({ label }: { label: string }) {
   const theme = useTheme();
   return (
-    <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>
-      {label.toUpperCase()}
-    </Text>
+    <Text style={[styles.sectionHeader, { color: theme.textMuted }]}>{label}</Text>
   );
 }
 
@@ -103,13 +101,14 @@ export function Segment<T extends string>({
 const styles = StyleSheet.create({
   sectionHeader: {
     ...typography.micro,
+    textTransform: 'uppercase',
     marginTop: spacing.md,
     marginBottom: spacing.xs,
     paddingHorizontal: spacing.xs,
   },
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
   },
   row: {
@@ -126,7 +125,7 @@ const styles = StyleSheet.create({
   segment: {
     flexDirection: 'row',
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     padding: 2,
     gap: 2,
   },

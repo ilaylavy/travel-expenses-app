@@ -19,7 +19,7 @@ import { PreferencesSection } from '@/components/settings/PreferencesSection';
 import { ProfileSection } from '@/components/settings/ProfileSection';
 import { SyncSection, type SyncSectionStatus } from '@/components/settings/SyncSection';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { showConfirmDialog } from '@/utils/confirmDialog';
 import { deleteDatabase } from '@/db/database';
 import { getProfile, updateProfile } from '@/db/queries/profiles';
@@ -254,9 +254,13 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={[
+          style={({ pressed }) => [
             styles.headerBtn,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
           ]}
           hitSlop={8}
         >
@@ -345,7 +349,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
