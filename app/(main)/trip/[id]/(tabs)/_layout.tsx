@@ -1,27 +1,25 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing } from '@/constants/theme';
+import { sizing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
   const theme = useTheme();
+  // The active background is a square (width === height) with radiusPill so it
+  // renders as a true circle, not a wide oval. iconBox is wider than the circle
+  // to give the icon some horizontal slot room without stretching the circle.
   return (
-    <View
-      style={[
-        styles.iconWrap,
-        focused && { backgroundColor: theme.accentSoft },
-      ]}
-    >
-      <Text
+    <View style={styles.iconBox}>
+      <View
         style={[
-          styles.emoji,
-          { opacity: focused ? 1 : 0.45 },
+          styles.circle,
+          focused ? { backgroundColor: theme.accentSoft } : null,
         ]}
       >
-        {emoji}
-      </Text>
+        <Text style={[styles.emoji, { opacity: focused ? 1 : 0.45 }]}>{emoji}</Text>
+      </View>
     </View>
   );
 }
@@ -41,7 +39,6 @@ export default function TripTabsLayout() {
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
-        tabBarItemStyle: { paddingTop: 4 },
       }}
     >
       <Tabs.Screen
@@ -76,14 +73,25 @@ export default function TripTabsLayout() {
   );
 }
 
+const CIRCLE = 30; // active-circle diameter; must fit the tab's icon slot
+const SLOT_HEIGHT = 30; // hard-cap height so RN's overflow:hidden doesn't clip
+
 const styles = StyleSheet.create({
-  iconWrap: {
-    paddingHorizontal: spacing.md + 2, // 12 — pill width around the emoji
-    paddingVertical: 4,
+  iconBox: {
+    minWidth: 44,
+    height: SLOT_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circle: {
+    width: CIRCLE,
+    height: CIRCLE,
     borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emoji: {
     fontSize: 20,
-    lineHeight: 22,
+    lineHeight: 24, // generous so emoji glyph (with descenders) never clips
   },
 });
