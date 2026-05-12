@@ -207,6 +207,8 @@
     "statsTotal": "Total",
     "statsDailyAvg": "Daily Avg",
     "statsBudgetLeft": "Budget Left",
+    "statsBudgetUsed": "{{pct}} of {{total}}",
+    "statsBudgetRemaining": "{{pct}} left",
     "statsExpenses": "Expenses",
     "statsDayOf": "Day {{current}} of {{total}}",
     "statsDayN": "Day {{current}}",

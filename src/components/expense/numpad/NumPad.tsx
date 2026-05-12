@@ -3,7 +3,7 @@ import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LTRView } from '@/components/ui/LTRView';
-import { sizing, spacing } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -92,7 +92,7 @@ function NumPadInner({ onKeyPress, onLongBackspace, onDone, disabled }: NumPadPr
             {
               backgroundColor: theme.accentSoft,
               borderColor: theme.accent,
-              opacity: pressed ? 0.8 : 1,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
             },
           ]}
         >
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     overflow: 'hidden',
   },
   keyGradient: {
@@ -224,11 +224,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: sizing.radiusButton,
   },
-  keyText: { fontSize: 22, fontWeight: '600', lineHeight: 26 },
+  keyText: { ...typography.numpad, lineHeight: 26 }, // line-height tuning for vertical centering
   backspaceKey: {
     minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

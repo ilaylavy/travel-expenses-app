@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
 import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
 import { CURRENCIES } from '@/constants/currencies';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { ExchangeRateStatus } from '@/hooks/useExchangeRate';
@@ -84,7 +84,7 @@ export function AmountSection({
       {/* Currency strip */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>
-          {t('expense.currencySection').toUpperCase()}
+          {t('expense.currencySection')}
         </Text>
         <ScrollView
           horizontal
@@ -97,11 +97,12 @@ export function AmountSection({
               <Pressable
                 key={c.code}
                 onPress={() => onPickCurrency(c.code)}
-                style={[
+                style={({ pressed }) => [
                   styles.currencyChip,
                   {
                     backgroundColor: active ? theme.accentSoft : theme.surface,
                     borderColor: active ? theme.accent : theme.border,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
                   },
                 ]}
               >
@@ -118,9 +119,13 @@ export function AmountSection({
           })}
           <Pressable
             onPress={() => setPickerOpen(true)}
-            style={[
+            style={({ pressed }) => [
               styles.currencyChip,
-              { backgroundColor: theme.surface, borderColor: theme.border },
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
+              },
             ]}
           >
             <Text style={[styles.currencyChipText, { color: theme.textSecondary }]}>
@@ -151,15 +156,19 @@ const styles = StyleSheet.create({
   },
   amountDisplay: { ...typography.entryAmount },
   converted: { ...typography.subtitle },
-  staleHint: { ...typography.caption, marginTop: 4 },
+  staleHint: { ...typography.caption, marginTop: spacing.xs },
   section: { gap: spacing.sm },
-  sectionTitle: { ...typography.micro, marginBottom: 2 },
-  chipRow: { gap: spacing.sm, paddingVertical: 4 },
+  sectionTitle: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+    marginBottom: 2, // optical
+  },
+  chipRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   currencyChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 8, // chip compact geometry
     borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
   },
   currencyChipText: { fontSize: 12, fontWeight: '700' },
 });

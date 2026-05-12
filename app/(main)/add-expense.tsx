@@ -23,7 +23,7 @@ import { Section } from '@/components/expense/entry/Section';
 import { SplitParticipantsList } from '@/components/expense/entry/SplitParticipantsList';
 import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/numpad/NumPad';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useExpenseEntryForm } from '@/hooks/useExpenseEntryForm';
 import { useIsRTL } from '@/hooks/useIsRTL';
 import { usePhotoCapture } from '@/hooks/usePhotoCapture';
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -307,9 +307,9 @@ const styles = StyleSheet.create({
   },
   input: {
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    paddingVertical: 12, // form-field height tuning
     fontSize: 15,
     fontWeight: '500',
   },
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingTop: spacing.sm,
     paddingBottom: spacing.base,
-    borderTopWidth: 1,
+    borderTopWidth: borderWidth.hairline,
   },
   fab: {
     position: 'absolute',

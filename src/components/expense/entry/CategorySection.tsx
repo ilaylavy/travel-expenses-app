@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { CategoryGrid } from '@/components/expense/category/CategoryGrid';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
@@ -41,7 +41,7 @@ export function CategorySection({
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,
-              opacity: pressed ? 0.7 : 1,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
             },
           ]}
         >
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     marginTop: spacing.xs,
   },
   categoryMoreText: { ...typography.micro, fontWeight: '700' },

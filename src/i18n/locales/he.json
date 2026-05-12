@@ -191,6 +191,8 @@
     "statsTotal": "סה״כ",
     "statsDailyAvg": "ממוצע יומי",
     "statsBudgetLeft": "נשאר בתקציב",
+    "statsBudgetUsed": "{{pct}} מתוך {{total}}",
+    "statsBudgetRemaining": "{{pct}} נותרו",
     "statsExpenses": "הוצאות",
     "statsDayOf": "יום {{current}} מתוך {{total}}",
     "statsDayN": "יום {{current}}",

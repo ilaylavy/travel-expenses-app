@@ -14,9 +14,7 @@ export function Section({
   const theme = useTheme();
   return (
     <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>
-        {title.toUpperCase()}
-      </Text>
+      <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>{title}</Text>
       {children}
     </View>
   );
@@ -24,5 +22,9 @@ export function Section({
 
 const styles = StyleSheet.create({
   section: { gap: spacing.sm },
-  sectionTitle: { ...typography.micro, marginBottom: 2 },
+  sectionTitle: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+    marginBottom: 2, // optical
+  },
 });

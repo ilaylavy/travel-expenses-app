@@ -21,7 +21,7 @@ import { ExpenseStatsStrip } from '@/components/expense/stats/ExpenseStatsStrip'
 import type { FilterOption } from '@/components/ui/FilterModal';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { SettlementAttributedError } from '@/db/queries/errors';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
@@ -87,6 +87,7 @@ export default function TripExpensesScreen() {
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(() => new Set());
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(() => new Set());
@@ -326,23 +327,39 @@ export default function TripExpensesScreen() {
         />
       ) : null}
 
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder={t('expensesList.searchPlaceholder')}
-        placeholderTextColor={theme.textMuted}
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="search"
+      <View
         style={[
-          styles.searchInput,
+          styles.searchWrap,
           {
             backgroundColor: theme.surface,
-            borderColor: theme.border,
-            color: theme.text,
+            borderColor: searchFocused ? theme.accent : theme.border,
           },
         ]}
-      />
+      >
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
+          placeholder={t('expensesList.searchPlaceholder')}
+          placeholderTextColor={theme.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          style={[styles.searchInput, { color: theme.text }]}
+        />
+        {query.length > 0 ? (
+          <Pressable
+            onPress={() => setQuery('')}
+            hitSlop={8}
+            style={[styles.searchClear, { backgroundColor: theme.bgSoft }]}
+            accessibilityLabel={t('common.cancel')}
+          >
+            <Text style={[styles.searchClearText, { color: theme.textSecondary }]}>✕</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       <ExpenseFilterChips
         isSharedTrip={isSharedTrip}
@@ -412,15 +429,13 @@ export default function TripExpensesScreen() {
           ListHeaderComponent={hasExpenses ? listHeader : null}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderSectionHeader={({ section }) => (
-            <View
-              style={[
-                styles.sectionHeader,
-                { backgroundColor: theme.bg, borderBottomColor: theme.borderLight },
-              ]}
-            >
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                {labelForGroup(section)}
-              </Text>
+            <View style={[styles.sectionHeader, { backgroundColor: theme.bg }]}>
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  {labelForGroup(section)}
+                </Text>
+              </View>
               <Text style={[styles.sectionSubtotal, { color: theme.textSecondary }]}>
                 {formatAmount(section.subtotal, trip.homeCurrency)}
               </Text>
@@ -466,23 +481,57 @@ export default function TripExpensesScreen() {
           ListEmptyComponent={
             filteredAway ? (
               <View style={[styles.empty, { borderColor: theme.borderLight }]}>
-                <Text style={styles.emptyEmoji}>🔍</Text>
+                <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
+                  <Text style={styles.emptyEmoji}>🔍</Text>
+                </View>
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                   {t('expensesList.emptyFilteredTitle')}
                 </Text>
                 <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
                   {t('expensesList.emptyFilteredBody')}
                 </Text>
+                <Pressable
+                  onPress={handleClearAll}
+                  style={({ pressed }) => [
+                    styles.emptyCta,
+                    {
+                      backgroundColor: theme.accentSoft,
+                      borderColor: theme.accent,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.emptyCtaText, { color: theme.accent }]}>
+                    {t('expenses.filterClearAll')}
+                  </Text>
+                </Pressable>
               </View>
             ) : (
               <View style={[styles.empty, { borderColor: theme.borderLight }]}>
-                <Text style={styles.emptyEmoji}>💸</Text>
+                <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
+                  <Text style={styles.emptyEmoji}>💸</Text>
+                </View>
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                   {t('tripView.emptyExpensesTitle')}
                 </Text>
                 <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
                   {t('tripView.emptyExpensesBody')}
                 </Text>
+                <Pressable
+                  onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
+                  style={({ pressed }) => [
+                    styles.emptyCta,
+                    {
+                      backgroundColor: theme.accentSoft,
+                      borderColor: theme.accent,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.emptyCtaText, { color: theme.accent }]}>
+                    ＋ {t('tripView.addExpense')}
+                  </Text>
+                </Pressable>
               </View>
             )
           }
@@ -534,37 +583,81 @@ const styles = StyleSheet.create({
   headerTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerEmoji: { fontSize: 24 },
   headerTitle: { ...typography.itemTitle, flex: 1 },
-  searchInput: {
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontWeight: '500',
+    paddingVertical: 8, // compact form geometry; intermediate between sm/md
+    gap: 8,
     marginBottom: spacing.sm,
   },
+  searchIcon: { fontSize: 14, opacity: 0.7 },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    paddingVertical: 2,
+  },
+  searchClear: {
+    width: 22,
+    height: 22,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchClearText: { fontSize: 11, fontWeight: '700', lineHeight: 12 },
   list: { paddingHorizontal: spacing.base, paddingBottom: spacing.xxl },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: spacing.sm,
-    marginTop: spacing.sm,
-    borderBottomWidth: 1,
+    marginTop: spacing.md,
+    marginBottom: 2, // optical tighten before the first card
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sectionDot: {
+    width: 5,
+    height: 5,
+    borderRadius: sizing.radiusPill,
   },
   sectionTitle: { ...typography.sectionTitle },
   sectionSubtotal: { ...typography.amountSmall },
   empty: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     borderStyle: 'dashed',
-    padding: spacing.xxl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     marginTop: spacing.lg,
+    gap: spacing.sm,
   },
-  emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
-  emptyTitle: { ...typography.itemTitle, marginBottom: 4 },
+  emptyGlow: {
+    width: 72,
+    height: 72,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2, // optical nudge above title
+  },
+  emptyEmoji: { fontSize: 36 },
+  emptyTitle: { ...typography.itemTitle, marginBottom: 0 },
   emptyBody: { ...typography.secondary, textAlign: 'center' },
+  emptyCta: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
+  },
+  emptyCtaText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fab: {
     position: 'absolute',

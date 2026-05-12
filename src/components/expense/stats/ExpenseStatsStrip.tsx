@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Trip } from '@/types/trip';
@@ -53,14 +53,19 @@ export function ExpenseStatsStrip({
   const hasBudget = budgetHome !== null && budgetHome > 0;
   const remaining = budgetRemaining ?? 0;
   const remainingPct = hasBudget ? remaining / (budgetHome as number) : 0;
-  const spentPct = hasBudget ? 1 - remainingPct : 0;
+  const spentPct = hasBudget ? Math.max(0, Math.min(1, 1 - remainingPct)) : 0;
+  const spentPctLabel = `${Math.round(spentPct * 100)}%`;
+  const remainingPctLabel = `${Math.round(Math.max(0, remainingPct) * 100)}%`;
 
-  const remainingColor = (() => {
-    if (!hasBudget) return theme.text;
-    if (remainingPct > 0.3) return theme.green;
-    if (remainingPct >= 0.1) return theme.orange;
-    return theme.red;
+  const budgetTone: 'ok' | 'warn' | 'alert' = (() => {
+    if (!hasBudget) return 'ok';
+    if (remainingPct > 0.3) return 'ok';
+    if (remainingPct >= 0.1) return 'warn';
+    return 'alert';
   })();
+
+  const remainingColor =
+    budgetTone === 'ok' ? theme.green : budgetTone === 'warn' ? theme.orange : theme.red;
 
   return (
     <View style={[styles.wrap, { borderColor: theme.border }]}>
@@ -70,53 +75,76 @@ export function ExpenseStatsStrip({
         end={{ x: 1, y: 1 }}
         style={styles.card}
       >
-        <View style={styles.row}>
-          <View style={[styles.item, { borderRightColor: theme.borderLight, borderRightWidth: 1 }]}>
-            <Text style={[styles.label, { color: theme.textMuted }]}>
-              {t('expenses.statsTotal')}
-            </Text>
-            <Text style={[styles.value, { color: theme.text }]} numberOfLines={1}>
-              {formatAmount(totalSpent, currency)}
-            </Text>
-            <View style={styles.subSlot} />
-          </View>
+        <View style={styles.hero}>
+          <Text style={[styles.heroLabel, { color: theme.textMuted }]}>
+            {t('expenses.statsTotal')}
+          </Text>
+          <Text
+            style={[styles.heroAmount, { color: theme.text }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {formatAmount(totalSpent, currency)}
+          </Text>
 
-          <View style={[styles.item, { borderRightColor: theme.borderLight, borderRightWidth: 1 }]}>
-            <Text style={[styles.label, { color: theme.textMuted }]}>
-              {t('expenses.statsDailyAvg')}
-            </Text>
-            <Text style={[styles.value, { color: theme.text }]} numberOfLines={1}>
-              {formatAmount(dailyAverage, currency)}
-            </Text>
-            <View style={styles.subSlot}>
-              <Text style={[styles.sub, { color: theme.textMuted }]} numberOfLines={1}>
-                {dayLabel}
+          {hasBudget ? (
+            <View style={styles.heroBudget}>
+              <View style={[styles.heroBar, { backgroundColor: theme.bgSoft }]}>
+                <BudgetFill spentPct={spentPct} tone={budgetTone} theme={theme} />
+              </View>
+              <Text style={[styles.heroBudgetText, { color: theme.textSecondary }]}>
+                {t('expenses.statsBudgetUsed', {
+                  pct: spentPctLabel,
+                  total: formatAmount(budgetHome as number, currency),
+                  defaultValue: `${spentPctLabel} of ${formatAmount(budgetHome as number, currency)}`,
+                })}
               </Text>
             </View>
+          ) : null}
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
+
+        <View style={styles.row}>
+          <View style={styles.cell}>
+            <Text style={[styles.cellLabel, { color: theme.textMuted }]}>
+              {t('expenses.statsDailyAvg')}
+            </Text>
+            <Text style={[styles.cellValue, { color: theme.text }]} numberOfLines={1}>
+              {formatAmount(dailyAverage, currency)}
+            </Text>
+            <Text style={[styles.cellSub, { color: theme.textMuted }]} numberOfLines={1}>
+              {dayLabel}
+            </Text>
           </View>
 
-          <View style={styles.item}>
+          <View style={[styles.cellDivider, { backgroundColor: theme.borderLight }]} />
+
+          <View style={styles.cell}>
             {hasBudget ? (
               <>
-                <Text style={[styles.label, { color: theme.textMuted }]}>
+                <Text style={[styles.cellLabel, { color: theme.textMuted }]}>
                   {t('expenses.statsBudgetLeft')}
                 </Text>
-                <Text style={[styles.value, { color: remainingColor }]} numberOfLines={1}>
+                <Text style={[styles.cellValue, { color: remainingColor }]} numberOfLines={1}>
                   {formatAmount(remaining, currency)}
                 </Text>
-                <View style={styles.subSlot}>
-                  <BudgetBar spentPct={spentPct} theme={theme} />
-                </View>
+                <Text style={[styles.cellSub, { color: theme.textMuted }]} numberOfLines={1}>
+                  {t('expenses.statsBudgetRemaining', {
+                    pct: remainingPctLabel,
+                    defaultValue: `${remainingPctLabel} left`,
+                  })}
+                </Text>
               </>
             ) : (
               <>
-                <Text style={[styles.label, { color: theme.textMuted }]}>
+                <Text style={[styles.cellLabel, { color: theme.textMuted }]}>
                   {t('expenses.statsExpenses')}
                 </Text>
-                <Text style={[styles.value, { color: theme.text }]} numberOfLines={1}>
+                <Text style={[styles.cellValue, { color: theme.text }]} numberOfLines={1}>
                   {expenseCount}
                 </Text>
-                <View style={styles.subSlot} />
+                <View style={styles.cellSubSpacer} />
               </>
             )}
           </View>
@@ -126,73 +154,103 @@ export function ExpenseStatsStrip({
   );
 }
 
-interface BudgetBarProps {
+interface BudgetFillProps {
   spentPct: number;
+  tone: 'ok' | 'warn' | 'alert';
   theme: ReturnType<typeof useTheme>;
 }
 
-function BudgetBar({ spentPct, theme }: BudgetBarProps) {
-  const clamped = Math.max(0, Math.min(1, spentPct));
-  const fillWidth = `${clamped * 100}%` as const;
-
-  if (clamped > 0.9) {
+function BudgetFill({ spentPct, tone, theme }: BudgetFillProps) {
+  const fillWidth = `${spentPct * 100}%` as const;
+  if (tone === 'alert') {
     return (
-      <View style={[styles.bar, { backgroundColor: theme.bgSoft }]}>
-        <View
-          style={{
-            width: fillWidth,
-            height: '100%',
-            backgroundColor: theme.red,
-            borderRadius: 6,
-          }}
-        />
-      </View>
+      <View
+        style={{
+          width: fillWidth,
+          height: '100%',
+          backgroundColor: theme.red,
+          borderRadius: sizing.radiusPill,
+        }}
+      />
     );
   }
-
-  const colors = clamped > 0.7 ? theme.gradient2 : theme.gradient1;
+  const colors = tone === 'warn' ? theme.gradient2 : theme.gradient1;
   return (
-    <View style={[styles.bar, { backgroundColor: theme.bgSoft }]}>
-      <LinearGradient
-        colors={colors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={{ width: fillWidth, height: '100%', borderRadius: 6 }}
-      />
-    </View>
+    <LinearGradient
+      colors={colors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={{ width: fillWidth, height: '100%', borderRadius: sizing.radiusPill }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: sizing.radiusCard,
+    borderWidth: borderWidth.base,
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
   card: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.lg,
   },
-  row: { flexDirection: 'row' },
-  item: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    gap: 2,
+  hero: {
+    gap: spacing.xs,
   },
-  label: {
+  heroLabel: {
     ...typography.micro,
     textTransform: 'uppercase',
-    fontWeight: '600',
   },
-  value: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
-  subSlot: { height: 14, justifyContent: 'center', width: '100%', alignItems: 'center' },
-  sub: { fontSize: 10, fontWeight: '500' },
-  bar: {
-    height: 4,
-    width: '90%',
-    borderRadius: 6,
+  heroAmount: {
+    ...typography.amountHero,
+  },
+  heroBudget: {
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  heroBar: {
+    height: 6, // bar geometry, intentional
+    width: '100%',
+    borderRadius: sizing.radiusPill,
     overflow: 'hidden',
+  },
+  heroBudgetText: {
+    ...typography.caption,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  divider: {
+    height: borderWidth.hairline,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  cell: {
+    flex: 1,
+    gap: spacing.xs / 2, // 2px optical tighten between label/value/sub
+  },
+  cellDivider: {
+    width: borderWidth.hairline,
+    marginHorizontal: spacing.lg,
+  },
+  cellLabel: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+  },
+  cellValue: {
+    ...typography.amountMedium,
+  },
+  cellSub: {
+    ...typography.caption,
+    fontVariant: ['tabular-nums'],
+  },
+  cellSubSpacer: {
+    height: typography.caption.fontSize + 2,
   },
 });

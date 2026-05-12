@@ -8,7 +8,7 @@ import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCa
 import { PendingInviteCard } from '@/components/trip/PendingInviteCard';
 import { TripCard } from '@/components/trip/TripCard';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import {
   acceptInvite as dbAcceptInvite,
@@ -124,7 +124,7 @@ export default function TripListScreen() {
           {pendingInvites.length > 0 ? (
             <View style={styles.invitesSection}>
               <Text style={[styles.invitesHeading, { color: theme.textMuted }]}>
-                {t('trips.pendingInvites').toUpperCase()}
+                {t('trips.pendingInvites')}
               </Text>
               {pendingInvites.map((invite) => (
                 <PendingInviteCard
@@ -138,17 +138,34 @@ export default function TripListScreen() {
             </View>
           ) : null}
 
-          {trips.length === 0 && pendingInvites.length === 0 && (
+          {trips.length === 0 && pendingInvites.length === 0 ? (
             <View style={[styles.empty, { borderColor: theme.borderLight }]}>
-              <Text style={styles.emptyEmoji}>🗺️</Text>
+              <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
+                <Text style={styles.emptyEmoji}>🗺️</Text>
+              </View>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {t('trips.emptyTitle')}
               </Text>
               <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
                 {t('trips.emptyBody')}
               </Text>
+              <Pressable
+                onPress={() => router.push(href('/new-trip'))}
+                style={({ pressed }) => [
+                  styles.emptyCta,
+                  {
+                    backgroundColor: theme.accentSoft,
+                    borderColor: theme.accent,
+                    transform: [{ scale: pressed ? 0.97 : 1 }],
+                  },
+                ]}
+              >
+                <Text style={[styles.emptyCtaText, { color: theme.accent }]}>
+                  ＋ {t('trips.newTripCardTitle')}
+                </Text>
+              </Pressable>
             </View>
-          )}
+          ) : null}
 
           {trips.map((trip) => (
             <TripCard
@@ -159,34 +176,39 @@ export default function TripListScreen() {
             />
           ))}
 
-          <Pressable
-            onPress={() => router.push(href('/new-trip'))}
-            style={({ pressed }) => [styles.newCardWrapper, pressed && styles.newCardPressed]}
-          >
-            <View
-              style={[
-                styles.newCard,
-                { borderColor: theme.accent, backgroundColor: theme.surface },
+          {trips.length > 0 ? (
+            <Pressable
+              onPress={() => router.push(href('/new-trip'))}
+              style={({ pressed }) => [
+                styles.newCardWrapper,
+                { transform: [{ scale: pressed ? 0.99 : 1 }] },
               ]}
             >
-              <LinearGradient
-                colors={theme.fabGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.newCardIcon}
+              <View
+                style={[
+                  styles.newCard,
+                  { borderColor: theme.accent, backgroundColor: theme.surface },
+                ]}
               >
-                <Text style={styles.newCardPlus}>＋</Text>
-              </LinearGradient>
-              <View style={styles.newCardText}>
-                <Text style={[styles.newCardTitle, { color: theme.text }]}>
-                  {t('trips.newTripCardTitle')}
-                </Text>
-                <Text style={[styles.newCardSubtitle, { color: theme.textSecondary }]}>
-                  {t('trips.newTripCardSubtitle')}
-                </Text>
+                <LinearGradient
+                  colors={theme.fabGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.newCardIcon}
+                >
+                  <Text style={styles.newCardPlus}>＋</Text>
+                </LinearGradient>
+                <View style={styles.newCardText}>
+                  <Text style={[styles.newCardTitle, { color: theme.text }]}>
+                    {t('trips.newTripCardTitle')}
+                  </Text>
+                  <Text style={[styles.newCardSubtitle, { color: theme.textSecondary }]}>
+                    {t('trips.newTripCardSubtitle')}
+                  </Text>
+                </View>
               </View>
-            </View>
-          </Pressable>
+            </Pressable>
+          ) : null}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -208,7 +230,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -221,27 +243,45 @@ const styles = StyleSheet.create({
   },
   invitesHeading: {
     ...typography.micro,
+    textTransform: 'uppercase',
     marginBottom: spacing.sm,
   },
   empty: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     borderStyle: 'dashed',
-    padding: spacing.xxl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
-  emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
-  emptyTitle: { ...typography.itemTitle, marginBottom: 4 },
+  emptyGlow: {
+    width: 72,
+    height: 72,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2, // optical
+  },
+  emptyEmoji: { fontSize: 36 },
+  emptyTitle: { ...typography.itemTitle, marginBottom: 0 },
   emptyBody: { ...typography.secondary, textAlign: 'center' },
+  emptyCta: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
+  },
+  emptyCtaText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   newCardWrapper: { marginTop: spacing.sm },
-  newCardPressed: { opacity: 0.85 },
   newCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     borderStyle: 'dashed',
     padding: spacing.xl,
   },

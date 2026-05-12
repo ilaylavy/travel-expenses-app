@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useNumericPadModal } from '@/components/expense/numpad/NumericPadField';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -97,9 +97,13 @@ export function CurrencyConverterCard() {
 
           <Pressable
             onPress={handleSwap}
-            style={[
+            style={({ pressed }) => [
               styles.swapButton,
-              { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+              {
+                backgroundColor: theme.accentSoft,
+                borderColor: theme.accent,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
             ]}
           >
             <Text style={[styles.swapText, { color: theme.accent }]}>⇅</Text>
@@ -237,7 +241,7 @@ function ConverterField({
 const styles = StyleSheet.create({
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     padding: spacing.xl,
     marginBottom: spacing.base,
     gap: spacing.lg,
@@ -246,13 +250,13 @@ const styles = StyleSheet.create({
   title: typography.sectionTitle,
   fieldsWrap: { gap: spacing.sm },
   field: {
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusCardInner,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
   },
   fieldInner: { gap: spacing.xs },
-  fieldLabel: { ...typography.caption, letterSpacing: 0.4 },
+  fieldLabel: { ...typography.micro, textTransform: 'uppercase' },
   fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,7 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
   },
   currencyButtonSymbol: { ...typography.sectionTitle },
   currencyButtonCode: { ...typography.sectionTitle },
@@ -278,8 +282,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 40,
     height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

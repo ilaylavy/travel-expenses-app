@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
@@ -60,11 +60,19 @@ function ExpenseCardInner({
         {
           backgroundColor: theme.surface,
           borderColor: theme.borderLight,
-          opacity: pressed ? 0.85 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
         },
       ]}
     >
-      <View style={[styles.icon, { backgroundColor: softColor }]}>
+      <View
+        style={[
+          styles.icon,
+          {
+            backgroundColor: softColor,
+            borderColor: color,
+          },
+        ]}
+      >
         <Text style={styles.emoji}>{category?.emoji ?? '•'}</Text>
       </View>
 
@@ -181,17 +189,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: sizing.radiusCardInner,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
   },
   icon: {
     width: sizing.categoryIconMedium,
     height: sizing.categoryIconMedium,
     borderRadius: sizing.radiusIcon,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emoji: { fontSize: 20 },
-  middle: { flex: 1, minWidth: 0, gap: 4 },
+  middle: { flex: 1, minWidth: 0, gap: spacing.xs },
   title: { ...typography.itemTitle },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, alignItems: 'center' },
   meta: { ...typography.secondary },
@@ -203,5 +212,6 @@ const styles = StyleSheet.create({
   badgeText: { ...typography.micro },
   right: { alignItems: 'flex-end', gap: 2 },
   amount: { ...typography.amountSmall },
-  amountSecondary: { ...typography.caption },
+  // caption is shared with non-numeric copy elsewhere; tabular is intent-specific here.
+  amountSecondary: { ...typography.caption, fontVariant: ['tabular-nums'] },
 });

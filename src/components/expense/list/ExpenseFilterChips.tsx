@@ -129,12 +129,14 @@ export function ExpenseFilterChips(props: ExpenseFilterChipsProps) {
           label={t('expenses.filterCategory')}
           summary={categorySummary}
           active={selectedCategoryIds.size > 0}
+          activeCount={selectedCategoryIds.size}
           onPress={() => onOpenFilter('category')}
         />
         <FilterPill
           label={t('expenses.filterPayment')}
           summary={paymentSummary}
           active={selectedPayments.size > 0}
+          activeCount={selectedPayments.size}
           onPress={() => onOpenFilter('payment')}
         />
         {isSharedTrip ? (
@@ -142,6 +144,7 @@ export function ExpenseFilterChips(props: ExpenseFilterChipsProps) {
             label={t('expenses.filterMember')}
             summary={memberSummary}
             active={selectedMembers.size > 0}
+            activeCount={selectedMembers.size}
             onPress={() => onOpenFilter('member')}
           />
         ) : null}
@@ -149,12 +152,14 @@ export function ExpenseFilterChips(props: ExpenseFilterChipsProps) {
           label={t('expenses.filterLocation')}
           summary={placeSummary}
           active={selectedPlaces.size > 0}
+          activeCount={selectedPlaces.size}
           onPress={() => onOpenFilter('place')}
         />
         <FilterPill
           label={t('expenses.filterMonth')}
           summary={monthSummary}
           active={selectedMonths.size > 0}
+          activeCount={selectedMonths.size}
           onPress={() => onOpenFilter('month')}
         />
         {anyActive ? (
