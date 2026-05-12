@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -60,11 +60,12 @@ export function FilterModal({
                 <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
                 <Pressable
                   onPress={allSelected ? onClear : onSelectAll}
-                  style={[
+                  style={({ pressed }) => [
                     styles.allChip,
                     {
                       backgroundColor: allSelected ? theme.accentSoft : theme.surface,
                       borderColor: allSelected ? theme.accent : theme.border,
+                      transform: [{ scale: pressed ? 0.96 : 1 }],
                     },
                   ]}
                   hitSlop={6}
@@ -87,7 +88,13 @@ export function FilterModal({
                     <Pressable
                       key={opt.id}
                       onPress={() => onToggle(opt.id)}
-                      style={[styles.row, { borderBottomColor: theme.borderLight }]}
+                      style={({ pressed }) => [
+                        styles.row,
+                        {
+                          borderBottomColor: theme.borderLight,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
                     >
                       {opt.emoji ? <Text style={styles.rowEmoji}>{opt.emoji}</Text> : null}
                       <Text
@@ -119,7 +126,10 @@ export function FilterModal({
                 onPress={onDone}
                 style={({ pressed }) => [
                   styles.doneButton,
-                  { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
+                  {
+                    backgroundColor: theme.accent,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
                 ]}
               >
                 <Text style={styles.doneButtonText}>{t('expenses.filterDone')}</Text>
@@ -137,9 +147,9 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   safe: { backgroundColor: 'transparent' },
   sheetWrap: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderWidth: 1.5,
+    borderTopLeftRadius: sizing.radiusCard,
+    borderTopRightRadius: sizing.radiusCard,
+    borderWidth: borderWidth.base,
     borderBottomWidth: 0,
     overflow: 'hidden',
   },
@@ -157,10 +167,10 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.itemTitle },
   allChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: spacing.md + 2, // 12 — chip compact geometry
+    paddingVertical: spacing.sm,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
   },
   allChipText: { fontSize: 12, fontWeight: '600' },
   list: { maxHeight: 380 },
@@ -168,9 +178,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — row tall geometry
     gap: spacing.md,
-    borderBottomWidth: 1,
+    borderBottomWidth: borderWidth.hairline,
   },
   rowEmoji: { fontSize: 18 },
   rowLabel: { flex: 1, fontSize: 14, fontWeight: '600' },
@@ -178,8 +188,8 @@ const styles = StyleSheet.create({
   check: {
     width: 22,
     height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
+    borderRadius: sizing.radiusSmall - 4, // 6 — checkbox-style square radius
+    borderWidth: borderWidth.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -187,7 +197,7 @@ const styles = StyleSheet.create({
   doneButton: {
     marginTop: spacing.md,
     borderRadius: sizing.radiusButton,
-    paddingVertical: 14,
+    paddingVertical: 14, // button tall geometry
     alignItems: 'center',
   },
   doneButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },

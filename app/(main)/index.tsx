@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCard';
@@ -37,6 +37,7 @@ export default function TripListScreen() {
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [inviterNames, setInviterNames] = useState<Record<string, string>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const reloadInvites = useCallback(async (): Promise<void> => {
     if (!userId) {
@@ -54,6 +55,17 @@ export default function TripListScreen() {
     );
     setInviterNames(names);
   }, [userId]);
+
+  const handleRefresh = useCallback(async (): Promise<void> => {
+    setRefreshing(true);
+    try {
+      await syncEngine.triggerSync();
+      await refresh();
+      await reloadInvites();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh, reloadInvites]);
 
   useEffect(() => {
     if (isHydrated) void refresh();
@@ -124,7 +136,18 @@ export default function TripListScreen() {
           <TripCardSkeleton />
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.accent}
+              colors={[theme.accent]}
+            />
+          }
+        >
           <CurrencyConverterCard />
 
           {pendingInvites.length > 0 ? (

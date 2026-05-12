@@ -1,11 +1,12 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Pressable,
-  SectionList,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -89,6 +90,40 @@ export default function TripExpensesScreen() {
 
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Scroll-driven header animation. Native-driver-friendly props only
+  // (opacity + transform) so scrolling stays smooth on Android.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [1, 0.75],
+    extrapolate: 'clamp',
+  });
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [0, -4],
+    extrapolate: 'clamp',
+  });
+  const onScroll = useMemo(
+    () =>
+      Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        { useNativeDriver: true },
+      ),
+    [scrollY],
+  );
+
+  const handleRefresh = useCallback(async (): Promise<void> => {
+    if (!tripId) return;
+    setRefreshing(true);
+    try {
+      await syncEngine.triggerSync();
+      await loadForTrip(tripId);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [tripId, loadForTrip]);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(() => new Set());
   const [selectedPayments, setSelectedPayments] = useState<Set<string>>(() => new Set());
@@ -388,7 +423,15 @@ export default function TripExpensesScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top']}>
-      <View style={styles.header}>
+      <Animated.View
+        style={[
+          styles.header,
+          {
+            opacity: headerOpacity,
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      >
         <Pressable
           onPress={() => router.back()}
           style={[
@@ -417,16 +460,26 @@ export default function TripExpensesScreen() {
         >
           <SyncStatusDot />
         </Pressable>
-      </View>
+      </Animated.View>
 
       <KeyboardAwareWrapper hasBottomTab style={styles.flex}>
-        <SectionList
+        <Animated.SectionList
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           sections={sections}
           keyExtractor={(item) => item.key}
           stickySectionHeadersEnabled
           contentContainerStyle={styles.list}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.accent}
+              colors={[theme.accent]}
+            />
+          }
           ListHeaderComponent={hasExpenses ? listHeader : null}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           renderSectionHeader={({ section }) => (

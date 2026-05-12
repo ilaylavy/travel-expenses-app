@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { spacing, typography } from '@/constants/theme';
+import { sizing, spacing, typography } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getSignedPhotoUrl } from '@/services/photoService';
 import type { ExpensePhoto } from '@/types/expense';
@@ -82,7 +82,10 @@ export function PhotoGalleryModal({
               accessibilityLabel={t('expenseDetail.photoCloseLabel')}
               onPress={onClose}
               hitSlop={12}
-              style={styles.closeButton}
+              style={({ pressed }) => [
+                styles.closeButton,
+                { transform: [{ scale: pressed ? 0.94 : 1 }] },
+              ]}
             >
               <Text style={styles.closeIcon}>✕</Text>
             </Pressable>
@@ -199,9 +202,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: sizing.headerButton,
+    height: sizing.headerButton,
+    borderRadius: sizing.radiusPill,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',

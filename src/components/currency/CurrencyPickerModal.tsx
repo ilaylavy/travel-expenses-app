@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CURRENCIES, type Currency } from '@/constants/currencies';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -67,9 +67,13 @@ export function CurrencyPickerModal({
           <Pressable
             onPress={onClose}
             hitSlop={8}
-            style={[
+            style={({ pressed }) => [
               styles.headerButton,
-              { backgroundColor: theme.surface, borderColor: theme.border },
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
             ]}
           >
             <Text style={[styles.headerButtonText, { color: theme.text }]}>✕</Text>
@@ -121,7 +125,10 @@ export function CurrencyPickerModal({
                     onClose();
                     setQuery('');
                   }}
-                  style={styles.rowBody}
+                  style={({ pressed }) => [
+                    styles.rowBody,
+                    pressed && { opacity: 0.7 },
+                  ]}
                 >
                   <View
                     style={[
@@ -190,7 +197,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -198,7 +205,7 @@ const styles = StyleSheet.create({
   searchWrapper: { paddingHorizontal: spacing.base, paddingBottom: spacing.md },
   search: {
     ...typography.body,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
@@ -222,7 +229,7 @@ const styles = StyleSheet.create({
     width: sizing.categoryIconSmall,
     height: sizing.categoryIconSmall,
     borderRadius: sizing.radiusSmall,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
