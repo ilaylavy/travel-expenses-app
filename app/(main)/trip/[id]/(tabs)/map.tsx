@@ -11,7 +11,7 @@ import { ExpensePopup } from '@/components/map/ExpensePopup';
 import { TripMap } from '@/components/map/TripMap';
 import type { TripMapHandle } from '@/components/map/types';
 import type { FilterOption } from '@/components/ui/FilterModal';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
 import { useIsRTL } from '@/hooks/useIsRTL';
@@ -296,13 +296,14 @@ export default function TripMapScreen() {
         <Pressable
           onPress={handleLocateMe}
           accessibilityLabel={t('map.myLocation')}
-          style={[
+          style={({ pressed }) => [
             styles.locateButton,
             isRTL ? styles.locateButtonLeft : styles.locateButtonRight,
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,
               opacity: loadingLocation ? 0.6 : 1,
+              transform: [{ scale: pressed && !loadingLocation ? 0.94 : 1 }],
             },
           ]}
           hitSlop={6}
@@ -358,11 +359,11 @@ const styles = StyleSheet.create({
   topOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
   locateButton: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 80, // sit clear of bottom tab + nav inset
     width: 44,
     height: 44,
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -392,12 +393,12 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     padding: spacing.xl,
     alignItems: 'center',
     maxWidth: 320,
   },
   emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
-  emptyTitle: { ...typography.itemTitle, marginBottom: 4 },
+  emptyTitle: { ...typography.itemTitle, marginBottom: spacing.xs },
   emptyBody: { ...typography.secondary, textAlign: 'center' },
 });

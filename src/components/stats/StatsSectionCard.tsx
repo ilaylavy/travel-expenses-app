@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
@@ -31,7 +31,7 @@ export function StatsSectionCard({ title, children, style }: Props) {
 const styles = StyleSheet.create({
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     padding: spacing.xl,
     gap: spacing.md,
   },

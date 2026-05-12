@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/chat/EmptyState';
 import { FollowUpChips } from '@/components/chat/FollowUpChips';
 import { MessageInput } from '@/components/chat/MessageInput';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import {
@@ -181,9 +181,13 @@ export default function AskScreen() {
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
-            style={[
+            style={({ pressed }) => [
               styles.headerButton,
-              { backgroundColor: theme.surface, borderColor: theme.border },
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              },
             ]}
             hitSlop={8}
           >
@@ -197,9 +201,13 @@ export default function AskScreen() {
           {messages.length > 0 || loading ? (
             <Pressable
               onPress={handleReset}
-              style={[
+              style={({ pressed }) => [
                 styles.headerButton,
-                { backgroundColor: theme.surface, borderColor: theme.border },
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                },
               ]}
               hitSlop={8}
               accessibilityLabel={t('ask.refreshA11yLabel')}
@@ -284,7 +292,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -292,13 +300,13 @@ const styles = StyleSheet.create({
   headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
   headerTitleWrap: { flex: 1, alignItems: 'center' },
   headerTitle: { ...typography.itemTitle },
-  scrollContent: { paddingHorizontal: 18, paddingBottom: 12, gap: 4 },
-  messageBlock: { gap: 4 },
+  scrollContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md + 2, gap: spacing.xs },
+  messageBlock: { gap: spacing.xs },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.base },
   linkButton: {
     borderRadius: sizing.radiusButton,
     paddingHorizontal: spacing.xl,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — taller button
   },
   linkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

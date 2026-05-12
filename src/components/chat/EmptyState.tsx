@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TripWithStats } from '@/types/trip';
@@ -38,7 +39,14 @@ export function EmptyState({ trip, onPick }: EmptyStateProps) {
         {starterKeys.map((key) => {
           const text = t(key);
           return (
-            <Pressable key={key} onPress={() => onPick(text)} style={styles.cardPressable}>
+            <Pressable
+              key={key}
+              onPress={() => onPick(text)}
+              style={({ pressed }) => [
+                styles.cardPressable,
+                { transform: [{ scale: pressed ? 0.98 : 1 }] },
+              ]}
+            >
               <LinearGradient
                 colors={theme.cardGradient}
                 start={{ x: 0, y: 0 }}
@@ -57,28 +65,28 @@ export function EmptyState({ trip, onPick }: EmptyStateProps) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 18,
-    paddingVertical: 24,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl + 2, // 24 — extra breathing room
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.md - 2, // 8
   },
   hero: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: sizing.radiusCardInner,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.md - 2, // 8
   },
   heroEmoji: { fontSize: 28 },
   title: { fontSize: 16, fontWeight: '700' },
-  subtitle: { fontSize: 13, fontWeight: '500', marginBottom: 12 },
-  cards: { width: '100%', gap: 8 },
+  subtitle: { fontSize: 13, fontWeight: '500', marginBottom: spacing.md + 2 }, // 12
+  cards: { width: '100%', gap: spacing.md - 2 },
   cardPressable: { width: '100%' },
   card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
+    borderRadius: sizing.radiusIcon, // 12
+    borderWidth: borderWidth.hairline,
+    padding: spacing.lg,
   },
   cardText: { fontSize: 13, fontWeight: '500' },
 });

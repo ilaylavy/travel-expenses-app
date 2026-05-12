@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -41,7 +42,13 @@ export function MessageInput({ value, onChange, onSend, disabled }: MessageInput
         onPress={onSend}
         disabled={!canSend}
         hitSlop={4}
-        style={[styles.sendWrap, { opacity: canSend ? 1 : 0.4 }]}
+        style={({ pressed }) => [
+          styles.sendWrap,
+          {
+            opacity: canSend ? 1 : 0.4,
+            transform: [{ scale: pressed && canSend ? 0.94 : 1 }],
+          },
+        ]}
       >
         <LinearGradient
           colors={theme.gradient1}
@@ -60,24 +67,24 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingTop: 8,
-    paddingHorizontal: 18,
-    paddingBottom: 20,
+    gap: 8, // tighter inline gap
+    paddingTop: spacing.md - 2, // 8
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 20, // keyboard clearance buffer
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderWidth: borderWidth.hairline,
+    borderRadius: sizing.radiusInput,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     fontSize: 14,
   },
   sendWrap: { width: 40, height: 40 },
   sendButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },

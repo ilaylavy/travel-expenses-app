@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 interface FollowUpChipsProps {
@@ -20,9 +21,13 @@ export function FollowUpChips({ chips, onPress }: FollowUpChipsProps) {
         <Pressable
           key={`${idx}-${chip}`}
           onPress={() => onPress(chip)}
-          style={[
+          style={({ pressed }) => [
             styles.chip,
-            { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+            {
+              backgroundColor: theme.accentSoft,
+              borderColor: theme.accent,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+            },
           ]}
           hitSlop={4}
         >
@@ -34,12 +39,12 @@ export function FollowUpChips({ chips, onPress }: FollowUpChipsProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 8, paddingHorizontal: 18, paddingVertical: 8 },
+  container: { gap: spacing.md - 2, paddingHorizontal: spacing.xl, paddingVertical: spacing.md - 2 },
   chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 22,
-    borderWidth: 1,
+    paddingVertical: 8, // chip compact geometry
+    paddingHorizontal: spacing.lg,
+    borderRadius: sizing.radiusChip,
+    borderWidth: borderWidth.hairline,
   },
   text: { fontSize: 12, fontWeight: '600' },
 });
