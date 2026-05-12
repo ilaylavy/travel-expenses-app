@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     height: 12,
-    borderRadius: 6,
+    borderRadius: sizing.radiusPill,
     overflow: 'hidden',
   },
   list: {

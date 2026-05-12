@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
@@ -114,7 +114,7 @@ export function ExpenseHero({
 const styles = StyleSheet.create({
   hero: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
@@ -123,11 +123,11 @@ const styles = StyleSheet.create({
   categoryIcon: {
     width: sizing.categoryIconLarge,
     height: sizing.categoryIconLarge,
-    borderRadius: sizing.radiusIcon,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryEmoji: { fontSize: 24 },
+  categoryEmoji: { fontSize: 28 },
   categoryName: { ...typography.subtitle, letterSpacing: 0.3 },
   amount: { ...typography.amountLarge, marginTop: spacing.xs },
   amountConverted: { ...typography.subtitle },
@@ -139,9 +139,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: sizing.radiusChip,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: sizing.radiusPill,
   },
   badgeText: { ...typography.micro },
 });

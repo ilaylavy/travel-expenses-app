@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import {
   leaveTrip as dbLeaveTrip,
@@ -92,7 +92,7 @@ export function MembersSection({
   return (
     <View style={styles.section}>
       <Text style={[styles.heading, { color: theme.textMuted }]}>
-        {t('tripSettings.members.title').toUpperCase()}
+        {t('tripSettings.members.title')}
       </Text>
 
       <MembersList
@@ -116,7 +116,7 @@ export function MembersSection({
             {
               backgroundColor: theme.redSoft,
               borderColor: theme.red,
-              opacity: pressed ? 0.7 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
@@ -134,12 +134,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.base,
     gap: spacing.sm,
   },
-  heading: { ...typography.micro },
+  heading: { ...typography.micro, textTransform: 'uppercase' },
   leaveButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
-    paddingVertical: 14,
+    borderWidth: borderWidth.base,
+    paddingVertical: 14, // button tall geometry
     alignItems: 'center',
   },
   leaveText: { fontSize: 14, fontWeight: '700' },

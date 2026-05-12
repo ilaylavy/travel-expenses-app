@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Trip, TripWithStats } from '@/types/trip';
@@ -76,7 +76,7 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.wrapper, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.wrapper, { transform: [{ scale: pressed ? 0.99 : 1 }] }]}
     >
       <LinearGradient
         colors={theme.cardGradient}
@@ -86,7 +86,7 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
           styles.card,
           {
             borderColor: isOngoing ? theme.accent : theme.border,
-            borderWidth: isOngoing ? 1.5 : 1,
+            borderWidth: isOngoing ? borderWidth.base : borderWidth.hairline,
             shadowColor: isOngoing ? theme.accent : 'transparent',
             shadowOpacity: isOngoing ? 0.35 : 0,
             shadowRadius: isOngoing ? 20 : 0,
@@ -98,7 +98,10 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
           <View
             style={[
               styles.emojiBox,
-              { backgroundColor: theme.accentSoft, borderColor: theme.borderLight },
+              {
+                backgroundColor: theme.accentSoft,
+                borderColor: isOngoing ? theme.accent : theme.borderLight,
+              },
             ]}
           >
             <Text style={styles.emoji}>{trip.emoji}</Text>
@@ -151,7 +154,7 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
                 {
                   backgroundColor: theme.accentSoft,
                   borderColor: theme.accent,
-                  opacity: pressed ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
                 },
               ]}
             >
@@ -200,7 +203,6 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: spacing.lg },
-  pressed: { opacity: 0.85 },
   card: {
     borderRadius: sizing.radiusCard,
     padding: spacing.xl,
@@ -211,19 +213,19 @@ const styles = StyleSheet.create({
     width: sizing.categoryIconLarge,
     height: sizing.categoryIconLarge,
     borderRadius: sizing.radiusCardInner,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 26 },
+  emoji: { fontSize: 28 },
   headerText: { flex: 1 },
-  name: { ...typography.itemTitle, marginBottom: 2 },
+  name: { ...typography.itemTitle, marginBottom: 2 }, // optical
   dates: typography.secondary,
-  pills: { gap: 4, alignItems: 'flex-end' },
+  pills: { gap: spacing.xs, alignItems: 'flex-end' },
   pill: {
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    borderRadius: sizing.radiusPill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 3, // compact chip geometry
   },
   pillText: { ...typography.micro, textTransform: 'uppercase' },
   amountRow: {
@@ -233,22 +235,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   amountCol: { flex: 1 },
-  amountLabel: { ...typography.micro, textTransform: 'uppercase', marginBottom: 4 },
-  amountLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  amountLabel: { ...typography.micro, textTransform: 'uppercase', marginBottom: spacing.xs },
+  amountLine: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   amount: typography.amountMedium,
   amountCurrency: { ...typography.caption, fontWeight: '700' },
   editButton: {
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
   editIcon: { fontSize: 18, fontWeight: '700' },
-  budgetBlock: { marginTop: spacing.lg, gap: 6 },
-  track: { height: 8, borderRadius: 8, overflow: 'hidden' },
-  trackFill: { height: '100%', borderRadius: 8 },
+  budgetBlock: { marginTop: spacing.lg, gap: spacing.sm },
+  track: { height: 8, borderRadius: sizing.radiusPill, overflow: 'hidden' },
+  trackFill: { height: '100%', borderRadius: sizing.radiusPill },
   budgetMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { initials } from '@/utils/initials';
@@ -85,19 +85,19 @@ const styles = StyleSheet.create({
   avatar: {
     width: sizing.categoryIconLarge,
     height: sizing.categoryIconLarge,
-    borderRadius: sizing.categoryIconLarge / 2,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: { fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
   profileMeta: { flex: 1, minWidth: 0 },
-  labelSmall: { ...typography.caption, marginBottom: 4 },
+  labelSmall: { ...typography.caption, marginBottom: spacing.xs },
   nameInput: {
     ...typography.body,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
     fontWeight: '600',
   },
   emailValue: { ...typography.body, fontWeight: '500' },

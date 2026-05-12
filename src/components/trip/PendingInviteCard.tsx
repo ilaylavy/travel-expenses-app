@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { PendingInvite } from '@/db/queries/tripMembers';
@@ -59,7 +59,8 @@ export function PendingInviteCard({ invite, inviterName, onAccept, onDecline }: 
             {
               borderColor: theme.border,
               backgroundColor: theme.surface,
-              opacity: pressed || busy !== null ? 0.7 : 1,
+              opacity: busy !== null ? 0.7 : 1,
+              transform: [{ scale: pressed && !busy ? 0.98 : 1 }],
             },
           ]}
         >
@@ -78,7 +79,8 @@ export function PendingInviteCard({ invite, inviterName, onAccept, onDecline }: 
             styles.button,
             {
               backgroundColor: theme.accent,
-              opacity: pressed || busy !== null ? 0.8 : 1,
+              opacity: busy !== null ? 0.8 : 1,
+              transform: [{ scale: pressed && !busy ? 0.98 : 1 }],
             },
           ]}
         >
@@ -98,7 +100,7 @@ export function PendingInviteCard({ invite, inviterName, onAccept, onDecline }: 
 const styles = StyleSheet.create({
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     padding: spacing.lg,
     gap: spacing.md,
     marginBottom: spacing.md,
@@ -119,12 +121,12 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     borderRadius: sizing.radiusButton,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — taller button geometry
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondary: {
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
   },
   buttonLabel: { fontSize: 14, fontWeight: '700' },
 });

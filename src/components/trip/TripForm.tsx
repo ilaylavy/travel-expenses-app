@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from
 
 import { NumericPadField } from '@/components/expense/numpad/NumericPadField';
 import { CalendarPickerModal } from '@/components/ui/CalendarPickerModal';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getCurrencySymbol } from '@/utils/currency';
@@ -107,11 +107,12 @@ export function TripForm({
               <Pressable
                 key={e}
                 onPress={() => setEmoji(e)}
-                style={[
+                style={({ pressed }) => [
                   styles.emojiChip,
                   {
                     backgroundColor: selected ? theme.accentSoft : theme.surface,
                     borderColor: selected ? theme.accent : theme.border,
+                    transform: [{ scale: pressed ? 0.94 : 1 }],
                   },
                 ]}
               >
@@ -221,7 +222,11 @@ export function TripForm({
         disabled={submitting}
         style={({ pressed }) => [
           styles.submit,
-          { backgroundColor: theme.accent, opacity: submitting || pressed ? 0.7 : 1 },
+          {
+            backgroundColor: theme.accent,
+            opacity: submitting ? 0.7 : 1,
+            transform: [{ scale: pressed && !submitting ? 0.98 : 1 }],
+          },
         ]}
       >
         <Text style={styles.submitText}>
@@ -257,20 +262,20 @@ const styles = StyleSheet.create({
   label: { ...typography.subtitle },
   input: {
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — form-field height
     fontSize: 15,
     fontWeight: '500',
   },
   dateButton: { justifyContent: 'center' },
   dateButtonText: { fontSize: 15, fontWeight: '500' },
-  emojiRow: { gap: spacing.sm, paddingVertical: 4 },
+  emojiRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   emojiChip: {
     width: 52,
     height: 52,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -279,12 +284,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
   },
   error: { ...typography.caption, marginTop: -spacing.xs },
   submit: {
     borderRadius: sizing.radiusButton,
-    paddingVertical: 14,
+    paddingVertical: 14, // button tall geometry
     alignItems: 'center',
     marginTop: spacing.sm,
   },

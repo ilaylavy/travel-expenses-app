@@ -1,6 +1,6 @@
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing } from '@/constants/theme';
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { DraftPhoto } from '@/hooks/usePhotoCapture';
@@ -27,9 +27,13 @@ export function PhotoSection({
       <View style={styles.photoButtonRow}>
         <Pressable
           onPress={onCamera}
-          style={[
+          style={({ pressed }) => [
             styles.photoButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
           ]}
         >
           <Text style={{ color: theme.text, fontWeight: '600' }}>
@@ -38,9 +42,13 @@ export function PhotoSection({
         </Pressable>
         <Pressable
           onPress={onGallery}
-          style={[
+          style={({ pressed }) => [
             styles.photoButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
           ]}
         >
           <Text style={{ color: theme.text, fontWeight: '600' }}>
@@ -67,6 +75,7 @@ export function PhotoSection({
                   onConfirm: () => onRemove(p.uri),
                 });
               }}
+              style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
             >
               <Image source={{ uri: p.uri }} style={styles.photoThumb} />
             </Pressable>
@@ -81,11 +90,11 @@ const styles = StyleSheet.create({
   photoButtonRow: { flexDirection: 'row', gap: spacing.sm },
   photoButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — button tall geometry
     alignItems: 'center',
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
   },
-  photoRow: { gap: spacing.sm, paddingVertical: 4 },
+  photoRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   photoThumb: { width: 72, height: 72, borderRadius: sizing.radiusSmall },
 });

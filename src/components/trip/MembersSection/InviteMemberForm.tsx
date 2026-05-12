@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import {
   getExistingMember,
   inviteMember as dbInviteMember,
@@ -100,7 +100,7 @@ export function InviteMemberForm({
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
-          placeholder="partner@example.com"
+          placeholder={t('tripSettings.members.inviteEmailPlaceholder')}
           placeholderTextColor={theme.textMuted}
           style={[
             styles.input,
@@ -121,7 +121,12 @@ export function InviteMemberForm({
             styles.inviteButton,
             {
               backgroundColor: theme.accent,
-              opacity: pressed || inviting || email.trim().length === 0 ? 0.7 : 1,
+              opacity: inviting || email.trim().length === 0 ? 0.7 : 1,
+              transform: [
+                {
+                  scale: pressed && !inviting && email.trim().length > 0 ? 0.96 : 1,
+                },
+              ],
             },
           ]}
         >
@@ -154,9 +159,9 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     borderRadius: sizing.radiusInput,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — form field height
     fontSize: 14,
   },
   inviteButton: {

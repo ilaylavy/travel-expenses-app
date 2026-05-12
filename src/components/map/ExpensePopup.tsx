@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
@@ -48,7 +48,7 @@ export function ExpensePopup({
         {
           backgroundColor: theme.surface,
           borderColor: theme.borderLight,
-          opacity: pressed ? 0.9 : 1,
+          transform: [{ scale: pressed ? 0.99 : 1 }],
         },
       ]}
     >
@@ -90,7 +90,13 @@ export function ExpensePopup({
       <Pressable
         onPress={onClose}
         hitSlop={10}
-        style={[styles.close, { backgroundColor: theme.bgSoft }]}
+        style={({ pressed }) => [
+          styles.close,
+          {
+            backgroundColor: theme.bgSoft,
+            transform: [{ scale: pressed ? 0.9 : 1 }],
+          },
+        ]}
       >
         <Text style={[styles.closeText, { color: theme.textMuted }]}>✕</Text>
       </Pressable>
@@ -105,7 +111,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: sizing.radiusCard,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowRadius: 14,
@@ -116,7 +122,7 @@ const styles = StyleSheet.create({
     width: sizing.categoryIconMedium,
     height: sizing.categoryIconMedium,
     borderRadius: sizing.radiusIcon,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -131,7 +137,7 @@ const styles = StyleSheet.create({
   close: {
     width: 26,
     height: 26,
-    borderRadius: 13,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },

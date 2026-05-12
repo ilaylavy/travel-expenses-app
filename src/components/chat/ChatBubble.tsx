@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useIsRTL } from '@/hooks/useIsRTL';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -43,7 +44,7 @@ export function ChatBubble({ role, content, onTryAgain }: ChatBubbleProps) {
         end={{ x: 1, y: 1 }}
         style={[
           styles.bubble,
-          { borderColor: theme.border, borderWidth: 1, [leadingFlat]: 4 },
+          { borderColor: theme.border, borderWidth: borderWidth.hairline, [leadingFlat]: 4 },
         ]}
       >
         <Text style={[styles.text, { color: theme.text }]}>{content}</Text>
@@ -60,17 +61,17 @@ export function ChatBubble({ role, content, onTryAgain }: ChatBubbleProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { width: '100%', marginVertical: 4 },
+  row: { width: '100%', marginVertical: spacing.xs },
   rowUser: { alignItems: 'flex-end' },
   rowAi: { alignItems: 'flex-start' },
   bubble: {
     maxWidth: '85%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    paddingVertical: spacing.md + 2, // 12 — bubble interior
+    paddingHorizontal: spacing.base,
+    borderRadius: sizing.radiusCardInner, // 18
   },
   text: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
-  tryAgainWrap: { marginTop: 6 },
+  tryAgainWrap: { marginTop: spacing.sm },
   tryAgain: {
     fontSize: 13,
     fontWeight: '600',

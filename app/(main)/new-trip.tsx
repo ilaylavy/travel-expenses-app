@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -39,9 +39,13 @@ export default function NewTripScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={[
+          style={({ pressed }) => [
             styles.backButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
           ]}
           hitSlop={8}
         >
@@ -77,7 +81,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

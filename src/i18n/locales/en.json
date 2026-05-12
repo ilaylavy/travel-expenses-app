@@ -108,6 +108,7 @@
     "members": {
       "title": "Members",
       "inviteEmail": "Invite a partner by email",
+      "inviteEmailPlaceholder": "partner@example.com",
       "inviteButton": "Invite",
       "inviteNotFound": "This email isn't on the app yet. Ask them to sign up first.",
       "inviteFailed": "Could not send invite",
@@ -207,6 +208,8 @@
     "statsTotal": "Total",
     "statsDailyAvg": "Daily Avg",
     "statsBudgetLeft": "Budget Left",
+    "statsBudgetUsed": "{{pct}} of {{total}}",
+    "statsBudgetRemaining": "{{pct}} left",
     "statsExpenses": "Expenses",
     "statsDayOf": "Day {{current}} of {{total}}",
     "statsDayN": "Day {{current}}",

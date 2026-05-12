@@ -20,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarPickerModal } from '@/components/ui/CalendarPickerModal';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fetchRate } from '@/services/exchangeRates';
@@ -243,7 +243,14 @@ export function SettleUpModal({
                   <Text style={[styles.title, { color: theme.text }]}>
                     {t('settleUp.title')}
                   </Text>
-                  <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
+                  <Pressable
+                    onPress={onClose}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.closeButton,
+                      { opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
                     <Text style={[styles.closeText, { color: theme.textMuted }]}>✕</Text>
                   </Pressable>
                 </View>
@@ -320,13 +327,14 @@ export function SettleUpModal({
                   <View style={styles.currencyToggle}>
                     <Pressable
                       onPress={() => handleCurrencyToggle('trip')}
-                      style={[
+                      style={({ pressed }) => [
                         styles.toggleButton,
                         {
                           backgroundColor:
                             currency === 'trip' ? theme.accentSoft : theme.surface,
                           borderColor:
                             currency === 'trip' ? theme.accent : theme.border,
+                          transform: [{ scale: pressed ? 0.97 : 1 }],
                         },
                       ]}
                     >
@@ -344,13 +352,14 @@ export function SettleUpModal({
                     </Pressable>
                     <Pressable
                       onPress={() => handleCurrencyToggle('home')}
-                      style={[
+                      style={({ pressed }) => [
                         styles.toggleButton,
                         {
                           backgroundColor:
                             currency === 'home' ? theme.accentSoft : theme.surface,
                           borderColor:
                             currency === 'home' ? theme.accent : theme.border,
+                          transform: [{ scale: pressed ? 0.97 : 1 }],
                         },
                       ]}
                     >
@@ -375,9 +384,13 @@ export function SettleUpModal({
                 </Text>
                 <Pressable
                   onPress={() => setDatePickerOpen(true)}
-                  style={[
+                  style={({ pressed }) => [
                     styles.dateRow,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
+                    {
+                      backgroundColor: theme.surface,
+                      borderColor: theme.border,
+                      opacity: pressed ? 0.8 : 1,
+                    },
                   ]}
                 >
                   <Text style={[styles.dateText, { color: theme.text }]}>
@@ -418,8 +431,13 @@ export function SettleUpModal({
                     styles.submitButton,
                     {
                       backgroundColor: theme.accent,
-                      opacity:
-                        isSubmitting || rate === null ? 0.6 : pressed ? 0.85 : 1,
+                      opacity: isSubmitting || rate === null ? 0.6 : 1,
+                      transform: [
+                        {
+                          scale:
+                            pressed && !isSubmitting && rate !== null ? 0.98 : 1,
+                        },
+                      ],
                     },
                   ]}
                 >
@@ -451,9 +469,9 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   safe: { backgroundColor: 'transparent' },
   sheetWrap: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderWidth: 1.5,
+    borderTopLeftRadius: sizing.radiusCard,
+    borderTopRightRadius: sizing.radiusCard,
+    borderWidth: borderWidth.base,
     borderBottomWidth: 0,
     overflow: 'hidden',
   },
@@ -488,9 +506,9 @@ const styles = StyleSheet.create({
   arrow: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
   personPill: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
   },
   personName: { fontSize: 14, fontWeight: '700' },
@@ -498,7 +516,7 @@ const styles = StyleSheet.create({
   amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
@@ -506,7 +524,7 @@ const styles = StyleSheet.create({
   currencyPrefix: { fontSize: 14, fontWeight: '700' },
   amountInput: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 14, // form-field tall geometry
     fontSize: 18,
     fontWeight: '700',
   },
@@ -517,26 +535,26 @@ const styles = StyleSheet.create({
   },
   toggleButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     alignItems: 'center',
   },
   toggleText: { fontSize: 12, fontWeight: '700' },
   dateRow: {
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+    paddingVertical: 14, // form-field tall geometry
   },
   dateText: { fontSize: 14, fontWeight: '600' },
   noteInput: {
     minHeight: 64,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — note field height
     fontSize: 14,
     fontWeight: '500',
     textAlignVertical: 'top',

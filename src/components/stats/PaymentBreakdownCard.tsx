@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
-import { spacing, typography } from '@/constants/theme';
+import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { formatAmount } from '@/utils/currency';
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     height: 10,
-    borderRadius: 5,
+    borderRadius: sizing.radiusPill,
     overflow: 'hidden',
   },
   list: { gap: spacing.sm },

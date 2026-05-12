@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { selectCategoriesForTrip, useCategoryStore } from '@/stores/categoryStore';
@@ -135,7 +135,14 @@ export default function CategoriesScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={[styles.headerBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          style={({ pressed }) => [
+            styles.headerBtn,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
+          ]}
           hitSlop={8}
         >
           <Text style={[styles.headerBtnText, { color: theme.text }]}>‹</Text>
@@ -143,7 +150,14 @@ export default function CategoriesScreen() {
         <Text style={[styles.title, { color: theme.text }]}>{t('categories.title')}</Text>
         <Pressable
           onPress={() => router.push(href(`/trip/${tripId}/categories/new`))}
-          style={[styles.headerBtn, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}
+          style={({ pressed }) => [
+            styles.headerBtn,
+            {
+              backgroundColor: theme.accentSoft,
+              borderColor: theme.accent,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
+          ]}
           hitSlop={8}
         >
           <Text style={[styles.headerBtnText, { color: theme.accent }]}>＋</Text>
@@ -186,7 +200,14 @@ function ActionButton({
     <Pressable
       onPress={onPress}
       hitSlop={6}
-      style={[styles.actionBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      style={({ pressed }) => [
+        styles.actionBtn,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          transform: [{ scale: pressed ? 0.92 : 1 }],
+        },
+      ]}
     >
       <Text style={[styles.actionText, { color: tint ?? theme.textSecondary }]}>{label}</Text>
     </Pressable>
@@ -207,27 +228,31 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerBtnText: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
   title: { ...typography.screenTitle, flex: 1 },
   list: { padding: spacing.base, paddingBottom: spacing.xxl },
-  sectionTitle: { ...typography.micro, marginBottom: spacing.sm },
+  sectionTitle: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+    marginBottom: spacing.sm,
+  },
   empty: { ...typography.secondary, paddingVertical: spacing.md, fontStyle: 'italic' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
+    borderBottomWidth: borderWidth.hairline,
   },
   iconBox: {
     width: sizing.categoryIconSmall,
     height: sizing.categoryIconSmall,
     borderRadius: sizing.radiusIcon,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -235,12 +260,12 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1 },
   rowName: { ...typography.body, fontWeight: '600' },
   rowMeta: { ...typography.caption },
-  actions: { flexDirection: 'row', gap: 4 },
+  actions: { flexDirection: 'row', gap: spacing.xs },
   actionBtn: {
     width: 32,
     height: 32,
-    borderRadius: 10,
-    borderWidth: 1,
+    borderRadius: sizing.radiusSmall,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -168,7 +168,14 @@ export function CalendarPickerModal({
         <SafeAreaView edges={['bottom']} style={[styles.sheet, { backgroundColor: theme.surface }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>{headerTitle}</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
               <Text style={[styles.closeText, { color: theme.textMuted }]}>✕</Text>
             </Pressable>
           </View>
@@ -194,7 +201,14 @@ export function CalendarPickerModal({
                     : t('calendar.selectRange')}
               </Text>
               <View style={styles.footerButtons}>
-                <Pressable onPress={handleClear} hitSlop={8} style={styles.clearButton}>
+                <Pressable
+                  onPress={handleClear}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.clearButton,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
                   <Text style={[styles.clearText, { color: theme.textSecondary }]}>
                     {t('calendar.clear')}
                   </Text>
@@ -202,11 +216,12 @@ export function CalendarPickerModal({
                 <Pressable
                   onPress={handleDone}
                   disabled={!doneEnabled}
-                  style={[
+                  style={({ pressed }) => [
                     styles.doneButton,
                     {
                       backgroundColor: doneEnabled ? theme.accent : theme.border,
                       opacity: doneEnabled ? 1 : 0.6,
+                      transform: [{ scale: pressed && doneEnabled ? 0.98 : 1 }],
                     },
                   ]}
                 >

@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -99,7 +99,13 @@ export default function LoginScreen() {
             <Pressable
               onPress={handleLogin}
               disabled={busy}
-              style={({ pressed }) => [styles.submit, { opacity: pressed || busy ? 0.85 : 1 }]}
+              style={({ pressed }) => [
+                styles.submit,
+                {
+                  opacity: busy ? 0.85 : 1,
+                  transform: [{ scale: pressed && !busy ? 0.98 : 1 }],
+                },
+              ]}
             >
               <LinearGradient
                 colors={theme.gradient1}
@@ -165,9 +171,9 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: spacing.xxl, justifyContent: 'center' },
   hero: { alignItems: 'center', marginBottom: spacing.xxl + spacing.md },
   heroBadge: {
-    width: 88,
+    width: 88, // brand mark geometry
     height: 88,
-    borderRadius: 28,
+    borderRadius: sizing.radiusCard + 6, // 28 — slightly more rounded than card
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
@@ -184,9 +190,9 @@ const styles = StyleSheet.create({
   label: { ...typography.subtitle },
   input: {
     ...typography.body,
-    height: 52,
+    height: 52, // form field tall geometry
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
   },
   submit: { marginTop: spacing.md, borderRadius: sizing.radiusButton, overflow: 'hidden' },

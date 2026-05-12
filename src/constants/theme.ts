@@ -150,6 +150,7 @@ export const sizing = {
   radiusInput: 14,
   radiusIcon: 12,
   radiusSmall: 10,
+  radiusPill: 999,
   categoryIconLarge: 50,
   categoryIconMedium: 42,
   categoryIconSmall: 36,
@@ -163,6 +164,18 @@ export const sizing = {
   statusBarHeight: 50,
 } as const;
 
+// Border weight scale. Use `base` for cards/inputs, `hairline` for dividers,
+// `heavy` only when extra prominence is needed.
+export const borderWidth = {
+  hairline: 1,
+  base: 1.5,
+  heavy: 2,
+} as const;
+
+// Tabular numerics are baked into every amount-* token below — amounts are
+// always numeric so the variant is intent-aligned and removes drift.
+const TABULAR = { fontVariant: ['tabular-nums' as const] };
+
 export const typography = {
   title: { fontSize: 30, fontWeight: '800' as const, letterSpacing: -0.8 },
   sectionTitle: { fontSize: 15, fontWeight: '700' as const },
@@ -172,10 +185,11 @@ export const typography = {
   secondary: { fontSize: 13, fontWeight: '500' as const },
   caption: { fontSize: 11, fontWeight: '500' as const },
   micro: { fontSize: 10, fontWeight: '700' as const, letterSpacing: 0.4 },
-  amountLarge: { fontSize: 40, fontWeight: '800' as const, letterSpacing: -1.5 },
-  amountMedium: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.5 },
-  amountSmall: { fontSize: 16, fontWeight: '700' as const },
-  numpad: { fontSize: 22, fontWeight: '600' as const },
-  entryAmount: { fontSize: 48, fontWeight: '800' as const, letterSpacing: -2 },
+  amountHero: { fontSize: 32, fontWeight: '800' as const, letterSpacing: -1, ...TABULAR },
+  amountLarge: { fontSize: 40, fontWeight: '800' as const, letterSpacing: -1.5, ...TABULAR },
+  amountMedium: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.5, ...TABULAR },
+  amountSmall: { fontSize: 16, fontWeight: '700' as const, ...TABULAR },
+  numpad: { fontSize: 22, fontWeight: '600' as const, ...TABULAR },
+  entryAmount: { fontSize: 48, fontWeight: '800' as const, letterSpacing: -2, ...TABULAR },
   screenTitle: { fontSize: 28, fontWeight: '700' as const },
 } as const;

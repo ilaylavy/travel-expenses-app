@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TripStats } from '@/utils/statsAggregations';
@@ -113,11 +113,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: 100,
     borderRadius: sizing.radiusCardInner,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
-    gap: 2,
+    gap: 2, // optical between emoji/value/label
   },
   emoji: { fontSize: 20, marginBottom: 2 },
   value: { ...typography.amountMedium, textAlign: 'center' },

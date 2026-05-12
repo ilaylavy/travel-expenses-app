@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -72,7 +72,10 @@ export function SyncSection({
             {
               backgroundColor: theme.accentSoft,
               borderColor: theme.accent,
-              opacity: pressed || status === 'syncing' ? 0.7 : 1,
+              opacity: status === 'syncing' ? 0.7 : 1,
+              transform: [
+                { scale: pressed && status !== 'syncing' ? 0.98 : 1 },
+              ],
             },
           ]}
         >
@@ -87,13 +90,13 @@ export function SyncSection({
 
 const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  dot: { width: 10, height: 10, borderRadius: sizing.radiusPill },
   valueText: { ...typography.body, fontWeight: '500' },
   syncButton: {
     marginVertical: spacing.md,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
-    paddingVertical: 12,
+    borderWidth: borderWidth.base,
+    paddingVertical: spacing.md + 2, // 12 — button tall geometry
     alignItems: 'center',
   },
   syncButtonText: { fontSize: 14, fontWeight: '700' },

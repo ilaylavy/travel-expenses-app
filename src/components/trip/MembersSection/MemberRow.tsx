@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TripMember } from '@/types/trip';
@@ -55,7 +55,7 @@ export function MemberRow({
             {
               borderColor: theme.border,
               backgroundColor: theme.surface,
-              opacity: pressed ? 0.7 : 1,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
             },
           ]}
           hitSlop={8}
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: sizing.categoryIconSmall,
     height: sizing.categoryIconSmall,
-    borderRadius: sizing.categoryIconSmall / 2,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
   role: { ...typography.caption, marginTop: 2 },
   smallButton: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    paddingVertical: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
   },
   smallButtonText: { fontSize: 12, fontWeight: '700' },
 });

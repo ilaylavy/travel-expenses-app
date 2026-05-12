@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
 export function FieldCard({
@@ -19,9 +19,7 @@ export function FieldCard({
         { backgroundColor: theme.surface, borderColor: theme.borderLight },
       ]}
     >
-      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>
-        {title.toUpperCase()}
-      </Text>
+      <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>{title}</Text>
       {children}
     </View>
   );
@@ -30,9 +28,13 @@ export function FieldCard({
 const styles = StyleSheet.create({
   fieldCard: {
     borderRadius: sizing.radiusCardInner,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     padding: spacing.lg,
-    gap: 4,
+    gap: spacing.xs,
   },
-  fieldLabel: { ...typography.micro, marginBottom: 2 },
+  fieldLabel: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+    marginBottom: 2, // optical
+  },
 });

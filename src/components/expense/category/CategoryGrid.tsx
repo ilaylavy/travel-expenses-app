@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
@@ -50,7 +50,7 @@ export function CategoryGrid({
                   {
                     backgroundColor: theme.surface,
                     borderColor: theme.border,
-                    opacity: pressed ? 0.7 : 1,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
                   },
                 ]}
               >
@@ -80,7 +80,7 @@ export function CategoryGrid({
                 {
                   backgroundColor: selected ? soft : theme.surface,
                   borderColor: selected ? color : theme.border,
-                  opacity: pressed ? 0.85 : 1,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
@@ -104,17 +104,17 @@ const styles = StyleSheet.create({
   cell: { padding: spacing.xs / 2 },
   inner: {
     borderRadius: sizing.radiusButton,
-    borderWidth: 2,
+    borderWidth: borderWidth.heavy,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    minHeight: 64,
+    gap: spacing.xs,
+    minHeight: 64, // grid cell geometry; tuned for 4-column layout
   },
   emoji: { fontSize: 24, lineHeight: 28 },
-  name: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
+  name: { ...typography.micro, letterSpacing: 0.2 },
   add: { borderStyle: 'dashed' },
   addIcon: { fontSize: 22, fontWeight: '700', lineHeight: 24 },
-  addLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
+  addLabel: { ...typography.micro, letterSpacing: 0.2 },
 });

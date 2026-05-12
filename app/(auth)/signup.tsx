@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { CURRENCIES, DEFAULT_CURRENCY } from '@/constants/currencies';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -133,25 +133,26 @@ export default function SignupScreen() {
                 {CURRENCIES.map((c) => {
                   const selected = c.code === currency;
                   return (
-                    <Pressable key={c.code} onPress={() => setCurrency(c.code)}>
-                      <View
+                    <Pressable
+                      key={c.code}
+                      onPress={() => setCurrency(c.code)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        {
+                          backgroundColor: selected ? theme.accentSoft : theme.surface,
+                          borderColor: selected ? theme.accent : theme.border,
+                          transform: [{ scale: pressed ? 0.96 : 1 }],
+                        },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.chip,
-                          {
-                            backgroundColor: selected ? theme.accentSoft : theme.surface,
-                            borderColor: selected ? theme.accent : theme.border,
-                          },
+                          styles.chipText,
+                          { color: selected ? theme.accent : theme.textSecondary },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            { color: selected ? theme.accent : theme.textSecondary },
-                          ]}
-                        >
-                          {c.symbol} {c.code}
-                        </Text>
-                      </View>
+                        {c.symbol} {c.code}
+                      </Text>
                     </Pressable>
                   );
                 })}
@@ -161,7 +162,13 @@ export default function SignupScreen() {
             <Pressable
               onPress={handleSignup}
               disabled={busy}
-              style={({ pressed }) => [styles.submit, { opacity: pressed || busy ? 0.85 : 1 }]}
+              style={({ pressed }) => [
+                styles.submit,
+                {
+                  opacity: busy ? 0.85 : 1,
+                  transform: [{ scale: pressed && !busy ? 0.98 : 1 }],
+                },
+              ]}
             >
               <LinearGradient
                 colors={theme.gradient1}
@@ -229,7 +236,7 @@ const styles = StyleSheet.create({
   heroBadge: {
     width: 88,
     height: 88,
-    borderRadius: 28,
+    borderRadius: sizing.radiusCard + 6, // 28
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
@@ -246,9 +253,9 @@ const styles = StyleSheet.create({
   label: { ...typography.subtitle },
   input: {
     ...typography.body,
-    height: 52,
+    height: 52, // form field tall geometry
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
   },
   currencyRow: { gap: spacing.sm, paddingVertical: spacing.xs },
@@ -256,7 +263,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
   },
   chipText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
   submit: { marginTop: spacing.md, borderRadius: sizing.radiusButton, overflow: 'hidden' },

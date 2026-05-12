@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MembersSection } from '@/components/trip/MembersSection';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -149,9 +149,13 @@ export default function TripSettingsScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={[
+          style={({ pressed }) => [
             styles.backButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
           ]}
           hitSlop={8}
         >
@@ -178,7 +182,10 @@ export default function TripSettingsScreen() {
                 {
                   backgroundColor: theme.accentSoft,
                   borderColor: theme.accent,
-                  opacity: pressed || syncStatus === 'syncing' ? 0.7 : 1,
+                  opacity: syncStatus === 'syncing' ? 0.7 : 1,
+                  transform: [
+                    { scale: pressed && syncStatus !== 'syncing' ? 0.98 : 1 },
+                  ],
                 },
               ]}
             >
@@ -196,7 +203,7 @@ export default function TripSettingsScreen() {
                 {
                   backgroundColor: theme.accentSoft,
                   borderColor: theme.accent,
-                  opacity: pressed ? 0.8 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
                 },
               ]}
             >
@@ -214,7 +221,7 @@ export default function TripSettingsScreen() {
                 {
                   backgroundColor: theme.accentSoft,
                   borderColor: theme.accent,
-                  opacity: pressed ? 0.8 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
                 },
               ]}
             >
@@ -228,7 +235,11 @@ export default function TripSettingsScreen() {
                 onPress={handleDelete}
                 style={({ pressed }) => [
                   styles.deleteButton,
-                  { backgroundColor: theme.redSoft, borderColor: theme.red, opacity: pressed ? 0.7 : 1 },
+                  {
+                    backgroundColor: theme.redSoft,
+                    borderColor: theme.red,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
                 ]}
               >
                 <Text style={[styles.deleteText, { color: theme.red }]}>
@@ -258,7 +269,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -268,8 +279,8 @@ const styles = StyleSheet.create({
   syncButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
-    paddingVertical: 12,
+    borderWidth: borderWidth.base,
+    paddingVertical: spacing.md + 2, // 12
     alignItems: 'center',
     gap: 2,
   },
@@ -278,8 +289,8 @@ const styles = StyleSheet.create({
   manageButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
-    paddingVertical: 14,
+    borderWidth: borderWidth.base,
+    paddingVertical: 14, // button tall geometry
     alignItems: 'center',
     gap: 2,
   },
@@ -288,13 +299,13 @@ const styles = StyleSheet.create({
   deleteButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingVertical: 14,
     alignItems: 'center',
   },
   deleteText: { fontSize: 14, fontWeight: '700' },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.base },
   missingText: typography.body,
-  linkButton: { borderRadius: sizing.radiusButton, paddingHorizontal: spacing.xl, paddingVertical: 12 },
+  linkButton: { borderRadius: sizing.radiusButton, paddingHorizontal: spacing.xl, paddingVertical: spacing.md + 2 },
   linkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

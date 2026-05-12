@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing } from '@/constants/theme';
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { LocationStatus } from '@/hooks/useExpenseEntryForm';
@@ -42,13 +42,21 @@ export function LocationSection({
                 ? `📍 ${latitude.toFixed(4)}, ${longitude?.toFixed(4)}`
                 : t('expense.locationMissing')}
         </Text>
-        <Pressable onPress={onRefresh} hitSlop={8}>
+        <Pressable
+          onPress={onRefresh}
+          hitSlop={8}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
           <Text style={{ color: theme.accent, fontWeight: '700' }}>
             {t('expense.locationRefresh')}
           </Text>
         </Pressable>
         {latitude != null ? (
-          <Pressable onPress={onRemove} hitSlop={8}>
+          <Pressable
+            onPress={onRemove}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
             <Text style={{ color: theme.textMuted, fontWeight: '600' }}>
               {t('expense.locationRemove')}
             </Text>
@@ -66,6 +74,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
   },
 });

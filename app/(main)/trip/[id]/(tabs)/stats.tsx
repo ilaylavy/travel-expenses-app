@@ -9,7 +9,7 @@ import { PaymentBreakdownCard } from '@/components/stats/PaymentBreakdownCard';
 import { SplitBalanceCard } from '@/components/stats/SplitBalanceCard';
 import { SummaryPills } from '@/components/stats/SummaryPills';
 import { TopExpensesCard } from '@/components/stats/TopExpensesCard';
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { listTripMembers } from '@/db/queries/trips';
 import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
@@ -146,7 +146,9 @@ export default function TripStatsScreen() {
 
       {!hasExpenses ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyEmoji}>📊</Text>
+          <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
+            <Text style={styles.emptyEmoji}>📊</Text>
+          </View>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
             {t('stats.noExpensesTitle')}
           </Text>
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
     width: sizing.headerButton,
     height: sizing.headerButton,
     borderRadius: sizing.headerButtonRadius,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -240,7 +242,15 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
   },
-  emptyEmoji: { fontSize: 64 },
+  emptyGlow: {
+    width: 96,
+    height: 96,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+  },
+  emptyEmoji: { fontSize: 48 },
   emptyTitle: { ...typography.itemTitle },
   emptyBody: { ...typography.body, textAlign: 'center' },
   missing: {
@@ -252,7 +262,7 @@ const styles = StyleSheet.create({
   linkButton: {
     borderRadius: sizing.radiusButton,
     paddingHorizontal: spacing.xl,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — taller button
   },
   linkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });
