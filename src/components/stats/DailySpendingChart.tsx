@@ -1,7 +1,8 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
-import { spacing, typography } from '@/constants/theme';
+import { borderWidth, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { formatAmount } from '@/utils/currency';
@@ -44,9 +45,10 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
             const pct = Math.abs(d.total) / maxValue;
             const h = Math.max(MIN_BAR_HEIGHT, Math.round(CHART_HEIGHT * pct));
             const isNegative = d.total < 0;
+            const isEmpty = d.total === 0;
             return (
               <View key={d.date} style={styles.barCol}>
-                {showBarLabels && d.total !== 0 ? (
+                {showBarLabels && !isEmpty ? (
                   <Text
                     style={[styles.barLabel, { color: theme.textMuted }]}
                     numberOfLines={1}
@@ -54,16 +56,34 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
                     {formatAmount(d.total, currency)}
                   </Text>
                 ) : null}
-                <View
-                  style={[
-                    styles.bar,
-                    {
-                      height: d.total === 0 ? MIN_BAR_HEIGHT : h,
-                      backgroundColor: isNegative ? theme.green : theme.accent,
-                      opacity: d.total === 0 ? 0.3 : 1,
-                    },
-                  ]}
-                />
+                {isEmpty ? (
+                  <View
+                    style={[
+                      styles.bar,
+                      {
+                        height: MIN_BAR_HEIGHT,
+                        backgroundColor: theme.accent,
+                        opacity: 0.3,
+                      },
+                    ]}
+                  />
+                ) : isNegative ? (
+                  // Refund day — solid green so it reads as a different category of bar.
+                  <View
+                    style={[
+                      styles.bar,
+                      { height: h, backgroundColor: theme.green },
+                    ]}
+                  />
+                ) : (
+                  // Spending day — gradient1 per design system spec.
+                  <LinearGradient
+                    colors={theme.gradient1}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={[styles.bar, { height: h }]}
+                  />
+                )}
                 {i % labelStride === 0 ? (
                   <Text style={[styles.axisLabel, { color: theme.textMuted }]}>
                     {d.date.slice(-2)}
@@ -96,7 +116,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 0,
-    borderTopWidth: 1,
+    borderTopWidth: borderWidth.hairline,
     borderStyle: 'dashed',
     opacity: 0.6,
     zIndex: 1,
@@ -104,18 +124,19 @@ const styles = StyleSheet.create({
   bars: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 4,
+    gap: spacing.xs,
   },
   barCol: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 4,
+    gap: spacing.xs,
   },
   bar: {
-    width: '80%',
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+    width: '80%', // bar slot geometry inside its column
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    overflow: 'hidden',
   },
   barLabel: {
     ...typography.micro,
@@ -133,7 +154,7 @@ const styles = StyleSheet.create({
   },
   legendLine: {
     width: 18,
-    borderTopWidth: 1,
+    borderTopWidth: borderWidth.hairline,
     borderStyle: 'dashed',
     height: 0,
   },

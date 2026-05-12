@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { CATEGORY_COLOR_TOKENS, getCategoryColor, type CategoryColorToken } from '@/utils/category';
@@ -81,11 +81,12 @@ export function CategoryForm({
               <Pressable
                 key={e}
                 onPress={() => setEmoji(e)}
-                style={[
+                style={({ pressed }) => [
                   styles.emojiChip,
                   {
                     backgroundColor: selected ? theme.accentSoft : theme.surface,
                     borderColor: selected ? theme.accent : theme.border,
+                    transform: [{ scale: pressed ? 0.94 : 1 }],
                   },
                 ]}
               >
@@ -106,11 +107,12 @@ export function CategoryForm({
               <Pressable
                 key={token}
                 onPress={() => setColor(token)}
-                style={[
+                style={({ pressed }) => [
                   styles.colorDot,
                   {
                     backgroundColor: resolved,
                     borderColor: selected ? theme.text : 'transparent',
+                    transform: [{ scale: pressed ? 0.9 : 1 }],
                   },
                 ]}
               />
@@ -126,7 +128,11 @@ export function CategoryForm({
         disabled={submitting}
         style={({ pressed }) => [
           styles.submit,
-          { backgroundColor: theme.accent, opacity: submitting || pressed ? 0.7 : 1 },
+          {
+            backgroundColor: theme.accent,
+            opacity: submitting ? 0.7 : 1,
+            transform: [{ scale: pressed && !submitting ? 0.98 : 1 }],
+          },
         ]}
       >
         <Text style={styles.submitText}>{submitting ? submittingLabel : submitLabel}</Text>
@@ -143,27 +149,27 @@ const styles = StyleSheet.create({
   label: typography.subtitle,
   input: {
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2, // 12 — form-field height
     fontSize: 15,
     fontWeight: '500',
   },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: 4 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingVertical: spacing.xs },
   emojiChip: {
     width: 48,
     height: 48,
     borderRadius: sizing.radiusButton,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emojiText: { fontSize: 22 },
-  colorDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 3 },
+  colorDot: { width: 36, height: 36, borderRadius: sizing.radiusPill, borderWidth: 3 },
   error: { ...typography.caption, marginTop: -spacing.xs },
   submit: {
     borderRadius: sizing.radiusButton,
-    paddingVertical: 14,
+    paddingVertical: 14, // button tall geometry
     alignItems: 'center',
     marginTop: spacing.sm,
   },

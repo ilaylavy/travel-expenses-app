@@ -92,6 +92,7 @@
     "members": {
       "title": "חברים",
       "inviteEmail": "הזמן שותף באימייל",
+      "inviteEmailPlaceholder": "partner@example.com",
       "inviteButton": "הזמנה",
       "inviteNotFound": "האימייל הזה לא רשום באפליקציה. בקש ממנו להירשם קודם.",
       "inviteFailed": "לא ניתן לשלוח הזמנה",

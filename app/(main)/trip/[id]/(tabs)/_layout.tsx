@@ -1,20 +1,28 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
-function TabEmoji({ emoji, focused, color }: { emoji: string; focused: boolean; color: string }) {
+function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
+  const theme = useTheme();
   return (
-    <Text
-      style={{
-        fontSize: 22,
-        opacity: focused ? 1 : 0.55,
-        color,
-      }}
+    <View
+      style={[
+        styles.iconWrap,
+        focused && { backgroundColor: theme.accentSoft },
+      ]}
     >
-      {emoji}
-    </Text>
+      <Text
+        style={[
+          styles.emoji,
+          { opacity: focused ? 1 : 0.45 },
+        ]}
+      >
+        {emoji}
+      </Text>
+    </View>
   );
 }
 
@@ -31,45 +39,51 @@ export default function TripTabsLayout() {
           borderTopColor: theme.border,
         },
         tabBarActiveTintColor: theme.accent,
-        tabBarInactiveTintColor: theme.textSecondary,
+        tabBarInactiveTintColor: theme.textMuted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+        tabBarItemStyle: { paddingTop: 4 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: t('tripView.tabExpenses'),
-          tabBarIcon: ({ focused, color }) => (
-            <TabEmoji emoji="📋" focused={focused} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="📋" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="map"
         options={{
           title: t('tripView.tabMap'),
-          tabBarIcon: ({ focused, color }) => (
-            <TabEmoji emoji="📍" focused={focused} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="📍" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="ask"
         options={{
           title: t('tripView.tabAsk'),
-          tabBarIcon: ({ focused, color }) => (
-            <TabEmoji emoji="🧠" focused={focused} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="🧠" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="stats"
         options={{
           title: t('tripView.tabStats'),
-          tabBarIcon: ({ focused, color }) => (
-            <TabEmoji emoji="📊" focused={focused} color={color} />
-          ),
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="📊" focused={focused} />,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    paddingHorizontal: spacing.md + 2, // 12 — pill width around the emoji
+    paddingVertical: 4,
+    borderRadius: sizing.radiusPill,
+  },
+  emoji: {
+    fontSize: 20,
+    lineHeight: 22,
+  },
+});
