@@ -44,7 +44,10 @@ export function TopExpensesCard({ expenses, categoriesById, tripId, currency }: 
               onPress={() =>
                 router.push(href(`/trip/${tripId}/expense/${e.id}`))
               }
-              style={({ pressed }) => [styles.row, { opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [
+                styles.row,
+                { transform: [{ scale: pressed ? 0.99 : 1 }] },
+              ]}
             >
               <View style={[styles.icon, { backgroundColor: soft }]}>
                 <Text style={styles.emoji}>{emoji}</Text>

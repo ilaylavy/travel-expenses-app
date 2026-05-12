@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing } from '@/constants/theme';
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { PAYMENT_METHODS } from '@/hooks/useExpenseEntryForm';
@@ -27,11 +27,12 @@ export function PaymentMethodRow({
             <Pressable
               key={m}
               onPress={() => onChange(active ? null : m)}
-              style={[
+              style={({ pressed }) => [
                 styles.paymentChip,
                 {
                   backgroundColor: active ? theme.accentSoft : theme.surface,
                   borderColor: active ? theme.accent : theme.border,
+                  transform: [{ scale: pressed ? 0.96 : 1 }],
                 },
               ]}
             >
@@ -54,10 +55,10 @@ export function PaymentMethodRow({
 const styles = StyleSheet.create({
   paymentRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   paymentChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
+    borderWidth: borderWidth.base,
   },
   paymentChipText: { fontSize: 13, fontWeight: '700' },
 });

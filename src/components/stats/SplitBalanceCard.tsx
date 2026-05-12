@@ -102,7 +102,10 @@ export function SplitBalanceCard({
         disabled={!onOpenBalances}
         style={({ pressed }) => [
           styles.settlement,
-          { backgroundColor: bgColor, opacity: pressed && onOpenBalances ? 0.85 : 1 },
+          {
+            backgroundColor: bgColor,
+            transform: [{ scale: pressed && onOpenBalances ? 0.98 : 1 }],
+          },
         ]}
       >
         <Text style={[styles.settlementText, { color: textColor }]}>
@@ -128,7 +131,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: sizing.categoryIconSmall,
     height: sizing.categoryIconSmall,
-    borderRadius: sizing.categoryIconSmall / 2,
+    borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },

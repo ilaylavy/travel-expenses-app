@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import type { RecentNoteSuggestion } from '@/db/queries/expenseAnalytics';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -31,9 +31,13 @@ export function NoteSuggestionsRow({
           <Pressable
             key={s.note}
             onPress={() => onPick(s)}
-            style={[
+            style={({ pressed }) => [
               styles.noteChip,
-              { backgroundColor: theme.surface, borderColor: theme.border },
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
+              },
             ]}
           >
             <Text
@@ -50,13 +54,18 @@ export function NoteSuggestionsRow({
 }
 
 const styles = StyleSheet.create({
-  microLabel: { ...typography.micro, marginTop: spacing.xs, marginBottom: spacing.xs },
-  chipRow: { gap: spacing.sm, paddingVertical: 4 },
+  microLabel: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  chipRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   noteChip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md + 2, // 12 — chip compact geometry
     paddingVertical: 8,
     borderRadius: sizing.radiusChip,
-    borderWidth: 1,
+    borderWidth: borderWidth.hairline,
     maxWidth: 220,
   },
   noteChipText: { fontSize: 13, fontWeight: '500' },
