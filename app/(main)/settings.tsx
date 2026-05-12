@@ -144,34 +144,36 @@ export default function SettingsScreen() {
         void setLanguage(next);
         return;
       }
-      Alert.alert(t('language.rtlRestartTitle'), t('language.rtlRestartBody'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('language.rtlRestartConfirm'),
-          style: 'default',
-          onPress: async () => {
-            await setLanguage(next);
-            if (Platform.OS === 'web') {
-              // <html dir> is updated synchronously by applyRTL; reloading
-              // makes RN-web re-pick up the direction so layout-mirrored
-              // components rerender from scratch.
-              if (typeof window !== 'undefined') window.location.reload();
-              return;
+      // Use showConfirmDialog (not Alert.alert) — react-native-web stubs
+      // multi-button Alert.alert into a no-op, so the confirm callback
+      // never fires on web and the language switch silently does nothing.
+      showConfirmDialog({
+        title: t('language.rtlRestartTitle'),
+        body: t('language.rtlRestartBody'),
+        confirmLabel: t('language.rtlRestartConfirm'),
+        cancelLabel: t('common.cancel'),
+        onConfirm: async () => {
+          await setLanguage(next);
+          if (Platform.OS === 'web') {
+            // <html dir> is updated synchronously by applyRTL; reloading
+            // makes RN-web re-pick up the direction so layout-mirrored
+            // components rerender from scratch.
+            if (typeof window !== 'undefined') window.location.reload();
+            return;
+          }
+          // Lazy-require: native module is unavailable in Expo Go; production
+          // builds bundle it and exit normally on Android.
+          if (Platform.OS === 'android') {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              const RNExitApp = require('react-native-exit-app').default;
+              RNExitApp.exitApp();
+            } catch {
+              // Native module unavailable (e.g. Expo Go); user must restart manually.
             }
-            // Lazy-require: native module is unavailable in Expo Go; production
-            // builds bundle it and exit normally on Android.
-            if (Platform.OS === 'android') {
-              try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const RNExitApp = require('react-native-exit-app').default;
-                RNExitApp.exitApp();
-              } catch {
-                // Native module unavailable (e.g. Expo Go); user must restart manually.
-              }
-            }
-          },
+          }
         },
-      ]);
+      });
     },
     [language, setLanguage, t],
   );
