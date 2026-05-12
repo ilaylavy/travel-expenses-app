@@ -1,11 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
-import { borderWidth, spacing, typography } from '@/constants/theme';
+import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { formatAmount } from '@/utils/currency';
+import { formatReadableDate } from '@/utils/date';
 import type { DailyTotal } from '@/utils/statsAggregations';
 
 interface Props {
@@ -20,6 +22,7 @@ const MIN_BAR_HEIGHT = 2;
 export function DailySpendingChart({ byDay, average, currency }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   if (byDay.length === 0) return null;
 
@@ -27,6 +30,7 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
   const avgPct = Math.min(1, average / maxValue);
   const showBarLabels = byDay.length <= 7;
   const labelStride = byDay.length <= 10 ? 1 : Math.ceil(byDay.length / 10);
+  const selectedDay = selectedDate ? byDay.find((d) => d.date === selectedDate) ?? null : null;
 
   return (
     <StatsSectionCard title={t('stats.dailySpending')}>
@@ -46,8 +50,16 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
             const h = Math.max(MIN_BAR_HEIGHT, Math.round(CHART_HEIGHT * pct));
             const isNegative = d.total < 0;
             const isEmpty = d.total === 0;
+            const isSelected = selectedDate === d.date;
             return (
-              <View key={d.date} style={styles.barCol}>
+              <Pressable
+                key={d.date}
+                onPress={() =>
+                  setSelectedDate((prev) => (prev === d.date ? null : d.date))
+                }
+                style={styles.barCol}
+                hitSlop={4}
+              >
                 {showBarLabels && !isEmpty ? (
                   <Text
                     style={[styles.barLabel, { color: theme.textMuted }]}
@@ -68,20 +80,28 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
                     ]}
                   />
                 ) : isNegative ? (
-                  // Refund day — solid green so it reads as a different category of bar.
                   <View
                     style={[
                       styles.bar,
-                      { height: h, backgroundColor: theme.green },
+                      {
+                        height: h,
+                        backgroundColor: theme.green,
+                        opacity: selectedDate && !isSelected ? 0.4 : 1,
+                      },
                     ]}
                   />
                 ) : (
-                  // Spending day — gradient1 per design system spec.
                   <LinearGradient
                     colors={theme.gradient1}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 0, y: 1 }}
-                    style={[styles.bar, { height: h }]}
+                    style={[
+                      styles.bar,
+                      {
+                        height: h,
+                        opacity: selectedDate && !isSelected ? 0.4 : 1,
+                      },
+                    ]}
                   />
                 )}
                 {i % labelStride === 0 ? (
@@ -91,18 +111,49 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
                 ) : (
                   <Text style={styles.axisLabel}> </Text>
                 )}
-              </View>
+              </Pressable>
             );
           })}
         </View>
       </View>
 
-      <View style={styles.legend}>
-        <View style={[styles.legendLine, { borderColor: theme.textMuted }]} />
-        <Text style={[styles.legendText, { color: theme.textMuted }]}>
-          {t('stats.average')}: {formatAmount(average, currency)}
-        </Text>
-      </View>
+      {selectedDay ? (
+        <View
+          style={[
+            styles.tooltip,
+            { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+          ]}
+        >
+          <View style={styles.tooltipText}>
+            <Text style={[styles.tooltipDate, { color: theme.accent }]}>
+              {formatReadableDate(selectedDay.date)}
+            </Text>
+            <Text style={[styles.tooltipAmount, { color: theme.text }]}>
+              {formatAmount(selectedDay.total, currency)}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setSelectedDate(null)}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.tooltipClose,
+              {
+                backgroundColor: theme.accent,
+                transform: [{ scale: pressed ? 0.9 : 1 }],
+              },
+            ]}
+          >
+            <Text style={styles.tooltipCloseText}>✕</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.legend}>
+          <View style={[styles.legendLine, { borderColor: theme.textMuted }]} />
+          <Text style={[styles.legendText, { color: theme.textMuted }]}>
+            {t('stats.average')}: {formatAmount(average, currency)}
+          </Text>
+        </View>
+      )}
     </StatsSectionCard>
   );
 }
@@ -159,4 +210,25 @@ const styles = StyleSheet.create({
     height: 0,
   },
   legendText: { ...typography.caption },
+  tooltip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: sizing.radiusInput,
+    borderWidth: borderWidth.hairline,
+  },
+  tooltipText: { flex: 1, gap: 2 },
+  tooltipDate: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2, textTransform: 'uppercase' },
+  tooltipAmount: { ...typography.amountSmall },
+  tooltipClose: {
+    width: 22,
+    height: 22,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tooltipCloseText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', lineHeight: 12 },
 });

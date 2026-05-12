@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -43,6 +44,7 @@ function NumPadInner({ onKeyPress, onLongBackspace, onDone, disabled }: NumPadPr
   const handlePress = useCallback(
     (key: NumPadKey) => {
       if (disabled) return;
+      void Haptics.selectionAsync();
       onKeyPress(key);
     },
     [disabled, onKeyPress],
@@ -50,6 +52,7 @@ function NumPadInner({ onKeyPress, onLongBackspace, onDone, disabled }: NumPadPr
 
   const handleDone = useCallback(() => {
     if (disabled) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onDone();
   }, [disabled, onDone]);
 

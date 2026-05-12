@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
@@ -65,7 +66,13 @@ export default function AddExpenseScreen() {
 
   const handleSave = useCallback(async () => {
     const persistedPhotos = form.isEditing ? undefined : await photos.persistAll();
-    await form.save({ persistedPhotos });
+    try {
+      await form.save({ persistedPhotos });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      throw error;
+    }
   }, [form, photos]);
 
   // Floating Save FAB rides above whatever is at the bottom: numpad bar,

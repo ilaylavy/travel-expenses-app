@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { useRef } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -47,6 +48,7 @@ export function SwipeableExpenseCard({
   const ref = useRef<Swipeable>(null);
 
   const handleDeletePress = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(confirmTitle, confirmBody, [
       {
         text: cancelLabel,
@@ -57,6 +59,7 @@ export function SwipeableExpenseCard({
         text: confirmLabel,
         style: 'destructive',
         onPress: () => {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           ref.current?.close();
           onDelete();
         },

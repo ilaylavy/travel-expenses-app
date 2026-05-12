@@ -1,12 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCard';
 import { PendingInviteCard } from '@/components/trip/PendingInviteCard';
 import { TripCard } from '@/components/trip/TripCard';
+import { TripCardSkeleton } from '@/components/trip/TripCardSkeleton';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
@@ -114,9 +115,14 @@ export default function TripListScreen() {
       </View>
 
       {!isHydrated ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} />
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+        >
+          <TripCardSkeleton />
+          <TripCardSkeleton />
+          <TripCardSkeleton />
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           <CurrencyConverterCard />

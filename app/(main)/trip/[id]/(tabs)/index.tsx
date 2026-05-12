@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -539,7 +540,10 @@ export default function TripExpensesScreen() {
       </KeyboardAwareWrapper>
 
       <Pressable
-        onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
+        onPress={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push(href(`/add-expense?tripId=${tripId}`));
+        }}
         style={({ pressed }) => [
           styles.fab,
           isRTL ? styles.fabLeft : styles.fabRight,
