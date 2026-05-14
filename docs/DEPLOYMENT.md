@@ -86,9 +86,13 @@ this section is just the deploy mechanics.
 ### One-time setup (per Supabase / GCP / EAS project)
 
 1. **Maps JavaScript API** — in Google Cloud Console, enable
-   "Maps JavaScript API" on the project that owns
-   `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`. The Android/iOS Maps SDKs are
-   separate APIs; enabling those is not enough for the web map.
+   "Maps JavaScript API" on the project that owns the Google Maps
+   keys. The Android/iOS Maps SDKs are separate APIs; enabling
+   those is not enough for the web map. The web build prefers
+   `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_WEB` and falls back to
+   `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` — use a dedicated web key so
+   you can restrict it to HTTP referrers (deployed origin +
+   localhost) without breaking the native key's app restrictions.
 
 2. **Storage CORS** — the `expense-photos` bucket needs to allow the
    web origin so signed-URL `<img>` loads and Storage uploads work.
@@ -109,6 +113,7 @@ this section is just the deploy mechanics.
    eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_URL --value ...
    eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value ...
    eas env:create --environment preview --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY --value ...
+   eas env:create --environment preview --name EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_WEB --value ...
    ```
    Repeat for `--environment production` if you ship a `--prod` deploy.
 
@@ -117,19 +122,27 @@ this section is just the deploy mechanics.
 ```bash
 npm run deploy:web
 ```
-This runs `expo export -p web` (produces `dist/`) then `eas deploy`
-to upload it. The first run on a new project is interactive and
-asks you to pick a project alias; subsequent runs deploy straight
-to a preview URL.
+This runs `expo export -p web` (produces `dist/`) then
+`eas deploy --prod` to upload it and assign it to the stable
+production alias at `https://travel-expenses-app.expo.app`. Use
+this for every web update — it's the web equivalent of
+`eas update --branch preview` for native.
 
-To promote to a stable production URL:
+To test on a throwaway URL before touching production:
 ```bash
-expo export -p web && eas deploy --prod
+npm run deploy:web:preview
 ```
+This deploys to a random `<hash>--travel-expenses-app.expo.app`
+URL without changing the production alias. Useful when you want
+to share a build for review or sanity-check a change.
 
 EAS prints the deployed URL when the upload finishes. Open it in a
 browser; the login screen renders, sign-in hits the same Supabase
 project as native, and the user sees their trips and expenses.
+
+If the production URL still 404s right after deploy, hard-refresh
+(Ctrl+F5) or open in incognito — browsers cache the worker's 404
+response from before the alias was assigned.
 
 ### Limits to know about
 - No offline mode. A flaky-connection web user gets errors instead

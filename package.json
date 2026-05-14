@@ -7,7 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "deploy:web": "expo export -p web && eas deploy",
+    "deploy:web": "expo export -p web && eas deploy --prod",
+    "deploy:web:preview": "expo export -p web && eas deploy",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test": "jest"

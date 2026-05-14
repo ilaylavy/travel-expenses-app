@@ -29,7 +29,10 @@ import { useExpenseClustering } from '@/hooks/useExpenseClustering';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 
-const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+const API_KEY =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_WEB ??
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ??
+  '';
 
 // Builds a small data:image/svg+xml URL for a colored pin. Legacy <Marker>
 // accepts an icon URL; SVG inline keeps it sharp at any zoom level.
@@ -257,7 +260,7 @@ function MissingKeyState() {
         Map unavailable
       </Text>
       <Text style={[styles.missingKeyBody, { color: theme.textSecondary }]}>
-        EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is not set for the web build.
+        EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_WEB (or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) is not set for the web build.
       </Text>
     </View>
   );
