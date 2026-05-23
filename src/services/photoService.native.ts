@@ -9,7 +9,6 @@ export interface PickedPhoto {
 }
 
 const PHOTOS_DIR = `${FileSystem.documentDirectory}photos/`;
-const BUCKET = 'expense-photos';
 
 // Launch the system camera. Returns null when the user cancels or denies
 // permission so the caller can just carry on without a photo.
@@ -76,19 +75,31 @@ export async function processAndPersistPhoto(
   return targetUri;
 }
 
-// atob is available in Hermes / modern RN runtimes used by Expo SDK 52+.
-function base64ToArrayBuffer(b64: string): ArrayBuffer {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
+// Hit the r2-photo-url Edge Function for a presigned URL or a server-side
+// DELETE. The function authenticates the JWT, verifies trip membership from
+// the first path segment, and returns a short-lived URL (PUT/GET) or
+// performs the delete itself (DELETE).
+interface PresignedResponse {
+  url: string;
+  expiresAt: string;
 }
 
-// Upload a locally-persisted photo to the private expense-photos bucket.
-// Object key: <tripId>/<expenseId>/<photoId>.jpg. RLS on storage.objects
-// enforces trip-membership via the first path segment.
+async function requestPresignedR2Url(
+  path: string,
+  op: 'PUT' | 'GET',
+): Promise<PresignedResponse> {
+  const { data, error } = await supabase.functions.invoke<PresignedResponse>(
+    'r2-photo-url',
+    { body: { path, op } },
+  );
+  if (error) throw error;
+  if (!data?.url) throw new Error('r2-photo-url: empty response');
+  return data;
+}
+
+// Upload a locally-persisted photo to R2 via a presigned PUT URL. Object key:
+// <tripId>/<expenseId>/<photoId>.jpg. The Edge Function gates by trip
+// membership before signing.
 export async function uploadPhotoToStorage(args: {
   tripId: string;
   expenseId: string;
@@ -96,21 +107,32 @@ export async function uploadPhotoToStorage(args: {
   localUri: string;
 }): Promise<string> {
   const path = `${args.tripId}/${args.expenseId}/${args.photoId}.jpg`;
-  const base64 = await FileSystem.readAsStringAsync(args.localUri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  const body = base64ToArrayBuffer(base64);
-  const { error } = await supabase.storage.from(BUCKET).upload(path, body, {
-    contentType: 'image/jpeg',
-    upsert: true,
-  });
-  if (error) throw error;
-  return path;
+
+  // One-shot retry: if the presigned URL expires between issuance and PUT
+  // (rare with a 5-minute TTL, but possible), fetch a fresh URL and try once
+  // more before letting the sync queue's outer retry handle it.
+  let attempts = 0;
+  let lastStatus = 0;
+  while (attempts < 2) {
+    attempts += 1;
+    const { url } = await requestPresignedR2Url(path, 'PUT');
+    const res = await FileSystem.uploadAsync(url, args.localUri, {
+      httpMethod: 'PUT',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: { 'Content-Type': 'image/jpeg' },
+    });
+    lastStatus = res.status;
+    if (res.status >= 200 && res.status < 300) {
+      return path;
+    }
+    if (res.status !== 403) break;
+  }
+  throw new Error(`R2 PUT failed with status ${lastStatus} after ${attempts} attempt(s)`);
 }
 
-// In-memory signed-URL cache. Signed URLs are issued for an hour; we treat
-// them as valid for 50 minutes to leave headroom for clock skew and slow
-// network. The cache is process-local — no need to persist it.
+// In-memory signed-URL cache. The Edge Function issues GET URLs valid for an
+// hour; we treat them as valid for 50 minutes to leave headroom for clock
+// skew and slow networks. The cache is process-local — no need to persist it.
 const SIGNED_TTL_MS = 50 * 60 * 1000;
 const signedCache = new Map<string, { url: string; expiresAt: number }>();
 
@@ -121,18 +143,17 @@ export async function getSignedPhotoUrl(
   const cached = signedCache.get(storagePath);
   const now = Date.now();
   if (cached && cached.expiresAt > now) return cached.url;
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(storagePath, 3600);
-  if (error || !data) {
-    console.warn('createSignedUrl failed:', error);
+  try {
+    const { url } = await requestPresignedR2Url(storagePath, 'GET');
+    signedCache.set(storagePath, {
+      url,
+      expiresAt: now + SIGNED_TTL_MS,
+    });
+    return url;
+  } catch (error) {
+    console.warn('r2-photo-url GET failed:', error);
     return null;
   }
-  signedCache.set(storagePath, {
-    url: data.signedUrl,
-    expiresAt: now + SIGNED_TTL_MS,
-  });
-  return data.signedUrl;
 }
 
 // Best-effort cleanup of a locally-persisted photo. Used on soft-delete so
@@ -148,13 +169,15 @@ export async function deleteLocalPhoto(localUri: string | null): Promise<void> {
   }
 }
 
-// Remove an object from Storage. Used by sync when it processes an
-// expense_photos delete entry. Empty paths and missing objects are no-ops.
+// Remove an object from R2. Server-side delete via the Edge Function — saves
+// a round trip vs. presigning a DELETE. Empty paths are a no-op.
 export async function deletePhotoFromStorage(
   storagePath: string | null | undefined,
 ): Promise<void> {
   if (!storagePath) return;
   signedCache.delete(storagePath);
-  const { error } = await supabase.storage.from(BUCKET).remove([storagePath]);
+  const { error } = await supabase.functions.invoke('r2-photo-url', {
+    body: { path: storagePath, op: 'DELETE' },
+  });
   if (error) throw error;
 }

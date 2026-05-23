@@ -28,7 +28,7 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
-import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
+import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
 import { getCategoryDisplayName } from '@/utils/category';
 import { showConfirmDialog } from '@/utils/confirmDialog';
 import { formatAmount } from '@/utils/currency';
@@ -67,6 +67,7 @@ export default function ExpenseDetailScreen() {
     [allSplits, expenseId],
   );
   const deleteExpense = useExpenseStore((s) => s.deleteExpense);
+  const deletePhoto = useExpenseStore((s) => s.deletePhoto);
   const allCategories = useCategoryStore((s) => s.categories);
 
   const tripCategories = useMemo(
@@ -148,6 +149,23 @@ export default function ExpenseDetailScreen() {
       homeCurrency: trip.homeCurrency,
     });
   }, [expense, trip, category, t]);
+
+  const handleDeletePhoto = useCallback(
+    async (photo: ExpensePhoto) => {
+      try {
+        await deletePhoto(photo);
+        // If that was the last photo on the expense, drop the modal — there's
+        // nothing left to scroll to.
+        if (expense && expense.photos.length <= 1) {
+          setGalleryOpen(false);
+        }
+      } catch (error) {
+        console.warn('Failed to delete photo:', error);
+        Alert.alert(t('expenseDetail.photoDeleteFailed'));
+      }
+    },
+    [deletePhoto, expense, t],
+  );
 
   const handleDelete = useCallback(() => {
     if (!expense) return;
@@ -399,6 +417,7 @@ export default function ExpenseDetailScreen() {
         photos={expense.photos}
         initialIndex={galleryIndex}
         onClose={() => setGalleryOpen(false)}
+        onDelete={canMutate ? handleDeletePhoto : undefined}
       />
     </SafeAreaView>
   );

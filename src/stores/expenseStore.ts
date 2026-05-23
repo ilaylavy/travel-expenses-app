@@ -7,6 +7,7 @@ import {
   updateSplits as dbUpdateSplits,
   type CreateSplitInput,
 } from '@/db/queries/expenseSplits';
+import { deletePhoto as dbDeletePhoto } from '@/db/queries/expensePhotos';
 import {
   createExpense as dbCreate,
   listExpensesForTrip,
@@ -15,7 +16,7 @@ import {
   type CreateExpenseInput,
   type UpdateExpenseInput,
 } from '@/db/queries/expenses';
-import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
+import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
 
 interface UserShare {
   amount: number;
@@ -40,6 +41,7 @@ interface ExpenseState {
     splits?: CreateSplitInput[] | null,
   ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
+  deletePhoto: (photo: ExpensePhoto) => Promise<void>;
   getUserShareForExpense: (expenseId: string, userId: string | null) => UserShare;
   clear: () => void;
 }
@@ -146,6 +148,17 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     set((state) => ({
       expenses: state.expenses.filter((e) => e.id !== id),
       splits: state.splits.filter((s) => s.expenseId !== id),
+    }));
+  },
+
+  deletePhoto: async (photo) => {
+    await dbDeletePhoto(photo);
+    set((state) => ({
+      expenses: state.expenses.map((e) =>
+        e.id === photo.expenseId
+          ? { ...e, photos: e.photos.filter((p) => p.id !== photo.id) }
+          : e,
+      ),
     }));
   },
 

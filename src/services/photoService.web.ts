@@ -6,21 +6,19 @@
 //
 // localUri on web rows is always null (the blob: URL dies on refresh and
 // the device that captured it is the only one that has the bytes). The
-// canonical render path is the signed Storage URL via getSignedPhotoUrl.
+// canonical render path is the signed URL via getSignedPhotoUrl.
 //
 // Failure mode: if upload fails after the expense is created, the blob is
 // still in our Map, but a refresh wipes it. The expense_photos row may
 // reference a storage_path that doesn't exist; the gallery falls back to
-// "photo failed to load" and the orphan storage_path is retained. Phase 5
-// can wire up a retry queue if it becomes a real issue.
+// "photo failed to load" and the orphan storage_path is retained. A future
+// retry queue can address this if it becomes a real issue.
 
 import { supabase } from './supabase';
 
 export interface PickedPhoto {
   uri: string;
 }
-
-const BUCKET = 'expense-photos';
 
 // Map of blob URL → File. Lookups are O(1) and bounded by however many
 // photos the user is staging in the entry form before saving.
@@ -89,8 +87,8 @@ export async function pickPhotosFromLibrary(): Promise<PickedPhoto[]> {
 
 // On native this resizes + recompresses the image and copies it to the
 // document directory. On web the blob URL is already a stable reference
-// to the in-memory File, so we just return it as-is. Phase 5 could add
-// canvas-based downscaling here if upload sizes get out of hand.
+// to the in-memory File, so we just return it as-is. Canvas-based
+// downscaling could be added here if upload sizes get out of hand.
 export async function processAndPersistPhoto(
   pickerUri: string,
   _photoId: string,
@@ -98,10 +96,29 @@ export async function processAndPersistPhoto(
   return pickerUri;
 }
 
-// Looks up the staged File by blob URL and uploads its bytes to Storage
-// at the same trip/expense/photo path as the native variant. The Map
-// entry is purged on success so we don't hold the bytes longer than
-// needed.
+// Hit the r2-photo-url Edge Function for a presigned URL.
+interface PresignedResponse {
+  url: string;
+  expiresAt: string;
+}
+
+async function requestPresignedR2Url(
+  path: string,
+  op: 'PUT' | 'GET',
+): Promise<PresignedResponse> {
+  const { data, error } = await supabase.functions.invoke<PresignedResponse>(
+    'r2-photo-url',
+    { body: { path, op } },
+  );
+  if (error) throw error;
+  if (!data?.url) throw new Error('r2-photo-url: empty response');
+  return data;
+}
+
+// Looks up the staged File by blob URL and uploads its bytes to R2 via a
+// presigned PUT URL at the same trip/expense/photo key as the native
+// variant. The Map entry is purged on success so we don't hold the bytes
+// longer than needed.
 export async function uploadPhotoToStorage(args: {
   tripId: string;
   expenseId: string;
@@ -116,14 +133,28 @@ export async function uploadPhotoToStorage(args: {
     );
   }
   const path = `${args.tripId}/${args.expenseId}/${args.photoId}.jpg`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type || 'image/jpeg',
-    upsert: true,
-  });
-  if (error) throw error;
-  blobByUrl.delete(args.localUri);
-  URL.revokeObjectURL(args.localUri);
-  return path;
+
+  // One-shot retry on 403 covers the rare URL-expired race; the sync queue
+  // handles any other failure with its outer retry.
+  let attempts = 0;
+  let lastStatus = 0;
+  while (attempts < 2) {
+    attempts += 1;
+    const { url } = await requestPresignedR2Url(path, 'PUT');
+    const res = await fetch(url, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': file.type || 'image/jpeg' },
+    });
+    lastStatus = res.status;
+    if (res.ok) {
+      blobByUrl.delete(args.localUri);
+      URL.revokeObjectURL(args.localUri);
+      return path;
+    }
+    if (res.status !== 403) break;
+  }
+  throw new Error(`R2 PUT failed with status ${lastStatus} after ${attempts} attempt(s)`);
 }
 
 const SIGNED_TTL_MS = 50 * 60 * 1000;
@@ -136,18 +167,17 @@ export async function getSignedPhotoUrl(
   const cached = signedCache.get(storagePath);
   const now = Date.now();
   if (cached && cached.expiresAt > now) return cached.url;
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(storagePath, 3600);
-  if (error || !data) {
-    console.warn('createSignedUrl failed:', error);
+  try {
+    const { url } = await requestPresignedR2Url(storagePath, 'GET');
+    signedCache.set(storagePath, {
+      url,
+      expiresAt: now + SIGNED_TTL_MS,
+    });
+    return url;
+  } catch (error) {
+    console.warn('r2-photo-url GET failed:', error);
     return null;
   }
-  signedCache.set(storagePath, {
-    url: data.signedUrl,
-    expiresAt: now + SIGNED_TTL_MS,
-  });
-  return data.signedUrl;
 }
 
 export async function deleteLocalPhoto(localUri: string | null): Promise<void> {
@@ -163,6 +193,8 @@ export async function deletePhotoFromStorage(
 ): Promise<void> {
   if (!storagePath) return;
   signedCache.delete(storagePath);
-  const { error } = await supabase.storage.from(BUCKET).remove([storagePath]);
+  const { error } = await supabase.functions.invoke('r2-photo-url', {
+    body: { path: storagePath, op: 'DELETE' },
+  });
   if (error) throw error;
 }
