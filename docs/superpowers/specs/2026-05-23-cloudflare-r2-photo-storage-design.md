@@ -10,7 +10,7 @@ Replace Supabase Storage with Cloudflare R2 as the backend for expense receipt p
 
 ## Scope
 
-- All photo storage moves to R2. Existing photos in the Supabase `expense-photos` bucket are migrated, then the bucket is decommissioned.
+- All photo storage moves to R2 (bucket `images-travel-expense-app`, region EEUR — already provisioned). Existing photos in the Supabase Storage bucket `expense-photos` are migrated, then the Supabase bucket is decommissioned.
 - Object-key convention is unchanged: `<tripId>/<expenseId>/<photoId>.jpg`. `expense_photos.storage_path` values remain valid.
 - Receipt photos stay **private**; access is gated by trip membership exactly as today.
 - Works on both native (iOS/Android via Expo) and web.
@@ -33,14 +33,15 @@ Out of scope: inline image transforms (Cloudflare Images), custom domain for del
 └────────────┘                                         └──────────┬──────────┘
                                                                   │
                                                                   ▼
-                                                        ┌─────────────────────┐
-                                                        │ Cloudflare R2       │
-                                                        │ bucket:             │
-                                                        │  expense-photos     │
-                                                        │ key:                │
-                                                        │  <tripId>/<expId>/  │
-                                                        │   <photoId>.jpg     │
-                                                        └─────────────────────┘
+                                                        ┌──────────────────────────┐
+                                                        │ Cloudflare R2            │
+                                                        │ bucket:                  │
+                                                        │  images-travel-expense-  │
+                                                        │  app  (EEUR)             │
+                                                        │ key:                     │
+                                                        │  <tripId>/<expId>/       │
+                                                        │   <photoId>.jpg          │
+                                                        └──────────────────────────┘
 ```
 
 R2 has no equivalent of Supabase RLS, so a server-side gatekeeper is required. The Edge Function is that gatekeeper — it holds the only R2 credentials, and the app never sees them. The app receives short-lived presigned URLs (or a simple `ok` for DELETE) and talks to R2 directly from there.
@@ -96,16 +97,16 @@ After migration completes, one cleanup SQL migration:
 
 ### R2 setup (one-time, dashboard or MCP)
 
-- Create private bucket `expense-photos` in the project's Cloudflare account.
+- Bucket `images-travel-expense-app` (region EEUR) — already provisioned.
 - Create an R2 API token scoped to this single bucket, permission `Object Read & Write`. Save credentials.
 - CORS config on the bucket: allow `PUT, GET` from app origins; allowed header `Content-Type`.
 
 ### Secrets (Supabase Edge Function env)
 
-- `R2_ACCOUNT_ID`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_BUCKET` (`expense-photos`)
+- `R2_ACCOUNT_ID` (`86be6bacbcc4f990235e012c20b484bc`)
+- `R2_ACCESS_KEY_ID` (from token creation)
+- `R2_SECRET_ACCESS_KEY` (from token creation)
+- `R2_BUCKET_IMAGE` (`images-travel-expense-app`)
 
 No client-visible secrets — the app only ever sees presigned URLs scoped to a single object.
 
@@ -166,10 +167,10 @@ User-facing rule (per CLAUDE.md): never expose raw errors. Network/permission fa
 
 ## Migration plan
 
-1. **Pre-flight.** Provision R2 bucket, configure CORS, create scoped API token, set Supabase Function secrets. Deploy `r2-photo-url` Edge Function. App build still uses Supabase Storage. Verify the function works against one manually placed test object.
+1. **Pre-flight.** R2 bucket already provisioned. Configure CORS, create scoped API token, set Supabase Function secrets. Deploy `r2-photo-url` Edge Function. App build still uses Supabase Storage. Verify the function works against one manually placed test object.
 2. **Migration script** `scripts/migrate-photos-to-r2.ts` (run locally with admin creds):
-   - List all objects in the Supabase `expense-photos` bucket via service-role key.
-   - For each: download bytes, PUT to R2 at the same key.
+   - List all objects in the Supabase Storage `expense-photos` bucket via service-role key.
+   - For each: download bytes, PUT to the R2 bucket at the same key.
    - Verify with HEAD on R2 (size match).
    - Write a manifest JSON of migrated keys for audit.
 3. **Cutover.** Run script to 100% completion. Ship the app build that swaps `photoService` to R2. New uploads now land in R2 directly.
@@ -202,4 +203,4 @@ For larger photo volumes than this app currently has, replace step 2's local scr
 
 ## Open questions
 
-None blocking. Cloudflare account + R2 bucket need to be provisioned by the user (or via the now-installed Workers Bindings MCP) before pre-flight.
+None blocking. R2 API token still needs to be created in the Cloudflare dashboard by the user (the only step the MCP can't do).

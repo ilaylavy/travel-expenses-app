@@ -116,8 +116,12 @@ function GalleryPage({ photo, width, height, t }: GalleryPageProps) {
   const [resolvedUri, setResolvedUri] = useState<string | null>(initialUri);
   const [loading, setLoading] = useState(!initialUri && !!photo.storagePath);
   const [failed, setFailed] = useState(false);
+  // Tracks whether we've already given up on the local URI for this photo.
+  // Prevents an onError loop if the signed URL itself fails to load.
+  const [localFailed, setLocalFailed] = useState(false);
 
   useEffect(() => {
+    setLocalFailed(false);
     if (isWebViewableUri(photo.localUri)) {
       setResolvedUri(photo.localUri);
       setLoading(false);
@@ -148,6 +152,32 @@ function GalleryPage({ photo, width, height, t }: GalleryPageProps) {
     };
   }, [photo.localUri, photo.storagePath]);
 
+  const handleImageError = (): void => {
+    if (localFailed) {
+      setFailed(true);
+      setLoading(false);
+      return;
+    }
+    setLocalFailed(true);
+    if (!photo.storagePath) {
+      setFailed(true);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setResolvedUri(null);
+    void (async () => {
+      const url = await getSignedPhotoUrl(photo.storagePath);
+      if (!url) {
+        setFailed(true);
+        setLoading(false);
+        return;
+      }
+      setResolvedUri(url);
+      setLoading(false);
+    })();
+  };
+
   return (
     <View style={[styles.page, { width, height }]}>
       {resolvedUri ? (
@@ -155,6 +185,7 @@ function GalleryPage({ photo, width, height, t }: GalleryPageProps) {
           source={{ uri: resolvedUri }}
           style={styles.image}
           resizeMode="contain"
+          onError={handleImageError}
         />
       ) : null}
       {loading ? (

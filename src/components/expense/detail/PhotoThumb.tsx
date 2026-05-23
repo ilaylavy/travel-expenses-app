@@ -21,8 +21,13 @@ export function PhotoThumb({
   const [uri, setUri] = useState<string | null>(
     isWebViewableUri(photo.localUri) ? photo.localUri : null,
   );
+  // Native can still hand us a stale file:// (different app bundle, app
+  // reinstall, sync from another device). Once Image fires onError on a
+  // local URI we drop it and re-resolve through the signed URL.
+  const [localFailed, setLocalFailed] = useState(false);
 
   useEffect(() => {
+    setLocalFailed(false);
     if (isWebViewableUri(photo.localUri)) {
       setUri(photo.localUri);
       return;
@@ -38,10 +43,29 @@ export function PhotoThumb({
     };
   }, [photo.localUri, photo.storagePath]);
 
+  // Image onError → fall back from a dead local URI to the signed URL.
+  // Only triggers on the local-first render; once we're already showing a
+  // signed URL, onError is the real failure path and we have nothing to fall
+  // back to.
+  const handleImageError = (): void => {
+    if (localFailed) return;
+    setLocalFailed(true);
+    setUri(null);
+    if (!photo.storagePath) return;
+    void (async () => {
+      const signed = await getSignedPhotoUrl(photo.storagePath);
+      setUri(signed);
+    })();
+  };
+
   return (
     <Pressable onPress={onPress}>
       {uri ? (
-        <Image source={{ uri }} style={[styles.photoThumb, { borderColor }]} />
+        <Image
+          source={{ uri }}
+          style={[styles.photoThumb, { borderColor }]}
+          onError={handleImageError}
+        />
       ) : (
         <View
           style={[styles.photoThumb, { borderColor, backgroundColor: borderColor }]}
