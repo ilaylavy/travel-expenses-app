@@ -13,6 +13,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20';
 
+import { parseOp, parsePath, type Op } from './validation.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -20,14 +22,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Object key convention: <tripId>/<expenseId>/<photoId>.jpg — three UUIDs.
-const PATH_RE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jpg$/i;
-
 const PUT_TTL_SECONDS = 300; // 5 min — long enough for any single upload attempt
 const GET_TTL_SECONDS = 3600; // 1 hr — matches the existing signed-URL cache
-
-type Op = 'PUT' | 'GET' | 'DELETE';
 
 interface RequestBody {
   path?: unknown;
@@ -105,20 +101,16 @@ Deno.serve(async (req: Request) => {
   }
 
   const path = typeof body.path === 'string' ? body.path.trim() : '';
-  const opRaw = typeof body.op === 'string' ? body.op.toUpperCase() : '';
-  if (opRaw !== 'PUT' && opRaw !== 'GET' && opRaw !== 'DELETE') {
+  const op: Op | null = parseOp(body.op);
+  if (!op) {
     return errorResponse('Invalid op (must be PUT, GET, or DELETE)');
   }
-  const op = opRaw as Op;
 
-  const match = path.match(PATH_RE);
-  if (!match) {
+  const parsed = parsePath(path);
+  if (!parsed) {
     return errorResponse('Invalid path shape');
   }
-  const tripId = match[1];
-  if (!UUID_RE.test(tripId)) {
-    return errorResponse('Invalid tripId in path');
-  }
+  const { tripId } = parsed;
 
   // Membership gate — pending invites (joined_at IS NULL) are not members.
   // Matches the pattern used by ai-query: admin client + explicit user_id

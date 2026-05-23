@@ -17,6 +17,7 @@ import { sizing, spacing, typography } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getSignedPhotoUrl } from '@/services/photoService';
 import type { ExpensePhoto } from '@/types/expense';
+import { showConfirmDialog } from '@/utils/confirmDialog';
 import { isWebViewableUri } from '@/utils/photoUri';
 
 interface PhotoGalleryModalProps {
@@ -24,6 +25,10 @@ interface PhotoGalleryModalProps {
   photos: ExpensePhoto[];
   initialIndex: number;
   onClose: () => void;
+  // When provided, the modal renders a trash icon that asks for confirmation
+  // and then calls back with the photo at the current page. Omit on read-only
+  // contexts (e.g. viewing a partner's expense the caller can't mutate).
+  onDelete?: (photo: ExpensePhoto) => void;
 }
 
 export function PhotoGalleryModal({
@@ -31,6 +36,7 @@ export function PhotoGalleryModal({
   photos,
   initialIndex,
   onClose,
+  onDelete,
 }: PhotoGalleryModalProps) {
   const { width, height } = useWindowDimensions();
   const { t } = useTranslation();
@@ -43,6 +49,19 @@ export function PhotoGalleryModal({
   if (photos.length === 0) return null;
 
   const safeIndex = Math.min(Math.max(currentIndex, 0), photos.length - 1);
+  const currentPhoto = photos[safeIndex];
+
+  const requestDelete = (): void => {
+    if (!onDelete) return;
+    showConfirmDialog({
+      title: t('expenseDetail.photoDeleteConfirm'),
+      body: '',
+      confirmLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+      destructive: true,
+      onConfirm: () => onDelete(currentPhoto),
+    });
+  };
 
   return (
     <Modal
@@ -95,6 +114,19 @@ export function PhotoGalleryModal({
                 total: photos.length,
               })}
             </Text>
+            {onDelete ? (
+              <Pressable
+                accessibilityLabel={t('expenseDetail.photoDeleteLabel')}
+                onPress={requestDelete}
+                hitSlop={12}
+                style={({ pressed }) => [
+                  styles.deleteButton,
+                  { transform: [{ scale: pressed ? 0.94 : 1 }] },
+                ]}
+              >
+                <Text style={styles.deleteIcon}>🗑️</Text>
+              </Pressable>
+            ) : null}
           </View>
         </SafeAreaView>
       </View>
@@ -250,6 +282,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#FFFFFF',
     ...typography.itemTitle,
-    marginEnd: 36,
+  },
+  deleteButton: {
+    width: sizing.headerButton,
+    height: sizing.headerButton,
+    borderRadius: sizing.radiusPill,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteIcon: {
+    fontSize: 18,
   },
 });

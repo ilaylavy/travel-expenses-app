@@ -59,6 +59,10 @@ export interface ExpenseSplitsQueries {
 // -----------------------------------------------------------------------------
 export interface ExpensePhotosQueries {
   listPhotosForExpense: (expenseId: string) => Promise<ExpensePhoto[]>;
+  // Delete a single photo from a saved expense. Removes the row from the
+  // local DB (native) / Postgres (web), enqueues / executes the R2 object
+  // delete, and cleans up the on-device file copy when present.
+  deletePhoto: (photo: ExpensePhoto) => Promise<void>;
 }
 
 // -----------------------------------------------------------------------------

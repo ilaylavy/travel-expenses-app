@@ -1,9 +1,11 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
+import { deleteLocalPhoto } from '@/services/photoService';
 import type { ExpensePhoto, ExpensePhotoRow } from '@/types/expense';
 
 import type { ExpensePhotosQueries } from './contract';
+import { enqueueSync } from './syncQueue';
 
 export function rowToPhoto(row: ExpensePhotoRow): ExpensePhoto {
   return {
@@ -72,7 +74,26 @@ export async function listPhotosForExpense(
   return rows.map(rowToPhoto);
 }
 
+// Delete a single photo on a saved expense. expense_photos is hard-deleted
+// (no deleted_at column), so we drop the row, queue a sync delete that
+// carries the storage_path through to pushChanges (which removes the R2
+// object server-side), and best-effort clean up the local file.
+export async function deletePhoto(photo: ExpensePhoto): Promise<void> {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM expense_photos WHERE id = ?;', [photo.id]);
+    await enqueueSync(db, 'expense_photos', photo.id, 'delete', {
+      id: photo.id,
+      storage_path: photo.storagePath,
+    });
+  });
+  // Local file cleanup is best-effort and runs outside the transaction so
+  // a missing file can't block the DB delete.
+  await deleteLocalPhoto(photo.localUri);
+}
+
 const _check: ExpensePhotosQueries = {
   listPhotosForExpense,
+  deletePhoto,
 };
 void _check;
