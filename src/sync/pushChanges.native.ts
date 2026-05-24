@@ -18,6 +18,7 @@ const TABLE_ORDER: SyncTable[] = [
   'trips',
   'trip_members',
   'categories',
+  'journal_moments',           // NEW — before any moment_id FK consumers
   'expenses',
   'expense_splits',
   'expense_photos',
