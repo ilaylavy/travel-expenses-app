@@ -301,19 +301,22 @@ Single scrollable screen within the trip tab. Sections:
 - Private expenses are excluded from balance calculations (they only affect the author's personal view)
 - Displayed in stats screen as a tappable chip that opens the Balances screen
 
+**Balances screen layout:**
+- Dedicated screen at `/trip/[id]/balances`, accessible from a tap on the Stats balance chip or from a "Balances" entry in trip settings.
+- **Members** section: every member's total share of trip cost (split rows + non-split expenses they paid).
+- **Outstanding** section: a "You owe / Owes you" two-column directional summary. Each OTHER member with a non-zero netted balance appears in exactly one column — whichever direction wins after pairwise netting. Tap a row to settle. Multi-user trips scale naturally: one row per other person, in the appropriate column.
+- **History** section: chronological list of recorded settlement payments. Long-press to reverse.
+- **Shared expenses** section: a read-only ledger of every split expense the current user participates in, newest first. Each row shows date, total, payer, and the user's per-row direction ("you owe X" or "[name] owes you X"). Expenses between two other members the current user isn't part of are hidden.
+
 **Settle up:**
-- Dedicated Balances screen (`/trip/[id]/balances`) accessible from a tap on the Stats balance chip or from a "Balances" entry in trip settings
-- Lists every member's share total, every outstanding pairwise debt, and a history of recorded payments
-- Each pair card has two ways to settle:
-  - **Settle full amount** — opens a modal pre-filled with the current net (pair-level settlement, amount-based)
-  - **Expenses ▾** — expands to show every expense contributing to the pair's gross debt; tapping the per-row "Settle" button opens the modal locked to that specific expense's share (per-expense attributed settlement)
-- Per-expense settlement is for moments when it's natural to clear one expense right after it happens (e.g. just paid for the flights together). Pair-level is for casual end-of-trip clean-up. Both compose: the displayed net subtracts both kinds.
+- Tap any OUTSTANDING row → Settle Up modal opens pre-filled with that direction's current netted amount in home currency. Amount is editable, so partial settlements work; over-settling flips the direction (the receiver now owes the payer the excess).
 - Trip currency is the default for the payment amount; toggle to home currency in the modal. Date defaults to today and can be backdated; optional note.
-- exchange_rate is locked at recording time, mirroring expenses — historical settlements don't drift if rates change later
-- Anyone in the trip can record a payment between any two members (third-party / bookkeeper UX); the payer is locked to whichever member currently owes when entering via a pair card or per-expense row
-- Long-press a payment in the history list to reverse it; reversal restores the balance as if the payment never happened (soft-delete, hidden from history). For attributed settlements, reversing re-opens that expense's debt.
-- Editing or deleting an expense that has at least one attributed settlement is blocked with a "Reverse the settlement first" message — keeps recorded payment amounts truthful.
-- The AI assistant (Ask page) is settlement-aware: questions like "are we even?", "did Alex pay me back?", "which expenses did Alice settle?", or "how much have we settled?" all return live, netted answers
+- All settlements created from the UI are free-form / unattributed — they reduce the netted pair balance rather than being tied to a specific expense. The per-expense "Settle" flow is no longer offered; the Shared Expenses ledger is read-only.
+- exchange_rate is locked at recording time, mirroring expenses — historical settlements don't drift if rates change later.
+- Anyone in the trip can record a payment between any two members (third-party / bookkeeper UX); the from/to default to the tapped pair direction but are not enforced server-side.
+- Long-press a payment in the history list to reverse it; reversal restores the balance as if the payment never happened (soft-delete, hidden from history).
+- Legacy attributed settlements (rows in `settlement_payments` with `expense_split_id` set, recorded by older app versions) remain honored by the balance computation: each removes the matching split from gross-debt accumulation. Reversing one re-opens that expense's debt. Editing or deleting an expense with an active attributed settlement is still blocked with a "Reverse the settlement first" message. New attributed settlements are no longer created.
+- The AI assistant (Ask page) is settlement-aware: questions like "are we even?", "did Alex pay me back?", or "how much have we settled?" all return live, netted answers.
 
 ### 3.12 Sync
 
