@@ -17,15 +17,20 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DayNav } from '@/components/journal/DayNav';
 import { DaySummaryCard } from '@/components/journal/DaySummaryCard';
 import { JournalFab } from '@/components/journal/JournalFab';
+import { TimelineItemActions } from '@/components/journal/TimelineItemActions';
+import { TimestampEditor } from '@/components/journal/TimestampEditor';
+import { TranscriptEditor } from '@/components/journal/TranscriptEditor';
 import { ExpenseTimelineRow } from '@/components/journal/timeline/ExpenseTimelineRow';
 import { PhotoEntryRow } from '@/components/journal/timeline/PhotoEntryRow';
 import { VoiceClipRow } from '@/components/journal/timeline/VoiceClipRow';
+import * as expenseQueries from '@/db/queries/expenses';
 import * as journalDays from '@/db/queries/journalDays';
 import * as journalPhotoEntries from '@/db/queries/journalPhotoEntries';
 import * as voiceClips from '@/db/queries/voiceClips';
 import { useDaySummary } from '@/hooks/useDaySummary';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { supabase } from '@/services/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import {
   selectCategoriesForTrip,
@@ -77,6 +82,17 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
   );
   const [photoEntries, setPhotoEntries] = useState<JournalPhotoEntryWithPhotos[]>([]);
   const [clips, setClips] = useState<VoiceClip[]>([]);
+  // Phase 3 editing slots. Mutually independent — long-press surfaces the
+  // action sheet first, which then opens the timestamp editor or runs an
+  // inline mutation. The transcript editor is reached from the row
+  // directly (tap on transcript text), not via the action sheet.
+  const [actionTarget, setActionTarget] = useState<TimelineItem | null>(null);
+  const [editingTimestampFor, setEditingTimestampFor] = useState<TimelineItem | null>(
+    null,
+  );
+  const [editingTranscriptFor, setEditingTranscriptFor] = useState<VoiceClip | null>(
+    null,
+  );
 
   // Make sure expenses for this trip are loaded so the timeline isn't empty
   // when the user lands on the journal tab before opening the expenses tab.
@@ -220,23 +236,31 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
     [reloadDayLists],
   );
 
-  // Phase 3 wires the gallery viewer, delete-confirm sheet, and the
-  // transcribe-voice edge-function call. For now we stub them so the
-  // row callbacks are well-typed; the placeholders are intentionally
-  // visible in dev logs so the wiring task picks them up.
+  // Gallery viewer is still a Phase 3.4 task — kept as a no-op so the row
+  // callback typechecks.
   const handleOpenPhoto = useCallback((_entryId: string, _index: number): void => {
-    // TODO(phase-3): open the gallery viewer at this index.
+    // TODO(phase-3.4): open the gallery viewer at this index.
   }, []);
-  const handleOpenTranscript = useCallback((_clipId: string): void => {
-    // TODO(phase-3): open the transcript edit modal.
+  const handleOpenTranscript = useCallback(
+    (clipId: string): void => {
+      const target = clips.find((c) => c.id === clipId);
+      if (target) setEditingTranscriptFor(target);
+    },
+    [clips],
+  );
+  const handleLongPressItem = useCallback((item: TimelineItem): void => {
+    setActionTarget(item);
   }, []);
-  const handleLongPressItem = useCallback((_item: TimelineItem): void => {
-    // TODO(phase-3): show delete-confirm action sheet.
-  }, []);
-  const handleRetranscribe = useCallback((_clipId: string): void => {
-    // TODO(task-2.9): invoke the transcribe-voice edge function and
-    // reload the day lists once the new status is persisted.
-    console.warn('TodayView retranscribe is not yet wired (Task 2.9).');
+  const handleRetranscribe = useCallback(async (clipId: string): Promise<void> => {
+    // Best-effort: errors are surfaced in the row via the transcribeFailed
+    // copy on the next reload, so we only log here.
+    try {
+      await supabase.functions.invoke('transcribe-voice', {
+        body: { voice_clip_id: clipId },
+      });
+    } catch (error) {
+      console.warn('TodayView retranscribe failed:', error);
+    }
   }, []);
 
   if (!trip) {
@@ -337,6 +361,104 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
         onCreated={async () => {
           await reloadDayLists();
           await summary.reload();
+        }}
+      />
+      <TimelineItemActions
+        item={actionTarget}
+        onDismiss={() => setActionTarget(null)}
+        onEditTimestamp={() => {
+          if (!actionTarget) return;
+          setEditingTimestampFor(actionTarget);
+          setActionTarget(null);
+        }}
+        onSetCover={async () => {
+          if (!actionTarget || actionTarget.kind !== 'photo') return;
+          const targetId = actionTarget.id;
+          setActionTarget(null);
+          try {
+            await journalDays.setCoverPhotoEntry(tripId, dayDate, targetId);
+            await summary.reload();
+          } catch (error) {
+            console.warn('TodayView setCoverPhotoEntry failed:', error);
+          }
+        }}
+        onRetranscribe={async () => {
+          if (!actionTarget || actionTarget.kind !== 'voice') return;
+          const targetId = actionTarget.id;
+          setActionTarget(null);
+          await handleRetranscribe(targetId);
+        }}
+        onDelete={async () => {
+          if (!actionTarget) return;
+          const target = actionTarget;
+          setActionTarget(null);
+          try {
+            if (target.kind === 'photo') {
+              await journalPhotoEntries.softDeleteEntry(target.id);
+            } else if (target.kind === 'voice') {
+              await voiceClips.softDeleteClip(target.id);
+            } else {
+              await expenseQueries.softDeleteExpense(target.id);
+            }
+            await reloadDayLists();
+            await summary.reload();
+          } catch (error) {
+            console.warn('TodayView delete failed:', error);
+          }
+        }}
+      />
+      {editingTimestampFor ? (
+        <TimestampEditor
+          initialISO={
+            editingTimestampFor.kind === 'expense'
+              ? `${editingTimestampFor.expense.expenseDate}T${editingTimestampFor.expense.expenseTime}Z`
+              : editingTimestampFor.occurredAt.toISOString()
+          }
+          onSave={async (iso) => {
+            const target = editingTimestampFor;
+            setEditingTimestampFor(null);
+            try {
+              if (target.kind === 'photo') {
+                await journalPhotoEntries.updateEntryOccurredAt(target.id, iso);
+              } else if (target.kind === 'voice') {
+                await voiceClips.updateClipOccurredAt(target.id, iso);
+              } else {
+                // Expense stores wall-clock date + time separately, so we
+                // only update expense_time here (timestamp edits don't
+                // migrate days from this surface).
+                const d = new Date(iso);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                await expenseQueries.updateExpense({
+                  id: target.id,
+                  expenseTime: `${hh}:${mm}:00`,
+                });
+                await loadExpensesForTrip(tripId);
+              }
+              await reloadDayLists();
+            } catch (error) {
+              console.warn('TodayView timestamp update failed:', error);
+            }
+          }}
+          onDismiss={() => setEditingTimestampFor(null)}
+        />
+      ) : null}
+      <TranscriptEditor
+        clip={editingTranscriptFor}
+        onDismiss={() => setEditingTranscriptFor(null)}
+        onSave={async (transcript) => {
+          if (!editingTranscriptFor) return;
+          const id = editingTranscriptFor.id;
+          setEditingTranscriptFor(null);
+          try {
+            await voiceClips.updateClipTranscript(
+              id,
+              transcript.length === 0 ? null : transcript,
+            );
+            await reloadDayLists();
+          } catch (error) {
+            console.warn('TodayView updateClipTranscript failed:', error);
+          }
         }}
       />
     </View>

@@ -637,6 +637,7 @@
     "transcribing": "Transcribing…",
     "transcribeFailed": "Couldn't transcribe — tap to retry",
     "retranscribe": "Re-transcribe",
+    "editTime": "Edit time",
     "deleteItemConfirm": "Delete this item?",
     "deletePhotoEntry": "Delete photo entry",
     "deleteVoiceClip": "Delete voice clip",
