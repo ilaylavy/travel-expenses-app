@@ -1,19 +1,24 @@
-// r2-photo-url Edge Function
+// r2-media-url Edge Function (served at the legacy r2-photo-url route until
+// Phase 5 retires the alias).
 //
-// Gatekeeper for Cloudflare R2 photo storage. The mobile and web apps call
-// this function with a JWT, an object path, and an operation. We:
+// Gatekeeper for Cloudflare R2 media storage. Mobile and web call this with a
+// JWT, an object key, an operation, and a media kind. We:
 //   1. Authenticate the caller.
-//   2. Verify trip membership (the trip_id is the first path segment).
-//   3. For PUT/GET, return a short-lived presigned R2 URL the client can use
-//      directly. For DELETE, perform the deletion server-side.
-//
-// The app never sees R2 credentials. Presigned URLs are scoped to a single
-// object and expire in minutes (PUT) or an hour (GET).
+//   2. Validate the path shape for the given kind.
+//   3. Verify trip membership (the trip_id is always the first path segment).
+//   4. For PUT/GET, return a short-lived presigned R2 URL; for DELETE, do the
+//      delete server-side.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20';
 
-import { parseOp, parsePath, type Op } from './validation.ts';
+import {
+  bucketEnvForKind,
+  contentTypeForKind,
+  parseKind,
+  parseOp,
+  parsePath,
+} from './validation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,10 +27,11 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
-const PUT_TTL_SECONDS = 300; // 5 min — long enough for any single upload attempt
-const GET_TTL_SECONDS = 3600; // 1 hr — matches the existing signed-URL cache
+const PUT_TTL_SECONDS = 300;
+const GET_TTL_SECONDS = 3600;
 
 interface RequestBody {
+  kind?: unknown;
   path?: unknown;
   op?: unknown;
 }
@@ -42,12 +48,8 @@ function errorResponse(message: string, status = 400): Response {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-  if (req.method !== 'POST') {
-    return errorResponse('Method not allowed', 405);
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  if (req.method !== 'POST') return errorResponse('Method not allowed', 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -55,124 +57,96 @@ Deno.serve(async (req: Request) => {
   const r2AccountId = Deno.env.get('R2_ACCOUNT_ID');
   const r2AccessKeyId = Deno.env.get('R2_ACCESS_KEY_ID');
   const r2SecretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY');
-  const r2Bucket = Deno.env.get('R2_BUCKET_IMAGE');
-
   if (
-    !supabaseUrl ||
-    !anonKey ||
-    !serviceKey ||
-    !r2AccountId ||
-    !r2AccessKeyId ||
-    !r2SecretAccessKey ||
-    !r2Bucket
+    !supabaseUrl || !anonKey || !serviceKey ||
+    !r2AccountId || !r2AccessKeyId || !r2SecretAccessKey
   ) {
-    console.error('r2-photo-url: missing env vars', {
-      hasUrl: !!supabaseUrl,
-      hasAnon: !!anonKey,
-      hasService: !!serviceKey,
-      hasAccount: !!r2AccountId,
-      hasAccessKey: !!r2AccessKeyId,
-      hasSecret: !!r2SecretAccessKey,
-      hasBucket: !!r2Bucket,
-    });
+    console.error('r2-media-url: missing env vars');
     return errorResponse('Server misconfigured', 500);
   }
 
-  const authHeader = req.headers.get('Authorization') ?? '';
-  if (!authHeader.toLowerCase().startsWith('bearer ')) {
-    return errorResponse('Unauthorized', 401);
-  }
-
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-    auth: { persistSession: false },
-  });
-  const { data: userData, error: userError } = await userClient.auth.getUser();
-  if (userError || !userData?.user) {
-    return errorResponse('Unauthorized', 401);
-  }
-  const callerId = userData.user.id;
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) return errorResponse('Missing Authorization header', 401);
 
   let body: RequestBody;
   try {
     body = (await req.json()) as RequestBody;
   } catch {
-    return errorResponse('Invalid JSON body');
+    return errorResponse('Invalid JSON', 400);
   }
 
-  const path = typeof body.path === 'string' ? body.path.trim() : '';
-  const op: Op | null = parseOp(body.op);
-  if (!op) {
-    return errorResponse('Invalid op (must be PUT, GET, or DELETE)');
+  // Back-compat: clients deployed before this change send no `kind`. Treat
+  // them as the original expense-photo path shape.
+  const kindInput = body.kind ?? 'expense-photo';
+  const kind = parseKind(kindInput);
+  if (!kind) return errorResponse('Invalid kind', 400);
+
+  const op = parseOp(body.op);
+  if (!op) return errorResponse('Invalid op', 400);
+  if (typeof body.path !== 'string') return errorResponse('path must be a string', 400);
+
+  const parsed = parsePath(body.path, kind);
+  if (!parsed) return errorResponse('Invalid path for kind', 400);
+
+  const bucketEnvName = bucketEnvForKind(kind);
+  const bucket = Deno.env.get(bucketEnvName);
+  if (!bucket) {
+    console.error(`r2-media-url: missing env var ${bucketEnvName}`);
+    return errorResponse('Server misconfigured', 500);
   }
 
-  const parsed = parsePath(path, 'expense-photo');
-  if (!parsed) {
-    return errorResponse('Invalid path shape');
-  }
-  const { tripId } = parsed;
-
-  // Membership gate — pending invites (joined_at IS NULL) are not members.
-  // Matches the pattern used by ai-query: admin client + explicit user_id
-  // filter rather than relying on RLS, since SECURITY DEFINER helpers like
-  // app_private.is_trip_member aren't exposed through PostgREST.
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
+  // Authenticate the JWT and check trip membership.
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: membership, error: memberError } = await admin
+  const { data: userData, error: userErr } = await userClient.auth.getUser();
+  if (userErr || !userData?.user) return errorResponse('Invalid JWT', 401);
+
+  const adminClient = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: memberRow, error: memberErr } = await adminClient
     .from('trip_members')
-    .select('user_id, joined_at')
-    .eq('trip_id', tripId)
-    .eq('user_id', callerId)
+    .select('id')
+    .eq('trip_id', parsed.tripId)
+    .eq('user_id', userData.user.id)
     .not('joined_at', 'is', null)
     .maybeSingle();
-
-  if (memberError) {
-    console.error('r2-photo-url: membership check error', memberError.message);
-    return errorResponse('Lookup failed', 500);
+  if (memberErr) return errorResponse('Membership check failed', 500);
+  // The owner might not have a trip_members row in early projects; check trips too.
+  if (!memberRow) {
+    const { data: ownerRow } = await adminClient
+      .from('trips')
+      .select('id')
+      .eq('id', parsed.tripId)
+      .eq('owner_id', userData.user.id)
+      .maybeSingle();
+    if (!ownerRow) return errorResponse('Not a trip member', 403);
   }
-  if (!membership) {
-    return errorResponse('Forbidden', 403);
-  }
 
-  const r2Url = `https://${r2AccountId}.r2.cloudflarestorage.com/${r2Bucket}/${path}`;
-  const aws = new AwsClient({
+  const r2 = new AwsClient({
     accessKeyId: r2AccessKeyId,
     secretAccessKey: r2SecretAccessKey,
     service: 's3',
     region: 'auto',
   });
+  const url = `https://${r2AccountId}.r2.cloudflarestorage.com/${bucket}/${body.path}`;
 
-  try {
-    if (op === 'DELETE') {
-      const res = await aws.fetch(r2Url, { method: 'DELETE' });
-      // S3 DELETE returns 204 on success. R2 returns 204 even when the object
-      // is missing, but we tolerate 404 too just in case so cleanup is
-      // idempotent from the caller's perspective.
-      if (!res.ok && res.status !== 404) {
-        const errText = await res.text();
-        console.error('r2-photo-url: DELETE failed', res.status, errText);
-        return errorResponse('Delete failed', 502);
-      }
-      return jsonResponse({ ok: true });
-    }
-
-    // PUT/GET: presign with query-string signing. Setting X-Amz-Expires before
-    // signing tells SigV4 how long the URL is valid for.
-    const ttl = op === 'PUT' ? PUT_TTL_SECONDS : GET_TTL_SECONDS;
-    const target = new URL(r2Url);
-    target.searchParams.set('X-Amz-Expires', String(ttl));
-    const signed = await aws.sign(target.toString(), {
-      method: op,
-      aws: { signQuery: true },
-    });
-    const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
-    return jsonResponse({ url: signed.url, expiresAt });
-  } catch (err) {
-    console.error(
-      'r2-photo-url: signing/delete error',
-      err instanceof Error ? err.message : err,
-    );
-    return errorResponse('Server error', 500);
+  if (op === 'DELETE') {
+    const signed = await r2.sign(new Request(url, { method: 'DELETE' }));
+    const res = await fetch(signed);
+    if (res.status >= 200 && res.status < 300) return jsonResponse({ ok: true });
+    if (res.status === 404) return jsonResponse({ ok: true });
+    return errorResponse(`R2 delete failed: ${res.status}`, 502);
   }
+
+  const ttl = op === 'PUT' ? PUT_TTL_SECONDS : GET_TTL_SECONDS;
+  const signRequest = new Request(`${url}?X-Amz-Expires=${ttl}`, {
+    method: op,
+    headers: op === 'PUT' ? { 'Content-Type': contentTypeForKind(kind) } : undefined,
+  });
+  const signed = await r2.sign(signRequest, { aws: { signQuery: true } });
+  const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
+  return jsonResponse({ url: signed.url, expiresAt });
 });
