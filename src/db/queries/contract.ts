@@ -15,6 +15,11 @@ import type {
   RecentNoteSuggestion,
   UpdateExpenseInput,
 } from '@/types/expense';
+import type {
+  DaySummary,
+  JournalDay,
+  JournalPhotoEntryWithPhotos,
+} from '@/types/journal';
 import type { Profile, UpdateProfileInput } from '@/types/profile';
 import type {
   CreateSettlementInput,
@@ -28,6 +33,7 @@ import type {
   TripWithStats,
   UpdateTripInput,
 } from '@/types/trip';
+import type { VoiceClip } from '@/types/voice';
 
 // -----------------------------------------------------------------------------
 // expenses
@@ -161,4 +167,76 @@ export interface ExpenseAnalyticsQueries {
   categoryUsageForTrip: (
     tripId: string,
   ) => Promise<Map<string, { count: number; lastUsed: string }>>;
+}
+
+// -----------------------------------------------------------------------------
+// journal_photo_entries (+ children)
+// -----------------------------------------------------------------------------
+export interface JournalPhotoEntriesQueries {
+  listEntriesForDay: (
+    tripId: string,
+    dayDateISO: string,
+    currentUserId: string,
+  ) => Promise<JournalPhotoEntryWithPhotos[]>;
+  createEntry: (input: {
+    tripId: string;
+    userId: string;
+    occurredAt: string;
+    caption: string | null;
+    isPrivate: boolean;
+    photos: Array<{
+      localUri: string;
+      sortOrder: number;
+      exifTakenAt: string | null;
+    }>;
+  }) => Promise<JournalPhotoEntryWithPhotos>;
+  updateEntryCaption: (entryId: string, caption: string | null) => Promise<void>;
+  updateEntryOccurredAt: (entryId: string, occurredAtISO: string) => Promise<void>;
+  updateEntryPrivacy: (entryId: string, isPrivate: boolean) => Promise<void>;
+  softDeleteEntry: (entryId: string) => Promise<void>;
+  countPhotosForTripDay: (tripId: string, dayDateISO: string, currentUserId: string) => Promise<number>;
+  firstPhotoStoragePathForDay: (
+    tripId: string,
+    dayDateISO: string,
+    currentUserId: string,
+  ) => Promise<string | null>;
+}
+
+// -----------------------------------------------------------------------------
+// voice_clips
+// -----------------------------------------------------------------------------
+export interface VoiceClipsQueries {
+  listClipsForDay: (
+    tripId: string,
+    dayDateISO: string,
+    currentUserId: string,
+  ) => Promise<VoiceClip[]>;
+  createClip: (input: {
+    tripId: string;
+    userId: string;
+    occurredAt: string;
+    localUri: string;
+    durationSec: number;
+    isPrivate: boolean;
+  }) => Promise<VoiceClip>;
+  updateClipTranscript: (clipId: string, transcript: string | null) => Promise<void>;
+  updateClipOccurredAt: (clipId: string, occurredAtISO: string) => Promise<void>;
+  updateClipPrivacy: (clipId: string, isPrivate: boolean) => Promise<void>;
+  softDeleteClip: (clipId: string) => Promise<void>;
+  countClipsForTripDay: (tripId: string, dayDateISO: string, currentUserId: string) => Promise<number>;
+}
+
+// -----------------------------------------------------------------------------
+// journal_days (lazy per-day metadata)
+// -----------------------------------------------------------------------------
+export interface JournalDaysQueries {
+  getDayMetadata: (tripId: string, dayDateISO: string) => Promise<JournalDay | null>;
+  setLocation: (tripId: string, dayDateISO: string, location: string | null) => Promise<JournalDay>;
+  setCoverPhotoEntry: (
+    tripId: string,
+    dayDateISO: string,
+    entryId: string | null,
+  ) => Promise<JournalDay>;
+  // Aggregate read for the chapter (All-days) view.
+  listDaySummaries: (tripId: string, currentUserId: string) => Promise<DaySummary[]>;
 }
