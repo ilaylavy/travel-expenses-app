@@ -12,7 +12,8 @@ export type SyncTable =
   | 'journal_photo_entries'
   | 'journal_photos'
   | 'voice_clips'
-  | 'journal_days';
+  | 'journal_days'
+  | 'journal_moments';
 
 export type SyncStatus = 'synced' | 'pending' | 'syncing' | 'error';
 

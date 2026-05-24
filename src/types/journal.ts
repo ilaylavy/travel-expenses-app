@@ -13,6 +13,7 @@ export interface JournalPhotoEntryRow {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  moment_id: string | null;
 }
 
 export interface JournalPhotoEntry {
@@ -25,6 +26,7 @@ export interface JournalPhotoEntry {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  momentId: string | null;
 }
 
 export interface JournalPhotoRow {
@@ -86,4 +88,35 @@ export interface DaySummary {
   totalConvertedAmount: number;      // in trip.home_currency
   coverStoragePath: string | null;
   effectiveLocation: string | null;
+}
+
+export interface JournalMomentRow {
+  id: string;
+  trip_id: string;
+  day_date: string;                            // YYYY-MM-DD
+  title: string | null;
+  cover_photo_entry_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface JournalMoment {
+  id: string;
+  tripId: string;
+  dayDate: string;
+  title: string | null;
+  coverPhotoEntryId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+// Moment with member metadata attached — what the UI renders. Members
+// reference timeline items by their kind+id pair so the consumer can fetch
+// full bodies from the per-day query results.
+export interface JournalMomentWithMemberIds extends JournalMoment {
+  memberIds: Array<{ kind: 'photo' | 'voice' | 'expense'; id: string }>;
 }
