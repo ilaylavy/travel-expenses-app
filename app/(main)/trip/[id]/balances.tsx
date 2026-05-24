@@ -19,8 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettleUpModal } from '@/components/balance/SettleUpModal';
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
-import { listTripMembers } from '@/db/queries/trips';
 import { getProfileName } from '@/db/queries/profiles';
+import { listTripMembers } from '@/db/queries/trips';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   directionalRow: {
     borderRadius: sizing.radiusCard,
     padding: spacing.md,
-    gap: 4,
+    gap: spacing.xs,
   },
   directionalName: {
     fontSize: 14,
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
   sharedExpenseRow: {
     borderRadius: sizing.radiusCard,
     padding: spacing.md,
-    gap: 4,
+    gap: spacing.xs,
   },
   sharedExpenseHeader: {
     flexDirection: 'row',
