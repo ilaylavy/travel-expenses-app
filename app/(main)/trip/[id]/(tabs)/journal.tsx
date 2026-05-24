@@ -1,14 +1,16 @@
 // /journal tab. Hosts the day timeline (Today view) and the chapter (All-days)
-// view, switched by a top toggle. Both child views own their own data fetching.
+// view, switched by a top toggle. The dayDate cursor lives here so picking a
+// card in the chapter view can deep-link into Today view for that date.
 
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChapterView } from '@/components/journal/ChapterView';
 import { TodayView } from '@/components/journal/TodayView';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { todayIsoDate } from '@/utils/date';
 
 type Mode = 'today' | 'allDays';
 
@@ -18,6 +20,15 @@ export default function JournalScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>('today');
+  // Day cursor lives at the screen level so the chapter view can hand a
+  // dayDate back when the user picks a card. TodayView re-clamps to the
+  // trip window when needed via its own controlled-prop bridge.
+  const [dayDate, setDayDate] = useState<string>(() => todayIsoDate());
+
+  const handlePickDay = useCallback((picked: string): void => {
+    setDayDate(picked);
+    setMode('today');
+  }, []);
 
   return (
     <View style={[styles.root, { backgroundColor: theme.bg }]}>
@@ -34,9 +45,13 @@ export default function JournalScreen() {
         />
       </View>
       {mode === 'today' ? (
-        <TodayView tripId={tripId} />
+        <TodayView
+          tripId={tripId}
+          dayDateOverride={dayDate}
+          onDayDateChange={setDayDate}
+        />
       ) : (
-        <ChapterView tripId={tripId} onPickDay={() => setMode('today')} />
+        <ChapterView tripId={tripId} onPickDay={handlePickDay} />
       )}
     </View>
   );

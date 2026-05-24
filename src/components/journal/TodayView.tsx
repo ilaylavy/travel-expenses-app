@@ -41,9 +41,15 @@ import { buildDayTimeline, type TimelineItem } from '@/utils/journalTimeline';
 
 interface Props {
   tripId: string;
+  // Controlled day cursor — when provided, the parent (JournalScreen) owns
+  // the dayDate so it can deep-link from the chapter view into a specific
+  // day. When omitted, TodayView falls back to its internal state seeded
+  // from today (clamped to the trip window).
+  dayDateOverride?: string;
+  onDayDateChange?: (next: string) => void;
 }
 
-export function TodayView({ tripId }: Props) {
+export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const currentUserId = useAuthStore((s) => s.session?.user.id ?? '');
@@ -53,8 +59,21 @@ export function TodayView({ tripId }: Props) {
   const loadExpensesForTrip = useExpenseStore((s) => s.loadForTrip);
   const allCategories = useCategoryStore((s) => s.categories);
 
-  const [dayDate, setDayDate] = useState<string>(() =>
+  const [internalDayDate, setInternalDayDate] = useState<string>(() =>
     clampDateToTrip(todayIsoDate(), trip?.startDate ?? null, trip?.endDate ?? null),
+  );
+  const isControlled = dayDateOverride !== undefined;
+  const dayDate = isControlled ? dayDateOverride : internalDayDate;
+  const setDayDate = useCallback(
+    (next: string | ((prev: string) => string)): void => {
+      if (isControlled) {
+        const resolved = typeof next === 'function' ? next(dayDate) : next;
+        onDayDateChange?.(resolved);
+      } else {
+        setInternalDayDate(next);
+      }
+    },
+    [isControlled, dayDate, onDayDateChange],
   );
   const [photoEntries, setPhotoEntries] = useState<JournalPhotoEntryWithPhotos[]>([]);
   const [clips, setClips] = useState<VoiceClip[]>([]);
@@ -68,13 +87,15 @@ export function TodayView({ tripId }: Props) {
   }, [tripId, activeExpenseTripId, loadExpensesForTrip]);
 
   // Re-clamp when the trip data loads in (initial mount might race with
-  // tripStore hydration).
+  // tripStore hydration). Only re-clamps the internal cursor — when the
+  // parent controls dayDate, it's responsible for keeping the value in
+  // range.
   useEffect(() => {
-    if (!trip) return;
-    setDayDate((prev) =>
+    if (!trip || isControlled) return;
+    setInternalDayDate((prev) =>
       clampDateToTrip(prev, trip.startDate, trip.endDate),
     );
-  }, [trip]);
+  }, [trip, isControlled]);
 
   const summary = useDaySummary(tripId, dayDate);
 
