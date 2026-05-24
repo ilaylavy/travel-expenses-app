@@ -16,6 +16,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DayNav } from '@/components/journal/DayNav';
 import { DaySummaryCard } from '@/components/journal/DaySummaryCard';
+import { JournalFab } from '@/components/journal/JournalFab';
 import { ExpenseTimelineRow } from '@/components/journal/timeline/ExpenseTimelineRow';
 import { PhotoEntryRow } from '@/components/journal/timeline/PhotoEntryRow';
 import { VoiceClipRow } from '@/components/journal/timeline/VoiceClipRow';
@@ -309,6 +310,14 @@ export function TodayView({ tripId }: Props) {
           })
         )}
       </ScrollView>
+      <JournalFab
+        tripId={tripId}
+        dayDate={dayDate}
+        onCreated={async () => {
+          await reloadDayLists();
+          await summary.reload();
+        }}
+      />
     </View>
   );
 }
