@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
     return errorResponse('Invalid op (must be PUT, GET, or DELETE)');
   }
 
-  const parsed = parsePath(path);
+  const parsed = parsePath(path, 'expense-photo');
   if (!parsed) {
     return errorResponse('Invalid path shape');
   }
