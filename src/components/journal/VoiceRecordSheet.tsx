@@ -1,22 +1,27 @@
-// Bottom-sheet voice recorder. Owns the Audio.Recording instance via a ref so
-// the auto-stop timer doesn't race a stale closure, drives a 1-second elapsed
-// tick, warns at MAX_SECONDS - 30s and force-stops at MAX_SECONDS. Persisted
-// recording state lives in a ref because we read it from inside the tick
-// without making setElapsed depend on it.
+// Bottom-sheet voice recorder. expo-audio's recording API is hook-only, so
+// the AudioRecorder instance lives inside this component (via
+// useAudioRecorder) rather than in a service module. The recorder is stable
+// across renders, so the auto-stop timer can reference it directly without
+// the ref pattern the expo-av version needed.
 //
 // State machine: idle → recording → finished → (saved|discarded). The
 // `finishedUri` field gates the save/discard pair, so save() can only run on
 // a successfully stopped recording.
 
-import { Audio } from 'expo-av';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import {
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import type { RecordingOptions } from 'expo-audio';
 
 import * as voiceClips from '@/db/queries/voiceClips';
 import {
-  createRecording,
-  finishRecording,
+  persistVoiceClipFile,
   requestMicPermission,
 } from '@/services/voiceClipService';
 import { useTheme } from '@/hooks/useTheme';
@@ -26,6 +31,16 @@ import { newId } from '@/utils/id';
 
 const MAX_SECONDS = 300;
 const WARN_AT = MAX_SECONDS - 30;
+
+// Mono / 64kbps voice settings — derived from HIGH_QUALITY (m4a, AAC, 44.1kHz)
+// with channel + bitrate overrides so transcripts upload quickly without losing
+// intelligibility. Stays in .m4a so the r2-media-url voice-clip validator
+// accepts the path.
+const VOICE_RECORDING_OPTIONS: RecordingOptions = {
+  ...RecordingPresets.HIGH_QUALITY,
+  numberOfChannels: 1,
+  bitRate: 64000,
+};
 
 interface Props {
   visible: boolean;
@@ -47,77 +62,68 @@ export function VoiceRecordSheet({
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [recording, setRecording] = useState(false);
+  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  const recorderState = useAudioRecorderState(recorder, 250);
+  const elapsed = Math.floor((recorderState.durationMillis ?? 0) / 1000);
+  const recording = recorderState.isRecording;
+
   const [finishedUri, setFinishedUri] = useState<string | null>(null);
   const [finishedDuration, setFinishedDuration] = useState(0);
 
-  // Reset state every time the sheet re-opens. We don't reset on close so the
-  // discard path can clean up explicitly without racing the reset.
+  // Reset persisted state when the sheet re-opens. We don't reset on close so
+  // the discard path can clean up explicitly without racing the reset.
   useEffect(() => {
     if (!visible) return;
-    setElapsed(0);
-    setRecording(false);
     setFinishedUri(null);
     setFinishedDuration(0);
   }, [visible]);
 
   const stop = useCallback(async (): Promise<void> => {
-    const rec = recordingRef.current;
-    if (!rec) return;
-    recordingRef.current = null;
+    if (!recorder.isRecording) return;
     try {
-      const result = await finishRecording(rec, newId());
-      setRecording(false);
-      setFinishedUri(result.localUri);
-      setFinishedDuration(result.durationSec);
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      const tempUri = recorder.uri;
+      if (!tempUri) {
+        console.warn('VoiceRecordSheet stop: recorder produced no URI');
+        return;
+      }
+      const clipId = newId();
+      const targetUri = await persistVoiceClipFile(tempUri, clipId);
+      const durationSec = Math.max(
+        1,
+        Math.round((recorderState.durationMillis ?? 0) / 1000),
+      );
+      setFinishedUri(targetUri);
+      setFinishedDuration(durationSec);
     } catch (error) {
       console.warn('VoiceRecordSheet stop failed:', error);
-      setRecording(false);
     }
-  }, []);
+  }, [recorder, recorderState.durationMillis]);
 
-  // 1Hz tick driven only by the `recording` flag. setElapsed uses the prev
-  // state callback so we never read a stale `elapsed`. Auto-stop fires once
-  // when we cross the cap; using recordingRef.current to gate it instead of
-  // the React state ensures the stale-closure scenario can't double-fire.
+  // Force-stop at the cap. The recorderState ticks every 250ms so we don't
+  // need our own interval — just react when it crosses the threshold.
   useEffect(() => {
     if (!recording) return;
-    const interval = setInterval(() => {
-      setElapsed((s) => {
-        const next = s + 1;
-        if (next >= MAX_SECONDS && recordingRef.current) {
-          void stop();
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [recording, stop]);
+    if (elapsed >= MAX_SECONDS) void stop();
+  }, [recording, elapsed, stop]);
 
-  // Best-effort cleanup if the sheet unmounts mid-recording. We never await
-  // here because cleanup runs synchronously; the recording object handles its
-  // own teardown if its consumer abandons it.
+  // Best-effort cleanup if the sheet unmounts mid-recording.
   useEffect(() => {
     return () => {
-      const rec = recordingRef.current;
-      if (!rec) return;
-      recordingRef.current = null;
-      void rec.stopAndUnloadAsync().catch(() => {
-        // Swallow — the recording may already be finalized.
-      });
+      if (recorder.isRecording) {
+        void recorder.stop().catch(() => undefined);
+      }
     };
-  }, []);
+  }, [recorder]);
 
   async function start(): Promise<void> {
     const granted = await requestMicPermission();
     if (!granted) return;
     try {
-      const rec = await createRecording();
-      recordingRef.current = rec;
-      setElapsed(0);
-      setRecording(true);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
     } catch (error) {
       console.warn('VoiceRecordSheet start failed:', error);
     }
@@ -143,19 +149,11 @@ export function VoiceRecordSheet({
   }
 
   function discard(): void {
-    // If the user dismisses while a recording is in flight, give the recorder
-    // a chance to tear down so the audio session is released cleanly.
-    const rec = recordingRef.current;
-    if (rec) {
-      recordingRef.current = null;
-      void rec.stopAndUnloadAsync().catch(() => {
-        // Swallow — see the unmount cleanup above.
-      });
+    if (recorder.isRecording) {
+      void recorder.stop().catch(() => undefined);
     }
     setFinishedUri(null);
     setFinishedDuration(0);
-    setElapsed(0);
-    setRecording(false);
     onDismiss();
   }
 

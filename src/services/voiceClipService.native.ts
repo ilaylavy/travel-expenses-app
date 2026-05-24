@@ -1,46 +1,18 @@
-// Voice clip recording (expo-av) + upload to R2 via r2-media-url.
+// Voice clip upload + signed-URL cache + local file persistence.
 //
-// expo-av is deprecated in Expo SDK 54 in favour of expo-audio. We stay on
-// the imperative Audio.Recording class for now because the journal capture
-// flow needs to drive the recorder from outside a React component (a hold-
-// to-record gesture controller) and expo-audio's hook-based API doesn't
-// fit. If a future upgrade splits recording state into a Zustand store,
-// migrating to expo-audio becomes feasible.
+// Recording itself lives in VoiceRecordSheet.tsx now — expo-audio (the
+// SDK 54 replacement for the deprecated expo-av) only exposes
+// useAudioRecorder as a React hook, with no imperative constructor. We
+// therefore keep the file-system + R2 helpers here and let the screen
+// own the recorder lifecycle.
 
-import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
 
 import { supabase } from './supabase';
 
 const CLIPS_DIR = `${FileSystem.documentDirectory}voice-clips/`;
 const PRESIGN_TTL_MS = 50 * 60 * 1000;
-
-// AAC/M4A — well-supported by expo-av, small at 64kbps. Mono is fine for
-// voice. matches the .m4a path shape expected by r2-media-url's voice-clip
-// validator.
-const RECORDING_OPTIONS: Audio.RecordingOptions = {
-  isMeteringEnabled: false,
-  android: {
-    extension: '.m4a',
-    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-    audioEncoder: Audio.AndroidAudioEncoder.AAC,
-    sampleRate: 44100,
-    numberOfChannels: 1,
-    bitRate: 64000,
-  },
-  ios: {
-    extension: '.m4a',
-    audioQuality: Audio.IOSAudioQuality.MEDIUM,
-    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-    sampleRate: 44100,
-    numberOfChannels: 1,
-    bitRate: 64000,
-    linearPCMBitDepth: 16,
-    linearPCMIsBigEndian: false,
-    linearPCMIsFloat: false,
-  },
-  web: {},
-};
 
 async function ensureDir(): Promise<void> {
   const info = await FileSystem.getInfoAsync(CLIPS_DIR);
@@ -49,46 +21,21 @@ async function ensureDir(): Promise<void> {
   }
 }
 
-// Caller manages the recording lifecycle. We don't keep state in this module —
-// the screen owns the Audio.Recording instance.
 export async function requestMicPermission(): Promise<boolean> {
-  const { status } = await Audio.requestPermissionsAsync();
-  return status === 'granted';
+  const { granted } = await requestRecordingPermissionsAsync();
+  return granted;
 }
 
-export async function createRecording(): Promise<Audio.Recording> {
-  await Audio.setAudioModeAsync({
-    allowsRecordingIOS: true,
-    playsInSilentModeIOS: true,
-  });
-  const recording = new Audio.Recording();
-  await recording.prepareToRecordAsync(RECORDING_OPTIONS);
-  await recording.startAsync();
-  return recording;
-}
-
-export interface FinishedRecording {
-  localUri: string;
-  durationSec: number;
-}
-
-export async function finishRecording(
-  recording: Audio.Recording,
+// Copy a recorder's temporary file into the durable documents dir under a
+// stable name. Returns the new file:// URI suitable for uploads + playback.
+export async function persistVoiceClipFile(
+  sourceUri: string,
   clipId: string,
-): Promise<FinishedRecording> {
-  await recording.stopAndUnloadAsync();
-  await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-  const tempUri = recording.getURI();
-  if (!tempUri) throw new Error('voiceClipService: recording produced no URI');
+): Promise<string> {
   await ensureDir();
   const targetUri = `${CLIPS_DIR}${clipId}.m4a`;
-  await FileSystem.copyAsync({ from: tempUri, to: targetUri });
-  const status = await recording.getStatusAsync();
-  const durationSec = Math.max(
-    1,
-    Math.round(((status as { durationMillis?: number }).durationMillis ?? 0) / 1000),
-  );
-  return { localUri: targetUri, durationSec };
+  await FileSystem.copyAsync({ from: sourceUri, to: targetUri });
+  return targetUri;
 }
 
 // Upload + URL-cache plumbing — analogous to photoService's helpers but with

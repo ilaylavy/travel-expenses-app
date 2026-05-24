@@ -1,19 +1,18 @@
-// Lightweight wrapper around expo-av's Audio.Sound for one voice clip.
-// Resolves to a local URI when the clip hasn't been uploaded yet; falls
-// back to a presigned R2 GET via getSignedVoiceClipUrl once the upload
-// completes. The sound instance is lazily created on first play and
-// disposed on unmount.
+// One-clip playback controller built on expo-audio's imperative
+// createAudioPlayer (the SDK 54 replacement for expo-av's Audio.Sound).
 //
-// expo-av is deprecated in Expo SDK 54 in favour of expo-audio, but the
-// imperative Audio.Sound API still works and matches what the voice
-// recording service already uses. Migrating both together makes sense
-// later — for now, parity with the rest of the journal code wins.
+// We don't use useAudioPlayer because the source URL is async-resolved
+// (presigned R2 GET on the first toggle when the clip has no localUri).
+// createAudioPlayer lets us defer construction until we have a URL while
+// keeping the same imperative play/pause shape.
 
-import { Audio, type AVPlaybackStatus } from 'expo-av';
 import { useEffect, useRef, useState } from 'react';
+import { createAudioPlayer } from 'expo-audio';
 
 import { getSignedVoiceClipUrl } from '@/services/voiceClipService';
 import type { VoiceClip } from '@/types/voice';
+
+type AudioPlayer = ReturnType<typeof createAudioPlayer>;
 
 interface PlaybackController {
   isPlaying: boolean;
@@ -21,45 +20,67 @@ interface PlaybackController {
 }
 
 export function useVoiceClipPlayback(clip: VoiceClip): PlaybackController {
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const playerRef = useRef<AudioPlayer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     return () => {
-      const sound = soundRef.current;
-      soundRef.current = null;
-      if (sound) void sound.unloadAsync().catch(() => undefined);
+      const p = playerRef.current;
+      playerRef.current = null;
+      if (!p) return;
+      try {
+        p.pause();
+      } catch {
+        // ignore — player may already be released
+      }
+      try {
+        p.remove();
+      } catch {
+        // ignore
+      }
     };
   }, []);
 
   async function toggle(): Promise<void> {
-    const existing = soundRef.current;
+    const existing = playerRef.current;
     if (existing && isPlaying) {
-      await existing.pauseAsync();
+      try {
+        existing.pause();
+      } catch {
+        // ignore
+      }
       setIsPlaying(false);
       return;
     }
     if (!existing) {
       const uri = clip.localUri ?? (await getSignedVoiceClipUrl(clip.storagePath));
       if (!uri) return;
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true },
-        (status: AVPlaybackStatus) => {
-          if (!status.isLoaded) return;
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            const s = soundRef.current;
-            if (s) void s.setPositionAsync(0).catch(() => undefined);
+      const player = createAudioPlayer({ uri });
+      playerRef.current = player;
+      player.addListener('playbackStatusUpdate', (status) => {
+        if (status.didJustFinish) {
+          setIsPlaying(false);
+          try {
+            void player.seekTo(0);
+          } catch {
+            // ignore
           }
-        },
-      );
-      soundRef.current = sound;
-      setIsPlaying(true);
+        }
+      });
+      try {
+        player.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.warn('useVoiceClipPlayback: play failed', error);
+      }
       return;
     }
-    await existing.playAsync();
-    setIsPlaying(true);
+    try {
+      existing.play();
+      setIsPlaying(true);
+    } catch (error) {
+      console.warn('useVoiceClipPlayback: resume failed', error);
+    }
   }
 
   return { isPlaying, toggle };

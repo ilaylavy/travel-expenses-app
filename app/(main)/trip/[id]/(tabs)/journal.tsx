@@ -2,7 +2,7 @@
 // view, switched by a top toggle. The dayDate cursor lives here so picking a
 // card in the chapter view can deep-link into Today view for that date.
 
-import { useLocalSearchParams } from 'expo-router';
+import { useGlobalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -15,8 +15,12 @@ import { todayIsoDate } from '@/utils/date';
 type Mode = 'today' | 'allDays';
 
 export default function JournalScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const tripId = id ?? '';
+  // useGlobalSearchParams returns parent dynamic segments — the [id] in
+  // /trip/[id]/(tabs)/journal lives on the parent route, not the journal
+  // segment, so useLocalSearchParams would return {}. Other tabs in this
+  // group use the same hook.
+  const params = useGlobalSearchParams<{ id: string }>();
+  const tripId = Array.isArray(params.id) ? params.id[0] : params.id ?? '';
   const theme = useTheme();
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>('today');
