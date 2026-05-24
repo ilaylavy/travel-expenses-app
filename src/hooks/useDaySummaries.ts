@@ -7,28 +7,49 @@
 import { useEffect, useState } from 'react';
 
 import * as journalDays from '@/db/queries/journalDays';
-import { useAuthStore } from '@/stores/authStore';
-import type { DaySummary } from '@/types/journal';
+import * as journalMoments from '@/db/queries/journalMoments';
+import type { DaySummary, JournalMoment } from '@/types/journal';
 
 export function useDaySummaries(tripId: string): {
   summaries: DaySummary[];
   reload: () => Promise<void>;
   isLoading: boolean;
 } {
-  const me = useAuthStore((s) => s.session?.user.id ?? '');
   const [summaries, setSummaries] = useState<DaySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const reload = async (): Promise<void> => {
-    if (!tripId || !me) {
+    if (!tripId) {
       setSummaries([]);
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
     try {
-      const rows = await journalDays.listDaySummaries(tripId, me);
-      setSummaries(rows);
+      const [rows, allMoments] = await Promise.all([
+        journalDays.listDaySummaries(tripId),
+        journalMoments.listMomentsForTrip(tripId),
+      ]);
+
+      // Bucket moments by day date for O(1) lookup when enriching summaries.
+      const momentsByDate: Record<string, JournalMoment[]> = {};
+      for (const m of allMoments) {
+        (momentsByDate[m.dayDate] = momentsByDate[m.dayDate] ?? []).push(m);
+      }
+
+      const enriched = rows.map((summary) => {
+        const dayMoments = momentsByDate[summary.dayDate] ?? [];
+        return {
+          ...summary,
+          momentCount: dayMoments.length,
+          momentTitles: dayMoments
+            .slice(0, 3)
+            .map((m) => m.title ?? '')
+            .filter((t) => t.length > 0),
+        };
+      });
+
+      setSummaries(enriched);
     } catch (error) {
       console.warn('useDaySummaries reload failed:', error);
     } finally {
@@ -39,7 +60,7 @@ export function useDaySummaries(tripId: string): {
   useEffect(() => {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripId, me]);
+  }, [tripId]);
 
   return { summaries, reload, isLoading };
 }

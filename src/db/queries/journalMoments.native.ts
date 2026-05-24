@@ -57,6 +57,17 @@ export async function listMomentsForDay(
   return rows.map(rowToMoment);
 }
 
+export async function listMomentsForTrip(tripId: string): Promise<JournalMoment[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<JournalMomentRow>(
+    `SELECT * FROM journal_moments
+      WHERE trip_id = ? AND deleted_at IS NULL
+      ORDER BY day_date DESC, created_at ASC;`,
+    [tripId],
+  );
+  return rows.map(rowToMoment);
+}
+
 export async function createMoment(input: {
   tripId: string;
   dayDate: string;

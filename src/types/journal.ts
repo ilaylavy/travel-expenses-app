@@ -88,6 +88,8 @@ export interface DaySummary {
   totalConvertedAmount: number;      // in trip.home_currency
   coverStoragePath: string | null;
   effectiveLocation: string | null;
+  momentTitles: string[];            // up to 3 titles for the All Days chip strip
+  momentCount: number;
 }
 
 export interface JournalMomentRow {

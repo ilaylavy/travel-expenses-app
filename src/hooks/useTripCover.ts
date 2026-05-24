@@ -27,12 +27,7 @@ export function useTripCover(tripId: string): string | null {
         return;
       }
       try {
-        // listDaySummaries still requires currentUserId for expense-based
-        // inferred_location filtering. We don't have the user here, so we
-        // query with an empty string — the cover_storage_path column comes
-        // from journal_photos (no user filter) so the relevant field is
-        // unaffected. Task 2.10 will drop this param entirely.
-        const summaries = await journalDays.listDaySummaries(tripId, '');
+        const summaries = await journalDays.listDaySummaries(tripId);
         const firstWithCover = summaries.find((d) => d.coverStoragePath);
         if (!cancelled) setResolved(firstWithCover?.coverStoragePath ?? null);
       } catch {
@@ -41,7 +36,7 @@ export function useTripCover(tripId: string): string | null {
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip]);
+  }, [trip?.id, trip?.coverPhotoStoragePath]);
 
   return resolved;
 }

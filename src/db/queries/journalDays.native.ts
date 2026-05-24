@@ -130,10 +130,7 @@ export async function setCoverPhotoEntry(
 //  - hero photo path: cover override if set, else first photo of the day.
 //  - effective location: journal_days.location override if set, else most-
 //    frequent expense place_name (tie-broken by alphabetical to keep stable).
-export async function listDaySummaries(
-  tripId: string,
-  currentUserId: string,
-): Promise<DaySummary[]> {
+export async function listDaySummaries(tripId: string): Promise<DaySummary[]> {
   const db = await getDatabase();
   const trip = await db.getFirstAsync<{ start_date: string; end_date: string | null }>(
     'SELECT start_date, end_date FROM trips WHERE id = ?;',
@@ -169,21 +166,17 @@ export async function listDaySummaries(
       d.day_date,
       (SELECT COUNT(*) FROM journal_photo_entries e
          WHERE e.trip_id = ? AND e.deleted_at IS NULL
-           AND SUBSTR(e.occurred_at, 1, 10) = d.day_date
-           AND (e.is_private = 0 OR e.user_id = ?)) AS photo_count,
+           AND SUBSTR(e.occurred_at, 1, 10) = d.day_date) AS photo_count,
       (SELECT COUNT(*) FROM voice_clips v
          WHERE v.trip_id = ? AND v.deleted_at IS NULL
-           AND SUBSTR(v.occurred_at, 1, 10) = d.day_date
-           AND (v.is_private = 0 OR v.user_id = ?)) AS voice_count,
+           AND SUBSTR(v.occurred_at, 1, 10) = d.day_date) AS voice_count,
       (SELECT COUNT(*) FROM expenses x
          WHERE x.trip_id = ? AND x.deleted_at IS NULL
-           AND x.expense_date = d.day_date
-           AND (x.is_private = 0 OR x.user_id = ?)) AS expense_count,
+           AND x.expense_date = d.day_date) AS expense_count,
       (SELECT COALESCE(SUM(x.converted_amount), 0) FROM expenses x
          WHERE x.trip_id = ? AND x.deleted_at IS NULL
            AND x.expense_date = d.day_date
-           AND x.is_excluded_from_daily_metrics = 0
-           AND (x.is_private = 0 OR x.user_id = ?)) AS total_converted_amount,
+           AND x.is_excluded_from_daily_metrics = 0) AS total_converted_amount,
       COALESCE(
         (SELECT jp.storage_path
            FROM journal_days jd
@@ -197,7 +190,6 @@ export async function listDaySummaries(
            JOIN journal_photos jp ON jp.entry_id = e.id
           WHERE e.trip_id = ? AND e.deleted_at IS NULL
             AND SUBSTR(e.occurred_at, 1, 10) = d.day_date
-            AND (e.is_private = 0 OR e.user_id = ?)
           ORDER BY e.occurred_at ASC, jp.sort_order ASC
           LIMIT 1)
       ) AS cover_storage_path,
@@ -207,7 +199,6 @@ export async function listDaySummaries(
          WHERE x.trip_id = ? AND x.deleted_at IS NULL
            AND x.expense_date = d.day_date
            AND x.place_name IS NOT NULL
-           AND (x.is_private = 0 OR x.user_id = ?)
          GROUP BY x.place_name
          ORDER BY COUNT(*) DESC, x.place_name ASC
          LIMIT 1) AS inferred_location
@@ -217,14 +208,14 @@ export async function listDaySummaries(
     [
       trip.start_date,
       trip.end_date,
-      tripId, currentUserId,             // photo_count
-      tripId, currentUserId,             // voice_count
-      tripId, currentUserId,             // expense_count
-      tripId, currentUserId,             // total
-      tripId,                            // cover override
-      tripId, currentUserId,             // cover fallback
-      tripId,                            // override_location
-      tripId, currentUserId,             // inferred_location
+      tripId,   // photo_count
+      tripId,   // voice_count
+      tripId,   // expense_count
+      tripId,   // total
+      tripId,   // cover override
+      tripId,   // cover fallback
+      tripId,   // override_location
+      tripId,   // inferred_location
     ],
   );
 
@@ -241,6 +232,8 @@ export async function listDaySummaries(
       totalConvertedAmount: r.total_converted_amount,
       coverStoragePath: r.cover_storage_path,
       effectiveLocation: r.override_location ?? r.inferred_location,
+      momentTitles: [],
+      momentCount: 0,
     };
   });
 }

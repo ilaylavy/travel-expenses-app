@@ -83,10 +83,7 @@ export async function setCoverPhotoEntry(
   return upsertDay(tripId, dayDateISO, { cover_photo_entry_id: entryId });
 }
 
-export async function listDaySummaries(
-  tripId: string,
-  currentUserId: string,
-): Promise<DaySummary[]> {
+export async function listDaySummaries(tripId: string): Promise<DaySummary[]> {
   const { data: trip, error: tripErr } = await supabase
     .from('trips')
     .select('start_date, end_date')
@@ -126,26 +123,24 @@ export async function listDaySummaries(
     ] = await Promise.all([
       supabase.from('journal_photo_entries').select('id', { count: 'exact', head: true })
         .eq('trip_id', tripId).gte('occurred_at', dayStart).lte('occurred_at', dayEnd)
-        .is('deleted_at', null).or(`is_private.eq.false,user_id.eq.${currentUserId}`),
+        .is('deleted_at', null),
       supabase.from('voice_clips').select('id', { count: 'exact', head: true })
         .eq('trip_id', tripId).gte('occurred_at', dayStart).lte('occurred_at', dayEnd)
-        .is('deleted_at', null).or(`is_private.eq.false,user_id.eq.${currentUserId}`),
+        .is('deleted_at', null),
       supabase.from('expenses').select('id', { count: 'exact', head: true })
         .eq('trip_id', tripId).eq('expense_date', day)
-        .is('deleted_at', null).or(`is_private.eq.false,user_id.eq.${currentUserId}`),
+        .is('deleted_at', null),
       supabase.from('expenses').select('converted_amount')
         .eq('trip_id', tripId).eq('expense_date', day)
-        .is('deleted_at', null).eq('is_excluded_from_daily_metrics', false)
-        .or(`is_private.eq.false,user_id.eq.${currentUserId}`),
+        .is('deleted_at', null).eq('is_excluded_from_daily_metrics', false),
       supabase.from('journal_days').select('location, cover_photo_entry_id')
         .eq('trip_id', tripId).eq('day_date', day).is('deleted_at', null).maybeSingle(),
       supabase.from('expenses').select('place_name')
         .eq('trip_id', tripId).eq('expense_date', day)
-        .is('deleted_at', null).not('place_name', 'is', null)
-        .or(`is_private.eq.false,user_id.eq.${currentUserId}`),
+        .is('deleted_at', null).not('place_name', 'is', null),
       supabase.from('journal_photo_entries').select('journal_photos(storage_path), occurred_at')
         .eq('trip_id', tripId).gte('occurred_at', dayStart).lte('occurred_at', dayEnd)
-        .is('deleted_at', null).or(`is_private.eq.false,user_id.eq.${currentUserId}`)
+        .is('deleted_at', null)
         .order('occurred_at', { ascending: true }).limit(1).maybeSingle(),
     ]);
 
@@ -187,6 +182,8 @@ export async function listDaySummaries(
       totalConvertedAmount,
       coverStoragePath: coverEntryFirstPhoto,
       effectiveLocation: overrideLocation ?? inferredLocation,
+      momentTitles: [],
+      momentCount: 0,
     });
   }
 

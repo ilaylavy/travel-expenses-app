@@ -241,7 +241,7 @@ export interface JournalDaysQueries {
     entryId: string | null,
   ) => Promise<JournalDay>;
   // Aggregate read for the chapter (All-days) view.
-  listDaySummaries: (tripId: string, currentUserId: string) => Promise<DaySummary[]>;
+  listDaySummaries: (tripId: string) => Promise<DaySummary[]>;
 }
 
 // -----------------------------------------------------------------------------
@@ -249,6 +249,7 @@ export interface JournalDaysQueries {
 // -----------------------------------------------------------------------------
 export interface JournalMomentsQueries {
   listMomentsForDay(tripId: string, dayDate: string): Promise<JournalMoment[]>;
+  listMomentsForTrip(tripId: string): Promise<JournalMoment[]>;
   createMoment(input: {
     tripId: string;
     dayDate: string;

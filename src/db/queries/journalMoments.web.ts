@@ -10,6 +10,10 @@ export async function listMomentsForDay(
   return [];
 }
 
+export async function listMomentsForTrip(_tripId: string): Promise<JournalMoment[]> {
+  return [];
+}
+
 export async function createMoment(_input: {
   tripId: string;
   dayDate: string;
