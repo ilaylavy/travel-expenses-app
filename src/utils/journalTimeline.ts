@@ -5,6 +5,7 @@
 
 import type { Expense } from '@/types/expense';
 import type {
+  JournalMoment,
   JournalPhoto,
   JournalPhotoEntry,
   JournalPhotoEntryWithPhotos,
@@ -40,11 +41,24 @@ export type TimelineItem =
       isPrivate: boolean;
     };
 
+export type TimelineSection =
+  | { kind: 'solo'; id: string; item: TimelineItem }
+  | {
+      kind: 'moment';
+      id: string;
+      moment: JournalMoment;
+      members: TimelineItem[];
+      startsAt: string; // ISO, min(members.occurredAt)
+      endsAt: string;   // ISO, max(members.occurredAt)
+    };
+
 function visible(userId: string, isPrivate: boolean, currentUserId: string): boolean {
   return userId === currentUserId || !isPrivate;
 }
 
-export function buildDayTimeline(input: {
+// Extract the item-building logic into a private helper so it can be reused
+// by the section builder without duplicating the per-kind mapping code.
+function buildItems(input: {
   photoEntries: JournalPhotoEntryWithPhotos[];
   voiceClips: VoiceClip[];
   expenses: Expense[];
@@ -95,9 +109,96 @@ export function buildDayTimeline(input: {
   return items;
 }
 
+function momentIdOf(it: TimelineItem): string | null {
+  if (it.kind === 'photo') return it.entry.momentId;
+  if (it.kind === 'voice') return it.clip.momentId;
+  return it.expense.momentId;
+}
+
+function sectionStartMs(s: TimelineSection): number {
+  if (s.kind === 'solo') return s.item.occurredAt.getTime();
+  return new Date(s.startsAt).getTime();
+}
+
+export function buildDayTimeline(input: {
+  photoEntries: JournalPhotoEntryWithPhotos[];
+  voiceClips: VoiceClip[];
+  expenses: Expense[];
+  moments: JournalMoment[];
+  currentUserId: string;
+}): TimelineSection[] {
+  // 1. Visibility filter + flat sort — same logic as before.
+  const items = buildItems(input);
+
+  // 2. Build a set of active (non-deleted) moment IDs so we can decide
+  //    whether an item's momentId still points at a live Moment.
+  const activeMomentIds = new Set<string>(
+    input.moments.filter((m) => !m.deletedAt).map((m) => m.id),
+  );
+
+  // 3. Bucket items by momentId, but only if the referenced Moment is still
+  //    active. Items referencing a deleted (or unknown) Moment fall into solos.
+  const byMoment = new Map<string, TimelineItem[]>();
+  const solos: TimelineItem[] = [];
+  for (const it of items) {
+    const mid = momentIdOf(it);
+    if (mid != null && activeMomentIds.has(mid)) {
+      const list = byMoment.get(mid) ?? [];
+      list.push(it);
+      byMoment.set(mid, list);
+    } else {
+      solos.push(it);
+    }
+  }
+
+  // 4. Build Moment sections; skip Moments with zero surviving members
+  //    (all their items were soft-deleted upstream and therefore absent
+  //    from the input lists — the activeMomentIds guard already excludes
+  //    deleted Moments).
+  const sections: TimelineSection[] = [];
+  for (const m of input.moments) {
+    if (m.deletedAt) continue;
+    const members = (byMoment.get(m.id) ?? [])
+      .slice()
+      .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+    if (members.length === 0) continue;
+    sections.push({
+      kind: 'moment',
+      id: m.id,
+      moment: m,
+      members,
+      startsAt: members[0]!.occurredAt.toISOString(),
+      endsAt: members[members.length - 1]!.occurredAt.toISOString(),
+    });
+  }
+
+  // 5. Each solo item becomes its own section.
+  for (const it of solos) {
+    sections.push({ kind: 'solo', id: it.id, item: it });
+  }
+
+  // 5. Sort all sections by effective start time ascending.
+  sections.sort((a, b) => sectionStartMs(a) - sectionStartMs(b));
+  return sections;
+}
+
+// Back-compat helper: callers that still consume a flat TimelineItem[] can
+// wrap buildDayTimeline with this instead of touching their own code yet.
+// Phases 4-7 will migrate consumers to work directly with TimelineSection[].
+export function flattenSections(sections: TimelineSection[]): TimelineItem[] {
+  const out: TimelineItem[] = [];
+  for (const s of sections) {
+    if (s.kind === 'solo') out.push(s.item);
+    else out.push(...s.members);
+  }
+  return out;
+}
+
 // Reorder support: given an item being moved and its new neighbors after the
 // drop, compute the new ISO timestamp for the moved item. Midpoint when
 // neighbors exist; -60s above first / +60s below last when at an edge.
+// Operates on TimelineItem (not sections) — drag resolves within the flat
+// visible list, not at the section level.
 export function computeReorderTimestamp(args: {
   above: TimelineItem | null;
   below: TimelineItem | null;

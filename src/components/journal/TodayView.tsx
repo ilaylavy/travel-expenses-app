@@ -48,6 +48,7 @@ import { todayIsoDate } from '@/utils/date';
 import {
   buildDayTimeline,
   computeReorderTimestamp,
+  flattenSections,
   type TimelineItem,
 } from '@/utils/journalTimeline';
 
@@ -175,14 +176,20 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
     [expenses, dayDate, currentUserId],
   );
 
+  // buildDayTimeline now returns TimelineSection[]. TodayView still renders
+  // a flat list (Phase 4+ will add Moment header cards here). Flatten for
+  // now so the existing DraggableFlatList keeps working unchanged.
   const timeline: TimelineItem[] = useMemo(
     () =>
-      buildDayTimeline({
-        photoEntries,
-        voiceClips: clips,
-        expenses: expensesForDay,
-        currentUserId,
-      }),
+      flattenSections(
+        buildDayTimeline({
+          photoEntries,
+          voiceClips: clips,
+          expenses: expensesForDay,
+          moments: [], // real moments wired in Task 2.9
+          currentUserId,
+        }),
+      ),
     [photoEntries, clips, expensesForDay, currentUserId],
   );
 
