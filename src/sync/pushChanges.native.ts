@@ -85,6 +85,7 @@ async function uploadPhotoForEntry(
     throw new Error(`expense_photos: parent expense ${photo.expenseId} not found`);
   }
   const storagePath = await uploadPhotoToStorage({
+    kind: 'expense-photo',
     tripId,
     expenseId: photo.expenseId,
     photoId,
@@ -139,7 +140,7 @@ async function pushEntry(
     // expense_photos: 'delete' is a real hard-delete (the row carries no
     // deleted_at column), and the Storage object must be removed too.
     if (entry.action === 'delete' && entry.tableName === 'expense_photos') {
-      await deletePhotoFromStorage(payload.storage_path as string | undefined);
+      await deletePhotoFromStorage(payload.storage_path as string | undefined, 'expense-photo');
       const { error } = await supabase.from('expense_photos').delete().eq('id', id);
       if (error) throw error;
       return;

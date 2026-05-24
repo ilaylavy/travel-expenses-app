@@ -228,6 +228,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
       const photoId = draft.id ?? crypto.randomUUID();
       try {
         const storagePath = await uploadPhotoToStorage({
+          kind: 'expense-photo',
           tripId: input.tripId,
           expenseId: expense.id,
           photoId,
