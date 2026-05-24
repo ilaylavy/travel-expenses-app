@@ -79,6 +79,7 @@ function expense(
     isSplit: false,
     spreadStartDate: null,
     spreadEndDate: null,
+    momentId: null,
     createdAt: `${date}T${time}Z`,
     updatedAt: `${date}T${time}Z`,
     deletedAt: null,

@@ -156,6 +156,7 @@ export interface UpdateExpenseInput {
   isSplit?: boolean;
   spreadStartDate?: string | null;
   spreadEndDate?: string | null;
+  momentId?: string | null;
 }
 
 export interface CreateSplitInput {

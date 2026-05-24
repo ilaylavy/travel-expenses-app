@@ -71,6 +71,7 @@ interface RemoteExpenseRow {
   is_split: boolean;
   spread_start_date: string | null;
   spread_end_date: string | null;
+  moment_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -115,6 +116,7 @@ function rowToExpense(row: RemoteExpenseRow): Expense {
     isSplit: row.is_split,
     spreadStartDate: row.spread_start_date,
     spreadEndDate: row.spread_end_date,
+    momentId: row.moment_id == null ? null : String(row.moment_id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -292,6 +294,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
   if (input.isSplit !== undefined) patch.is_split = input.isSplit;
   if (input.spreadStartDate !== undefined) patch.spread_start_date = input.spreadStartDate;
   if (input.spreadEndDate !== undefined) patch.spread_end_date = input.spreadEndDate;
+  if (input.momentId !== undefined) patch.moment_id = input.momentId;
 
   const { data, error } = await supabase
     .from('expenses')
