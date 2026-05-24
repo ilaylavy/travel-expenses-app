@@ -17,6 +17,7 @@ function photo(
     occurredAt,
     caption: null,
     isPrivate,
+    momentId: null,
     createdAt: occurredAt,
     updatedAt: occurredAt,
     deletedAt: null,

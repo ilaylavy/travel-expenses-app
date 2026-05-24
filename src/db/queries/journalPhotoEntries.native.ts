@@ -21,6 +21,7 @@ function rowToEntry(r: JournalPhotoEntryRow): JournalPhotoEntry {
     occurredAt: r.occurred_at,
     caption: r.caption,
     isPrivate: r.is_private === 1,
+    momentId: r.moment_id,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     deletedAt: r.deleted_at,
@@ -47,6 +48,7 @@ export function entryToPayload(e: JournalPhotoEntry): Record<string, unknown> {
     occurred_at: e.occurredAt,
     caption: e.caption,
     is_private: e.isPrivate ? 1 : 0,
+    moment_id: e.momentId,
     created_at: e.createdAt,
     updated_at: e.updatedAt,
     deleted_at: e.deletedAt,
@@ -96,7 +98,6 @@ export async function setPhotoStoragePath(
 export async function listEntriesForDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<JournalPhotoEntryWithPhotos[]> {
   const db = await getDatabase();
   const entries = await db.getAllAsync<JournalPhotoEntryRow>(
@@ -104,9 +105,8 @@ export async function listEntriesForDay(
       WHERE trip_id = ?
         AND SUBSTR(occurred_at, 1, 10) = ?
         AND deleted_at IS NULL
-        AND (is_private = 0 OR user_id = ?)
       ORDER BY occurred_at ASC;`,
-    [tripId, dayDateISO, currentUserId],
+    [tripId, dayDateISO],
   );
   if (entries.length === 0) return [];
   const entryIds = entries.map((e) => e.id);
@@ -151,6 +151,7 @@ export async function createEntry(input: {
     occurredAt: input.occurredAt,
     caption: input.caption,
     isPrivate: input.isPrivate,
+    momentId: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -168,9 +169,9 @@ export async function createEntry(input: {
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       `INSERT INTO journal_photo_entries
-         (id, trip_id, user_id, occurred_at, caption, is_private,
+         (id, trip_id, user_id, occurred_at, caption, is_private, moment_id,
           created_at, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL);`,
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL);`,
       [
         entry.id, entry.tripId, entry.userId, entry.occurredAt,
         entry.caption, entry.isPrivate ? 1 : 0,
@@ -269,16 +270,14 @@ export async function softDeleteEntry(entryId: string): Promise<void> {
 export async function countPhotosForTripDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<number> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) AS c FROM journal_photo_entries
       WHERE trip_id = ?
         AND SUBSTR(occurred_at, 1, 10) = ?
-        AND deleted_at IS NULL
-        AND (is_private = 0 OR user_id = ?);`,
-    [tripId, dayDateISO, currentUserId],
+        AND deleted_at IS NULL;`,
+    [tripId, dayDateISO],
   );
   return row?.c ?? 0;
 }
@@ -286,7 +285,6 @@ export async function countPhotosForTripDay(
 export async function firstPhotoStoragePathForDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<string | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ storage_path: string }>(
@@ -296,10 +294,9 @@ export async function firstPhotoStoragePathForDay(
       WHERE jpe.trip_id = ?
         AND SUBSTR(jpe.occurred_at, 1, 10) = ?
         AND jpe.deleted_at IS NULL
-        AND (jpe.is_private = 0 OR jpe.user_id = ?)
       ORDER BY jpe.occurred_at ASC, jp.sort_order ASC
       LIMIT 1;`,
-    [tripId, dayDateISO, currentUserId],
+    [tripId, dayDateISO],
   );
   return row?.storage_path ?? null;
 }

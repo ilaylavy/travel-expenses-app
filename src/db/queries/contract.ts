@@ -177,7 +177,6 @@ export interface JournalPhotoEntriesQueries {
   listEntriesForDay: (
     tripId: string,
     dayDateISO: string,
-    currentUserId: string,
   ) => Promise<JournalPhotoEntryWithPhotos[]>;
   createEntry: (input: {
     tripId: string;
@@ -195,11 +194,10 @@ export interface JournalPhotoEntriesQueries {
   updateEntryOccurredAt: (entryId: string, occurredAtISO: string) => Promise<void>;
   updateEntryPrivacy: (entryId: string, isPrivate: boolean) => Promise<void>;
   softDeleteEntry: (entryId: string) => Promise<void>;
-  countPhotosForTripDay: (tripId: string, dayDateISO: string, currentUserId: string) => Promise<number>;
+  countPhotosForTripDay: (tripId: string, dayDateISO: string) => Promise<number>;
   firstPhotoStoragePathForDay: (
     tripId: string,
     dayDateISO: string,
-    currentUserId: string,
   ) => Promise<string | null>;
 }
 

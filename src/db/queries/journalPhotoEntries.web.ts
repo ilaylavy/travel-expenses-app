@@ -20,6 +20,7 @@ function rowToEntry(r: Record<string, unknown>): JournalPhotoEntry {
     occurredAt: String(r.occurred_at),
     caption: r.caption == null ? null : String(r.caption),
     isPrivate: Boolean(r.is_private),
+    momentId: r.moment_id == null ? null : String(r.moment_id),
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
     deletedAt: r.deleted_at == null ? null : String(r.deleted_at),
@@ -41,9 +42,8 @@ function rowToPhoto(r: Record<string, unknown>): JournalPhoto {
 export async function listEntriesForDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<JournalPhotoEntryWithPhotos[]> {
-  // Postgres-side: occurred_at::date = $dayDate AND (NOT is_private OR user_id = me)
+  // Postgres-side: occurred_at::date = $dayDate
   const start = `${dayDateISO}T00:00:00Z`;
   const end = `${dayDateISO}T23:59:59.999Z`;
   const { data: entries, error } = await supabase
@@ -53,7 +53,6 @@ export async function listEntriesForDay(
     .gte('occurred_at', start)
     .lte('occurred_at', end)
     .is('deleted_at', null)
-    .or(`is_private.eq.false,user_id.eq.${currentUserId}`)
     .order('occurred_at', { ascending: true });
   if (error) throw error;
   return (entries ?? []).map((row) => {
@@ -140,7 +139,6 @@ export async function softDeleteEntry(entryId: string): Promise<void> {
 export async function countPhotosForTripDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<number> {
   const start = `${dayDateISO}T00:00:00Z`;
   const end = `${dayDateISO}T23:59:59.999Z`;
@@ -150,8 +148,7 @@ export async function countPhotosForTripDay(
     .eq('trip_id', tripId)
     .gte('occurred_at', start)
     .lte('occurred_at', end)
-    .is('deleted_at', null)
-    .or(`is_private.eq.false,user_id.eq.${currentUserId}`);
+    .is('deleted_at', null);
   if (error) throw error;
   return count ?? 0;
 }
@@ -159,9 +156,8 @@ export async function countPhotosForTripDay(
 export async function firstPhotoStoragePathForDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<string | null> {
-  const list = await listEntriesForDay(tripId, dayDateISO, currentUserId);
+  const list = await listEntriesForDay(tripId, dayDateISO);
   for (const entry of list) {
     if (entry.photos.length > 0) return entry.photos[0].storagePath;
   }
