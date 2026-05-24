@@ -34,6 +34,7 @@ interface RemotePendingInviteRow extends RemoteTripMemberRow {
     base_currency: string;
     home_currency: string;
     owner_id: string;
+    cover_photo_storage_path: string | null;
     created_at: string;
     updated_at: string;
   };
@@ -133,7 +134,7 @@ export async function listPendingInvitesForUser(
   // PostgREST FK embed: pull trip_members rows joined with their trip.
   const { data, error } = await supabase
     .from('trip_members')
-    .select('*, trips!inner(id, name, emoji, start_date, end_date, base_currency, home_currency, owner_id, created_at, updated_at, deleted_at)')
+    .select('*, trips!inner(id, name, emoji, start_date, end_date, base_currency, home_currency, owner_id, cover_photo_storage_path, created_at, updated_at, deleted_at)')
     .eq('user_id', userId)
     .is('joined_at', null)
     .is('trips.deleted_at', null)
@@ -152,6 +153,7 @@ export async function listPendingInvitesForUser(
       // Invitee hasn't picked a personal budget yet.
       budget: null,
       ownerId: row.trips.owner_id,
+      coverPhotoStoragePath: row.trips.cover_photo_storage_path == null ? null : String(row.trips.cover_photo_storage_path),
       createdAt: row.trips.created_at,
       updatedAt: row.trips.updated_at,
       deletedAt: null,

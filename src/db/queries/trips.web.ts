@@ -27,6 +27,7 @@ interface RemoteTripRow {
   home_currency: string;
   budget: number | string | null;
   owner_id: string;
+  cover_photo_storage_path: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -58,6 +59,7 @@ function rowToTripBase(row: RemoteTripRow): Omit<Trip, 'budget'> {
     baseCurrency: row.base_currency,
     homeCurrency: row.home_currency,
     ownerId: row.owner_id,
+    coverPhotoStoragePath: row.cover_photo_storage_path == null ? null : String(row.cover_photo_storage_path),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -297,6 +299,7 @@ export async function createTrip(input: CreateTripInput): Promise<Trip> {
       // on trip_members. NULL keeps the old column from drifting.
       budget: null,
       owner_id: input.ownerId,
+      cover_photo_storage_path: null,
     })
     .select('*')
     .single();
@@ -360,6 +363,18 @@ export async function softDeleteTrip(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function setTripCoverPhoto(
+  tripId: string,
+  storagePath: string | null,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('trips')
+    .update({ cover_photo_storage_path: storagePath, updated_at: now })
+    .eq('id', tripId);
+  if (error) throw error;
+}
+
 const _check: TripQueries = {
   listTrips,
   listTripsWithStats,
@@ -369,5 +384,6 @@ const _check: TripQueries = {
   updateTrip,
   updateMemberBudget,
   softDeleteTrip,
+  setTripCoverPhoto,
 };
 void _check;

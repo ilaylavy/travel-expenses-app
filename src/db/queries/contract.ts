@@ -98,6 +98,7 @@ export interface TripQueries {
   updateTrip: (input: UpdateTripInput) => Promise<Trip>;
   updateMemberBudget: (tripId: string, userId: string, budget: number | null) => Promise<void>;
   softDeleteTrip: (id: string) => Promise<void>;
+  setTripCoverPhoto: (tripId: string, storagePath: string | null) => Promise<void>;
 }
 
 // -----------------------------------------------------------------------------

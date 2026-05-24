@@ -172,6 +172,7 @@ export async function listPendingInvitesForUser(userId: string): Promise<Pending
       // default. (The legacy trips.budget column is no longer surfaced.)
       budget: null,
       ownerId: row.trip_owner_id,
+      coverPhotoStoragePath: null,
       createdAt: row.trip_created_at,
       updatedAt: row.trip_updated_at,
       deletedAt: null,
