@@ -19,6 +19,7 @@ export interface VoiceClipRow {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  moment_id: string | null;
 }
 
 export interface VoiceClip {
@@ -36,4 +37,5 @@ export interface VoiceClip {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  momentId: string | null;
 }
