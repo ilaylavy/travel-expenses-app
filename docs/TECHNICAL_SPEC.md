@@ -113,6 +113,7 @@ TRAVEL-EXPENSES-APP/
 │   ├── hooks/                    # useExchangeRate, useExpenseEntryForm, usePhotoCapture, useExpenseClustering, useExpenseShareGetter, useTheme, useTranslation, useDismissKeyboard
 │   ├── utils/                    # Pure helpers
 │   │   ├── balance.ts            # computeBalance — split-aware shares + pairwise netting, net of settlement_payments
+│   │   ├── balanceDisplay.ts     # selectOutstandingForUser / selectMySharedExpenses — view-model helpers for the Balances screen
 │   │   ├── category/             # color.ts, name.ts, index.ts (re-exports)
 │   │   ├── currency/             # format.ts, index.ts
 │   │   ├── date.ts               # formatDay, formatReadableDate, countDaysInRange, …
@@ -239,13 +240,20 @@ CREATE TABLE public.expense_splits (
 
 -- Settlement Payments (debt-settlement events between two trip members)
 -- Layered on top of expense_splits. A payment may be:
---   (a) Unattributed (expense_split_id IS NULL) — pair-level / amount-based.
---       balance_ledger nets it via inverse-debt accumulation.
+--   (a) Unattributed (expense_split_id IS NULL) — free-form / amount-based.
+--       This is the only kind the redesigned Balances UI creates: tapping
+--       an OUTSTANDING row opens the Settle Up modal pre-filled with the
+--       netted pair balance, and submit writes a row with expense_split_id
+--       NULL. balance_ledger / computeBalance nets it via inverse-debt
+--       accumulation. Over-settling flips direction.
 --   (b) Attributed (expense_split_id REFERENCES expense_splits) — per-expense.
---       balance_ledger removes the matching split from gross-debt accumulation
---       instead of netting via inverse-debt. A split can have at most one
---       active attributed settlement (partial UNIQUE index); reversing a
---       settlement frees the slot.
+--       Legacy rows recorded by older app versions. balance_ledger removes
+--       the matching split from gross-debt accumulation instead of netting
+--       via inverse-debt. A split can have at most one active attributed
+--       settlement (partial UNIQUE index); reversing a settlement frees
+--       the slot. The current UI does NOT create new attributed rows, but
+--       computeBalance continues to honor existing ones so historical
+--       balances stay correct.
 -- exchange_rate is locked at recording time so historical entries don't drift
 -- if rates fluctuate later. App code blocks edit/delete of expenses (or splits)
 -- that have at least one attributed settlement — "reverse the settlement first."
@@ -420,6 +428,10 @@ Remote change (partner adds expense in shared trip)
     → Write to local SQLite
     → UI reactively updates (Zustand store triggers re-render)
 ```
+
+**Realtime auth lifecycle.** Supabase auto-refreshes the session JWT roughly every hour. HTTP requests through `supabase-js` pick up the new token transparently, but the Realtime websocket keeps using whatever token was last fed to `supabase.realtime.setAuth(...)`. The auth store subscribes to `onAuthStateChange` and calls `setAuth(session?.access_token ?? '')` on every change so RLS-protected `postgres_changes` events keep flowing across token rotations. Without that propagation, partner-device updates silently stop arriving after the first refresh and only catch up via the next pull cycle (foreground transition, mutation, or reconnect).
+
+**Passive catch-up.** Realtime is best-effort: events fired while the app was offline, backgrounded, or between token rotations are missed. To close the gap, every screen that depends on fresh data (Balances, Stats) calls `syncEngine.triggerSync()` on focus and supports pull-to-refresh, and the sync engine itself fires on app foreground and network reconnect.
 
 ### Sync Table Order
 
