@@ -1,10 +1,14 @@
 // SettleUpModal — record a debt-settlement payment between two trip members.
 //
-// Entry: opened by tapping "Settle up" on a pair card in the Balances screen.
+// Entry: tapping a row in the OUTSTANDING summary on the Balances screen.
 // Payer/receiver are locked at entry time; the suggested amount is the
-// current net pair debt in home currency, converted to the chosen settlement
-// currency. exchange_rate is locked when the user submits — same rate-lock
-// pattern as expenses.
+// current gross pair-direction debt in home currency, converted to the
+// chosen settlement currency. Amount is editable (partial settle supported).
+// exchange_rate is locked when the user submits — same rate-lock pattern
+// as expenses.
+//
+// All settlements created here are UNATTRIBUTED (expense_split_id = NULL).
+// Legacy attributed rows in the database remain honored by computeBalance.
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
@@ -47,15 +51,9 @@ interface SettleUpModalProps {
   // currency (homeCurrency). If they match, the toggle is hidden.
   tripCurrency: string;
   homeCurrency: string;
-  // The current net pair debt in home currency, OR for per-expense settle,
-  // the share's home-currency value. Prefill source for the amount input.
-  // 0 means no outstanding debt (ad-hoc payment).
+  // Gross pair-direction debt in home currency. Prefill source for the
+  // amount input. 0 means no outstanding debt (ad-hoc payment).
   suggestedHomeAmount: number;
-  // When set, this settlement attributes to a specific expense_splits row.
-  // The amount input is rendered read-only (currency toggle still works);
-  // submit writes the FK so balance.ts removes that split from gross debt
-  // rather than netting via inverse-debt.
-  lockedExpenseSplitId?: string;
 }
 
 export function SettleUpModal({
@@ -69,9 +67,7 @@ export function SettleUpModal({
   tripCurrency,
   homeCurrency,
   suggestedHomeAmount,
-  lockedExpenseSplitId,
 }: SettleUpModalProps) {
-  const amountLocked = lockedExpenseSplitId !== undefined;
   const theme = useTheme();
   const { t } = useTranslation();
   const createSettlement = useSettlementStore((s) => s.createSettlement);
@@ -197,7 +193,7 @@ export function SettleUpModal({
         convertedAmount,
         settledDate: date,
         note: note.trim() ? note.trim() : null,
-        expenseSplitId: lockedExpenseSplitId ?? null,
+        expenseSplitId: null,
       });
       setIsSubmitting(false);
       onClose();
@@ -315,11 +311,7 @@ export function SettleUpModal({
                     placeholder="0.00"
                     placeholderTextColor={theme.textMuted}
                     keyboardType="decimal-pad"
-                    editable={!amountLocked}
-                    style={[
-                      styles.amountInput,
-                      { color: theme.text, opacity: amountLocked ? 0.7 : 1 },
-                    ]}
+                    style={[styles.amountInput, { color: theme.text }]}
                   />
                 </View>
 
