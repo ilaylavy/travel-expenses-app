@@ -529,7 +529,17 @@
     "reverseBody": "המאזן יחזור למצב כאילו התשלום לא נרשם.",
     "reverseConfirm": "ביטול",
     "editBlockedTitle": "צריך לבטל את הסגירה קודם",
-    "editBlockedBody": "להוצאה הזו יש תשלום סגירה מתועד. בטל אותו במסך המאזנים לפני עריכה או מחיקה."
+    "editBlockedBody": "להוצאה הזו יש תשלום סגירה מתועד. בטל אותו במסך המאזנים לפני עריכה או מחיקה.",
+    "sharedExpensesSection": "הוצאות משותפות",
+    "sharedExpensesEmpty": "אין עדיין הוצאות משותפות.",
+    "youOweColumn": "אתה חייב",
+    "owesYouColumn": "חייבים לך",
+    "payCta": "שלם",
+    "recordCta": "רשום",
+    "rowYouPaid": "שילמת",
+    "rowPaidBy": "{{name}} שילם",
+    "rowYouOweAmount": "אתה חייב {{amount}}",
+    "rowOwesYouAmount": "{{name}} חייב לך {{amount}}"
   },
   "settleUp": {
     "title": "רישום תשלום",

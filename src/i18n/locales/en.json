@@ -529,7 +529,17 @@
     "reverseBody": "The balance will be restored as if this payment never happened.",
     "reverseConfirm": "Reverse",
     "editBlockedTitle": "Reverse the settlement first",
-    "editBlockedBody": "This expense has a recorded settlement. Reverse it on the Balances screen before editing or deleting."
+    "editBlockedBody": "This expense has a recorded settlement. Reverse it on the Balances screen before editing or deleting.",
+    "sharedExpensesSection": "Shared expenses",
+    "sharedExpensesEmpty": "No shared expenses yet.",
+    "youOweColumn": "You owe",
+    "owesYouColumn": "Owes you",
+    "payCta": "Pay",
+    "recordCta": "Record",
+    "rowYouPaid": "You paid",
+    "rowPaidBy": "{{name}} paid",
+    "rowYouOweAmount": "you owe {{amount}}",
+    "rowOwesYouAmount": "{{name}} owes you {{amount}}"
   },
   "settleUp": {
     "title": "Record payment",
