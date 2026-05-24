@@ -15,6 +15,10 @@ export interface PairwiseSettlement {
 
 export interface BalanceSummary {
   byMember: MemberShareTotal[];
+  // Pairwise NETTED settlements. One entry per non-zero pair, after summing
+  // both directions of split debts and any unattributed settlement payments.
+  // Drives the Balances screen's OUTSTANDING summary and the stats
+  // SplitBalanceCard.
   settlements: PairwiseSettlement[];
 }
 
@@ -120,12 +124,12 @@ export function computeBalance({
     }
   }
 
-  // Apply UNATTRIBUTED settlement payments only. Attributed ones are already
+  // Apply UNATTRIBUTED settlement payments. Attributed ones are already
   // handled above by skipping the matching split's debt contribution.
-  // A from→to payment reduces from's debt to to — modeled as "to owes from"
-  // in the bookkeeping so the existing pairwise netter cancels it naturally.
-  // Over-settling flips the direction (receiver now owes payer), which is
-  // correct.
+  // A from→to payment reduces `from`'s debt to `to` — modeled as "to owes
+  // from" in the bookkeeping so the existing pairwise netter cancels it
+  // naturally. Over-settling flips the direction (receiver now owes payer),
+  // which is correct.
   if (settlementPayments) {
     for (const p of settlementPayments) {
       if (p.deletedAt !== null) continue;

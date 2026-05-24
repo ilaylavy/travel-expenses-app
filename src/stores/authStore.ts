@@ -2,6 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
 import { getCurrentSession, onAuthStateChange, signIn as authSignIn, signOut as authSignOut, signUp as authSignUp, type SignInInput, type SignUpInput } from '@/services/auth';
+import { supabase } from '@/services/supabase';
 
 interface AuthState {
   session: Session | null;
@@ -34,6 +35,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (authSubscription) authSubscription.unsubscribe();
     const { data } = onAuthStateChange((_event, session) => {
       set({ session, user: session?.user ?? null });
+      // Keep the realtime client's JWT in lockstep with the HTTP client.
+      // supabase-js auto-refreshes session tokens for PostgREST transparently,
+      // but the realtime client uses whatever token setAuth was last called
+      // with — without this, postgres_changes events silently stop flowing
+      // after the first token rotation (~1h), and partner-device updates
+      // never reach this device until a foreground/reconnect-triggered pull.
+      supabase.realtime.setAuth(session?.access_token ?? '');
     });
     authSubscription = data.subscription;
   },
