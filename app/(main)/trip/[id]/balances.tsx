@@ -1,14 +1,15 @@
-// Trip Balances screen — shows per-member trip-cost share, all outstanding
-// pairwise debts (each with a "Settle up" CTA), and a history of recorded
-// payments. Long-press a history row to reverse it (soft-delete).
+// Trip Balances screen — shows per-member trip-cost share, a directional
+// OUTSTANDING summary (You owe / Owes you) listing each pair-direction the
+// current user is involved in, a read-only SHARED EXPENSES ledger of every
+// split expense the user participates in, and a HISTORY of recorded
+// payments. Tap any OUTSTANDING row to open the Settle Up modal pre-filled
+// with that direction's gross balance (amount editable for partial settle).
 //
-// Debts are shown UN-NETTED — both directions of the same pair appear as
-// their own card. This keeps each expense's contribution visible in its
-// "By Expense" breakdown; pairwise netting would hide whichever side has
-// the smaller gross. computeBalance.grossDebts drives the rendering;
-// settlement_payments reduce the matching direction directly, with
-// overpayments flipping to the opposite direction. byMember is unchanged
-// by settlements — it's share of trip cost, not who's paid whom.
+// Settlements are always free-form unattributed under this design — they
+// reduce the matching pair-direction in computeBalance (overpayment flips
+// the excess). Legacy attributed settlement_payments (with expense_split_id
+// set) remain honored in computeBalance's gross derivation; the UI no
+// longer creates new attributed rows.
 
 import { useFocusEffect, useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -23,43 +24,28 @@ import { getProfileName } from '@/db/queries/profiles';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
-import {
-  selectCategoriesForTrip,
-  useCategoryStore,
-} from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useSettlementStore } from '@/stores/settlementStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
-import type { Category } from '@/types/category';
 import type { SettlementPayment } from '@/types/settlement';
 import { computeBalance, type PairwiseSettlement } from '@/utils/balance';
+import {
+  selectMySharedExpenses,
+  selectOutstandingForUser,
+  type SharedExpenseRow,
+} from '@/utils/balanceDisplay';
 import { showConfirmDialog } from '@/utils/confirmDialog';
-import { formatAmount, roundAmount } from '@/utils/currency';
+import { formatAmount } from '@/utils/currency';
 import { formatReadableDate } from '@/utils/date';
 import { initials } from '@/utils/initials';
 import { href } from '@/utils/nav';
 
-interface PairCard {
+// Settle modal pre-fill: pair direction + gross amount (editable in the modal).
+interface SettleContext {
   fromUserId: string;
   toUserId: string;
   amount: number;
-  // When set, this modal entry is for a per-expense settle. amount is the
-  // share's home-currency value; expenseSplitId attributes the payment to
-  // that specific expense_splits row.
-  expenseSplitId?: string;
-}
-
-// A split that contributes to a pair's gross debt and hasn't been attributed-
-// settled yet. Rendered as a row inside the pair card's expandable section.
-interface ContributingSplit {
-  splitId: string;
-  expenseId: string;
-  expenseDate: string;
-  categoryEmoji: string;
-  categoryName: string;
-  note: string | null;
-  shareHome: number;
 }
 
 export default function BalancesScreen() {
@@ -80,11 +66,10 @@ export default function BalancesScreen() {
   const loadSettlements = useSettlementStore((s) => s.loadForTrip);
   const refreshSettlements = useSettlementStore((s) => s.refresh);
   const deleteSettlement = useSettlementStore((s) => s.deleteSettlement);
-  const allCategories = useCategoryStore((s) => s.categories);
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
-  const [modalContext, setModalContext] = useState<PairCard | null>(null);
+  const [modalContext, setModalContext] = useState<SettleContext | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -143,72 +128,25 @@ export default function BalancesScreen() {
     [expenses, splits, settlements],
   );
 
-  const tripCategories = useMemo(
-    () => selectCategoriesForTrip(allCategories, tripId ?? null, { includeArchived: true }),
-    [allCategories, tripId],
+  // Outstanding directional summary for the current user. Filters
+  // computeBalance.grossDebts to debts that involve them, partitioned by
+  // direction so the UI can render two columns.
+  const outstanding = useMemo(
+    () =>
+      currentUserId
+        ? selectOutstandingForUser(balance.grossDebts, currentUserId)
+        : { youOwe: [] as PairwiseSettlement[], owesYou: [] as PairwiseSettlement[] },
+    [balance.grossDebts, currentUserId],
   );
-  const categoriesById = useMemo(() => {
-    const out: Record<string, Category> = {};
-    for (const c of tripCategories) out[c.id] = c;
-    return out;
-  }, [tripCategories]);
 
-  // contributingSplitsByPair[`${from}|${to}`] = list of unsettled splits
-  // contributing gross debt in that direction (from owes to). Used by the
-  // pair card to render the per-expense settle list.
-  const contributingSplitsByPair = useMemo(() => {
-    const map = new Map<string, ContributingSplit[]>();
-    if (!trip) return map;
-
-    const attributedSet = new Set<string>();
-    for (const p of settlements) {
-      if (p.deletedAt !== null) continue;
-      if (p.expenseSplitId !== null) attributedSet.add(p.expenseSplitId);
-    }
-
-    const splitsByExpense = new Map<string, typeof splits>();
-    for (const s of splits) {
-      if (s.deletedAt !== null) continue;
-      const list = splitsByExpense.get(s.expenseId) ?? [];
-      list.push(s);
-      splitsByExpense.set(s.expenseId, list);
-    }
-
-    for (const e of expenses) {
-      if (e.deletedAt !== null || e.isPrivate || !e.isSplit) continue;
-      const expenseSplits = splitsByExpense.get(e.id) ?? [];
-      const totalAmount = e.amount;
-      const totalConverted = e.convertedAmount;
-      const payerId = e.userId;
-
-      for (const s of expenseSplits) {
-        if (s.isPayer || s.userId === payerId) continue;
-        if (attributedSet.has(s.id)) continue;
-        const ratio = totalAmount === 0 ? 0 : s.amount / totalAmount;
-        const shareHome = roundAmount(totalConverted * ratio);
-        if (Math.abs(shareHome) < 0.01) continue;
-        const key = `${s.userId}|${payerId}`;
-        const list = map.get(key) ?? [];
-        const cat = categoriesById[e.categoryId];
-        list.push({
-          splitId: s.id,
-          expenseId: e.id,
-          expenseDate: e.expenseDate,
-          categoryEmoji: cat?.emoji ?? '📦',
-          categoryName: cat?.name ?? '',
-          note: e.note,
-          shareHome,
-        });
-        map.set(key, list);
-      }
-    }
-
-    for (const list of map.values()) {
-      list.sort((a, b) => (a.expenseDate < b.expenseDate ? 1 : -1));
-    }
-
-    return map;
-  }, [expenses, splits, settlements, categoriesById, trip]);
+  // Read-only ledger: every split expense the current user participates in,
+  // newest first. Excludes private/deleted/non-split and anything the user
+  // isn't a participant in.
+  const mySharedExpenses = useMemo(
+    () =>
+      currentUserId ? selectMySharedExpenses(expenses, splits, currentUserId) : [],
+    [expenses, splits, currentUserId],
+  );
 
   if (!trip || !tripId) {
     return (
@@ -318,53 +256,95 @@ export default function BalancesScreen() {
           </StatsSectionCard>
         ) : null}
 
-        {/* Outstanding debts — one card per direction (un-netted). If A owes B
-            $100 and B owes A $30, both cards are shown so each underlying
-            expense stays visible in its own card's breakdown. */}
+        {/* Outstanding — two-column directional summary. Each row is one
+            pair-direction the current user is involved in; tap to settle. */}
         <StatsSectionCard title={t('balances.outstandingSection')}>
-          {balance.grossDebts.length === 0 ? (
+          {outstanding.youOwe.length === 0 && outstanding.owesYou.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>🎉</Text>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {t('balances.allSettled')}
               </Text>
-              <Text
-                style={[styles.emptyBody, { color: theme.textSecondary }]}
-              >
+              <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
                 {t('balances.allSettledHint')}
               </Text>
             </View>
           ) : (
-            <View style={{ gap: spacing.md }}>
-              {balance.grossDebts.map((p) => {
-                const pairKey = `${p.fromUserId}|${p.toUserId}`;
-                const splitsForPair = contributingSplitsByPair.get(pairKey) ?? [];
-                return (
-                  <PairDebtCard
-                    key={pairKey}
-                    pair={p}
-                    currency={currency}
-                    resolveName={resolveName}
-                    currentUserId={currentUserId}
-                    contributingSplits={splitsForPair}
-                    onSettlePress={() =>
-                      setModalContext({
-                        fromUserId: p.fromUserId,
-                        toUserId: p.toUserId,
-                        amount: p.amount,
-                      })
-                    }
-                    onSettleSplitPress={(split) =>
-                      setModalContext({
-                        fromUserId: p.fromUserId,
-                        toUserId: p.toUserId,
-                        amount: split.shareHome,
-                        expenseSplitId: split.splitId,
-                      })
-                    }
-                  />
-                );
-              })}
+            <View style={styles.directionalColumns}>
+              <View style={styles.directionalColumn}>
+                <Text style={[styles.columnHeader, { color: theme.textMuted }]}>
+                  {t('balances.youOweColumn')}
+                </Text>
+                {outstanding.youOwe.length === 0 ? (
+                  <Text style={[styles.columnEmpty, { color: theme.textMuted }]}>—</Text>
+                ) : (
+                  outstanding.youOwe.map((d) => (
+                    <DirectionalDebtRow
+                      key={`${d.fromUserId}|${d.toUserId}`}
+                      debt={d}
+                      name={resolveName(d.toUserId)}
+                      currency={currency}
+                      tone="youOwe"
+                      cta={t('balances.payCta')}
+                      onPress={() =>
+                        setModalContext({
+                          fromUserId: d.fromUserId,
+                          toUserId: d.toUserId,
+                          amount: d.amount,
+                        })
+                      }
+                    />
+                  ))
+                )}
+              </View>
+              <View style={styles.directionalColumn}>
+                <Text style={[styles.columnHeader, { color: theme.textMuted }]}>
+                  {t('balances.owesYouColumn')}
+                </Text>
+                {outstanding.owesYou.length === 0 ? (
+                  <Text style={[styles.columnEmpty, { color: theme.textMuted }]}>—</Text>
+                ) : (
+                  outstanding.owesYou.map((d) => (
+                    <DirectionalDebtRow
+                      key={`${d.fromUserId}|${d.toUserId}`}
+                      debt={d}
+                      name={resolveName(d.fromUserId)}
+                      currency={currency}
+                      tone="owesYou"
+                      cta={t('balances.recordCta')}
+                      onPress={() =>
+                        setModalContext({
+                          fromUserId: d.fromUserId,
+                          toUserId: d.toUserId,
+                          amount: d.amount,
+                        })
+                      }
+                    />
+                  ))
+                )}
+              </View>
+            </View>
+          )}
+        </StatsSectionCard>
+
+        {/* Shared Expenses — read-only ledger of every split expense the
+            current user participates in. No settle button per row; settle
+            from the OUTSTANDING summary above (or globally) instead. */}
+        <StatsSectionCard title={t('balances.sharedExpensesSection')}>
+          {mySharedExpenses.length === 0 ? (
+            <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
+              {t('balances.sharedExpensesEmpty')}
+            </Text>
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              {mySharedExpenses.map((row) => (
+                <SharedExpenseRowItem
+                  key={row.expense.id}
+                  row={row}
+                  currency={currency}
+                  resolveName={resolveName}
+                />
+              ))}
             </View>
           )}
         </StatsSectionCard>
@@ -405,139 +385,102 @@ export default function BalancesScreen() {
           tripCurrency={trip.baseCurrency}
           homeCurrency={trip.homeCurrency}
           suggestedHomeAmount={modalContext.amount}
-          lockedExpenseSplitId={modalContext.expenseSplitId}
         />
       ) : null}
     </SafeAreaView>
   );
 }
 
-interface PairDebtCardProps {
-  pair: PairwiseSettlement;
+interface DirectionalDebtRowProps {
+  debt: PairwiseSettlement;
+  name: string;
   currency: string;
-  resolveName: (userId: string) => string;
-  currentUserId: string | null;
-  contributingSplits: ContributingSplit[];
-  onSettlePress: () => void;
-  onSettleSplitPress: (split: ContributingSplit) => void;
+  // "youOwe" → red palette (you're the debtor). "owesYou" → green palette.
+  tone: 'youOwe' | 'owesYou';
+  cta: string;
+  onPress: () => void;
 }
 
-function PairDebtCard({
-  pair,
+function DirectionalDebtRow({
+  debt,
+  name,
   currency,
-  resolveName,
-  currentUserId,
-  contributingSplits,
-  onSettlePress,
-  onSettleSplitPress,
-}: PairDebtCardProps) {
+  tone,
+  cta,
+  onPress,
+}: DirectionalDebtRowProps) {
+  const theme = useTheme();
+  const bg = tone === 'youOwe' ? theme.redSoft : theme.greenSoft;
+  const fg = tone === 'youOwe' ? theme.red : theme.green;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.directionalRow,
+        { backgroundColor: bg, transform: [{ scale: pressed ? 0.98 : 1 }] },
+      ]}
+    >
+      <Text style={[styles.directionalName, { color: fg }]} numberOfLines={1}>
+        {name}
+      </Text>
+      <Text style={[styles.directionalAmount, { color: fg }]}>
+        {formatAmount(debt.amount, currency)}
+      </Text>
+      <View style={[styles.directionalCta, { backgroundColor: fg }]}>
+        <Text style={styles.directionalCtaText}>{cta}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+interface SharedExpenseRowItemProps {
+  row: SharedExpenseRow;
+  currency: string;
+  resolveName: (userId: string) => string;
+}
+
+function SharedExpenseRowItem({ row, currency, resolveName }: SharedExpenseRowItemProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
 
-  const fromName = resolveName(pair.fromUserId);
-  const toName = resolveName(pair.toUserId);
+  // Body line:
+  //   - user is payer: "You paid · {name1} owes you {amt1} · {name2} owes you {amt2} ..."
+  //   - someone else paid: "{payerName} paid · you owe {amt}"
+  const headLabel = row.userIsPayer
+    ? t('balances.rowYouPaid')
+    : t('balances.rowPaidBy', { name: resolveName(row.payerUserId) });
 
-  // Color: "you owe" = red-soft, "owes you" = green-soft, third-party = accent
-  let bg = theme.accentSoft;
-  let fg = theme.accent;
-  let label: string;
-  if (pair.fromUserId === currentUserId) {
-    bg = theme.redSoft;
-    fg = theme.red;
-    label = t('balance.youOwe', {
-      name: toName,
-      amount: formatAmount(pair.amount, currency),
-    });
-  } else if (pair.toUserId === currentUserId) {
-    bg = theme.greenSoft;
-    fg = theme.green;
-    label = t('balance.owesYou', {
-      name: fromName,
-      amount: formatAmount(pair.amount, currency),
-    });
-  } else {
-    label = t('balances.xOwesY', {
-      from: fromName,
-      to: toName,
-      amount: formatAmount(pair.amount, currency),
-    });
-  }
+  const tailLabels: string[] = row.userIsPayer
+    ? row.otherNonPayers.map((p) =>
+        t('balances.rowOwesYouAmount', {
+          name: resolveName(p.userId),
+          amount: formatAmount(p.shareConverted, currency),
+        }),
+      )
+    : [
+        t('balances.rowYouOweAmount', {
+          amount: formatAmount(row.userShareConverted, currency),
+        }),
+      ];
 
   return (
-    <View style={[styles.pairCard, { backgroundColor: bg }]}>
-      <Text style={[styles.pairLabel, { color: fg }]}>{label}</Text>
-      <View style={styles.pairActions}>
-        <Pressable
-          onPress={onSettlePress}
-          style={({ pressed }) => [
-            styles.settleButton,
-            {
-              backgroundColor: fg,
-              transform: [{ scale: pressed ? 0.97 : 1 }],
-            },
-          ]}
-        >
-          <Text style={styles.settleButtonText}>{t('balances.settleFull')}</Text>
-        </Pressable>
-        {contributingSplits.length > 0 ? (
-          <Pressable
-            onPress={() => setExpanded((v) => !v)}
-            hitSlop={6}
-            style={({ pressed }) => [
-              styles.expandToggle,
-              {
-                borderColor: fg,
-                transform: [{ scale: pressed ? 0.96 : 1 }],
-              },
-            ]}
-          >
-            <Text style={[styles.expandToggleText, { color: fg }]}>
-              {t('balances.byExpenseToggle', { count: contributingSplits.length })}
-              {' '}
-              {expanded ? '▴' : '▾'}
-            </Text>
-          </Pressable>
-        ) : null}
+    <View style={[styles.sharedExpenseRow, { backgroundColor: theme.surface }]}>
+      <View style={styles.sharedExpenseHeader}>
+        <Text style={[styles.sharedExpenseTitle, { color: theme.text }]} numberOfLines={1}>
+          {row.expense.note && row.expense.note.trim().length > 0
+            ? row.expense.note
+            : '—'}
+        </Text>
+        <Text style={[styles.sharedExpenseTotal, { color: theme.text }]}>
+          {formatAmount(row.expense.convertedAmount, currency)}
+        </Text>
       </View>
-
-      {expanded && contributingSplits.length > 0 ? (
-        <View style={styles.splitsList}>
-          {contributingSplits.map((s) => (
-            <View
-              key={s.splitId}
-              style={[styles.splitRow, { backgroundColor: theme.surface }]}
-            >
-              <Text style={styles.splitEmoji}>{s.categoryEmoji}</Text>
-              <View style={styles.splitMeta}>
-                <Text
-                  style={[styles.splitTitle, { color: theme.text }]}
-                  numberOfLines={1}
-                >
-                  {s.note && s.note.trim().length > 0 ? s.note : s.categoryName}
-                </Text>
-                <Text style={[styles.splitSub, { color: theme.textMuted }]}>
-                  {formatReadableDate(s.expenseDate)} · {formatAmount(s.shareHome, currency)}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => onSettleSplitPress(s)}
-                style={({ pressed }) => [
-                  styles.splitSettleButton,
-                  {
-                    backgroundColor: fg,
-                    transform: [{ scale: pressed ? 0.96 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.splitSettleButtonText}>
-                  {t('balances.settleUp')}
-                </Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <Text style={[styles.sharedExpenseMeta, { color: theme.textMuted }]}>
+        {formatReadableDate(row.expense.expenseDate)}
+      </Text>
+      <Text style={[styles.sharedExpenseBody, { color: theme.textSecondary }]}>
+        {[headLabel, ...tailLabels].join(' · ')}
+      </Text>
     </View>
   );
 }
@@ -685,6 +628,76 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   splitSettleButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  directionalColumns: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  directionalColumn: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  columnHeader: {
+    ...typography.micro,
+    textTransform: 'uppercase',
+    marginBottom: spacing.xs,
+  },
+  columnEmpty: {
+    ...typography.body,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
+  directionalRow: {
+    borderRadius: sizing.radiusCard,
+    padding: spacing.md,
+    gap: 4,
+  },
+  directionalName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  directionalAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  directionalCta: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: sizing.radiusChip,
+    marginTop: spacing.xs,
+  },
+  directionalCtaText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sharedExpenseRow: {
+    borderRadius: sizing.radiusCard,
+    padding: spacing.md,
+    gap: 4,
+  },
+  sharedExpenseHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+  },
+  sharedExpenseTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  sharedExpenseTotal: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  sharedExpenseMeta: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  sharedExpenseBody: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   historyHint: {
     ...typography.micro,
     fontStyle: 'italic',
