@@ -1,4 +1,4 @@
-// Run via `deno test supabase/functions/r2-photo-url/validation.test.ts`.
+// Run via `deno test supabase/functions/r2-media-url/validation.test.ts`.
 
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { bucketEnvForKind, contentTypeForKind, parseKind, parseOp, parsePath } from './validation.ts';
