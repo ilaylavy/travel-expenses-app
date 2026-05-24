@@ -1,8 +1,8 @@
 // Fetcher for the journal Today view's summary card. Aggregates counts,
 // cover photo, and effective location for a single (tripId, dayDate). The
 // chapter list resolves cover overrides server-side; here we use the day's
-// first-uploaded photo as the cover — once a user pins a cover, the chapter
-// view will pick it up and the override propagates to other surfaces.
+// pinned cover (via coverPhotoEntryId) if set, otherwise fall back to the
+// first-uploaded photo as the cover.
 
 import { useEffect, useState } from 'react';
 
@@ -45,22 +45,28 @@ export function useDaySummary(
   const reload = async (): Promise<void> => {
     if (!tripId || !me) return;
     try {
-      const [photoCount, voiceCount, meta, coverPath, expenseTotals] = await Promise.all([
+      const [photoCount, voiceCount, meta, fallbackCoverPath, expenseTotals] = await Promise.all([
         journalPhotoEntries.countPhotosForTripDay(tripId, dayDateISO),
         voiceClips.countClipsForTripDay(tripId, dayDateISO),
         journalDays.getDayMetadata(tripId, dayDateISO),
         journalPhotoEntries.firstPhotoStoragePathForDay(tripId, dayDateISO),
         sumDayExpenses(tripId, dayDateISO, me),
       ]);
+
+      // Prefer the day's explicitly-pinned cover (resolved via its entry_id),
+      // falling back to the first photo of the day.
+      let coverStoragePath: string | null = fallbackCoverPath;
+      if (meta?.coverPhotoEntryId) {
+        const pinned = await journalPhotoEntries.storagePathForEntry(meta.coverPhotoEntryId);
+        if (pinned) coverStoragePath = pinned;
+      }
+
       setData({
         totalConvertedAmount: expenseTotals.total,
         photoCount,
         voiceCount,
         expenseCount: expenseTotals.count,
-        // Live card uses first-photo as the cover fallback; chapter view
-        // resolves the cover override server-side. Once Task 3 introduces
-        // a "set as cover" action we can re-fetch the override here too.
-        coverStoragePath: coverPath,
+        coverStoragePath,
         effectiveLocation: meta?.location ?? expenseTotals.mostFrequentPlace,
         meta,
         isLoading: false,

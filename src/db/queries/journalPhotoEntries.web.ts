@@ -164,6 +164,18 @@ export async function firstPhotoStoragePathForDay(
   return null;
 }
 
+export async function storagePathForEntry(entryId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('journal_photos')
+    .select('storage_path')
+    .eq('entry_id', entryId)
+    .order('sort_order', { ascending: true })
+    .limit(1)
+    .single();
+  if (error) return null;
+  return (data as { storage_path: string } | null)?.storage_path ?? null;
+}
+
 const _check: JournalPhotoEntriesQueries = {
   listEntriesForDay,
   createEntry,
@@ -171,6 +183,7 @@ const _check: JournalPhotoEntriesQueries = {
   updateEntryOccurredAt,
   updateEntryPrivacy,
   softDeleteEntry,
+  storagePathForEntry,
   countPhotosForTripDay,
   firstPhotoStoragePathForDay,
 };

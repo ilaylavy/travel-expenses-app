@@ -200,6 +200,10 @@ export interface JournalPhotoEntriesQueries {
     tripId: string,
     dayDateISO: string,
   ) => Promise<string | null>;
+  // Returns the storage_path of the first (lowest sort_order) journal_photo
+  // for a given photo entry. Used to resolve the cover image when a day or
+  // moment has an explicit coverPhotoEntryId set.
+  storagePathForEntry: (entryId: string) => Promise<string | null>;
 }
 
 // -----------------------------------------------------------------------------

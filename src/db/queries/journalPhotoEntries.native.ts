@@ -267,6 +267,19 @@ export async function softDeleteEntry(entryId: string): Promise<void> {
   });
 }
 
+export async function storagePathForEntry(entryId: string): Promise<string | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ storage_path: string }>(
+    `SELECT jp.storage_path
+       FROM journal_photos jp
+      WHERE jp.entry_id = ?
+      ORDER BY jp.sort_order ASC
+      LIMIT 1;`,
+    [entryId],
+  );
+  return row?.storage_path ?? null;
+}
+
 export async function countPhotosForTripDay(
   tripId: string,
   dayDateISO: string,
@@ -308,6 +321,7 @@ const _check: JournalPhotoEntriesQueries = {
   updateEntryOccurredAt,
   updateEntryPrivacy,
   softDeleteEntry,
+  storagePathForEntry,
   countPhotosForTripDay,
   firstPhotoStoragePathForDay,
 };
