@@ -14,7 +14,6 @@ import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20';
 
 import {
   bucketEnvForKind,
-  contentTypeForKind,
   parseKind,
   parseOp,
   parsePath,
@@ -61,7 +60,14 @@ Deno.serve(async (req: Request) => {
     !supabaseUrl || !anonKey || !serviceKey ||
     !r2AccountId || !r2AccessKeyId || !r2SecretAccessKey
   ) {
-    console.error('r2-media-url: missing env vars');
+    console.error('r2-media-url: missing env vars', {
+      hasUrl: !!supabaseUrl,
+      hasAnon: !!anonKey,
+      hasService: !!serviceKey,
+      hasAccount: !!r2AccountId,
+      hasAccessKey: !!r2AccessKeyId,
+      hasSecret: !!r2SecretAccessKey,
+    });
     return errorResponse('Server misconfigured', 500);
   }
 
@@ -142,10 +148,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const ttl = op === 'PUT' ? PUT_TTL_SECONDS : GET_TTL_SECONDS;
-  const signRequest = new Request(`${url}?X-Amz-Expires=${ttl}`, {
-    method: op,
-    headers: op === 'PUT' ? { 'Content-Type': contentTypeForKind(kind) } : undefined,
-  });
+  const signRequest = new Request(`${url}?X-Amz-Expires=${ttl}`, { method: op });
   const signed = await r2.sign(signRequest, { aws: { signQuery: true } });
   const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
   return jsonResponse({ url: signed.url, expiresAt });
