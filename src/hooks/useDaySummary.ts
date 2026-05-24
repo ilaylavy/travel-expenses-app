@@ -47,7 +47,7 @@ export function useDaySummary(
     try {
       const [photoCount, voiceCount, meta, coverPath, expenseTotals] = await Promise.all([
         journalPhotoEntries.countPhotosForTripDay(tripId, dayDateISO),
-        voiceClips.countClipsForTripDay(tripId, dayDateISO, me),
+        voiceClips.countClipsForTripDay(tripId, dayDateISO),
         journalDays.getDayMetadata(tripId, dayDateISO),
         journalPhotoEntries.firstPhotoStoragePathForDay(tripId, dayDateISO),
         sumDayExpenses(tripId, dayDateISO, me),

@@ -138,7 +138,7 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
     try {
       const [pe, vc] = await Promise.all([
         journalPhotoEntries.listEntriesForDay(tripId, dayDate),
-        voiceClips.listClipsForDay(tripId, dayDate, currentUserId),
+        voiceClips.listClipsForDay(tripId, dayDate),
       ]);
       setPhotoEntries(pe);
       setClips(vc);

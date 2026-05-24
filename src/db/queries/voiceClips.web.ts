@@ -17,6 +17,7 @@ function rowToClip(r: Record<string, unknown>): VoiceClip {
     transcriptStatus: (r.transcript_status ?? 'pending') as TranscriptStatus,
     transcriptError: r.transcript_error == null ? null : String(r.transcript_error),
     isPrivate: Boolean(r.is_private),
+    momentId: r.moment_id == null ? null : String(r.moment_id),
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),
     deletedAt: r.deleted_at == null ? null : String(r.deleted_at),
@@ -26,7 +27,6 @@ function rowToClip(r: Record<string, unknown>): VoiceClip {
 export async function listClipsForDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<VoiceClip[]> {
   const start = `${dayDateISO}T00:00:00Z`;
   const end = `${dayDateISO}T23:59:59.999Z`;
@@ -37,7 +37,6 @@ export async function listClipsForDay(
     .gte('occurred_at', start)
     .lte('occurred_at', end)
     .is('deleted_at', null)
-    .or(`is_private.eq.false,user_id.eq.${currentUserId}`)
     .order('occurred_at', { ascending: true });
   if (error) throw error;
   return (data ?? []).map(rowToClip);
@@ -113,7 +112,6 @@ export async function softDeleteClip(clipId: string): Promise<void> {
 export async function countClipsForTripDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<number> {
   const start = `${dayDateISO}T00:00:00Z`;
   const end = `${dayDateISO}T23:59:59.999Z`;
@@ -123,8 +121,7 @@ export async function countClipsForTripDay(
     .eq('trip_id', tripId)
     .gte('occurred_at', start)
     .lte('occurred_at', end)
-    .is('deleted_at', null)
-    .or(`is_private.eq.false,user_id.eq.${currentUserId}`);
+    .is('deleted_at', null);
   if (error) throw error;
   return count ?? 0;
 }

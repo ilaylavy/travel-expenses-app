@@ -43,6 +43,7 @@ function clip(
     transcriptStatus: 'done',
     transcriptError: null,
     isPrivate,
+    momentId: null,
     createdAt: occurredAt,
     updatedAt: occurredAt,
     deletedAt: null,

@@ -208,7 +208,6 @@ export interface VoiceClipsQueries {
   listClipsForDay: (
     tripId: string,
     dayDateISO: string,
-    currentUserId: string,
   ) => Promise<VoiceClip[]>;
   createClip: (input: {
     tripId: string;
@@ -222,7 +221,7 @@ export interface VoiceClipsQueries {
   updateClipOccurredAt: (clipId: string, occurredAtISO: string) => Promise<void>;
   updateClipPrivacy: (clipId: string, isPrivate: boolean) => Promise<void>;
   softDeleteClip: (clipId: string) => Promise<void>;
-  countClipsForTripDay: (tripId: string, dayDateISO: string, currentUserId: string) => Promise<number>;
+  countClipsForTripDay: (tripId: string, dayDateISO: string) => Promise<number>;
 }
 
 // -----------------------------------------------------------------------------

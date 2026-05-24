@@ -20,6 +20,7 @@ function rowToClip(r: VoiceClipRow): VoiceClip {
     transcriptStatus: r.transcript_status,
     transcriptError: r.transcript_error,
     isPrivate: r.is_private === 1,
+    momentId: r.moment_id,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     deletedAt: r.deleted_at,
@@ -39,6 +40,7 @@ export function clipToPayload(c: VoiceClip): Record<string, unknown> {
     transcript_status: c.transcriptStatus,
     transcript_error: c.transcriptError,
     is_private: c.isPrivate ? 1 : 0,
+    moment_id: c.momentId,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
     deleted_at: c.deletedAt,
@@ -70,7 +72,6 @@ export async function setClipStoragePath(
 export async function listClipsForDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<VoiceClip[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<VoiceClipRow>(
@@ -78,9 +79,8 @@ export async function listClipsForDay(
       WHERE trip_id = ?
         AND SUBSTR(occurred_at, 1, 10) = ?
         AND deleted_at IS NULL
-        AND (is_private = 0 OR user_id = ?)
       ORDER BY occurred_at ASC;`,
-    [tripId, dayDateISO, currentUserId],
+    [tripId, dayDateISO],
   );
   return rows.map(rowToClip);
 }
@@ -107,6 +107,7 @@ export async function createClip(input: {
     transcriptStatus: 'pending',
     transcriptError: null,
     isPrivate: input.isPrivate,
+    momentId: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -116,8 +117,8 @@ export async function createClip(input: {
       `INSERT INTO voice_clips
          (id, trip_id, user_id, occurred_at, storage_path, local_uri,
           duration_sec, transcript, transcript_status, transcript_error,
-          is_private, created_at, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'pending', NULL, ?, ?, ?, NULL);`,
+          is_private, moment_id, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'pending', NULL, ?, NULL, ?, ?, NULL);`,
       [
         clip.id, clip.tripId, clip.userId, clip.occurredAt,
         clip.storagePath, clip.localUri, clip.durationSec,
@@ -205,16 +206,14 @@ export async function softDeleteClip(clipId: string): Promise<void> {
 export async function countClipsForTripDay(
   tripId: string,
   dayDateISO: string,
-  currentUserId: string,
 ): Promise<number> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) AS c FROM voice_clips
       WHERE trip_id = ?
         AND SUBSTR(occurred_at, 1, 10) = ?
-        AND deleted_at IS NULL
-        AND (is_private = 0 OR user_id = ?);`,
-    [tripId, dayDateISO, currentUserId],
+        AND deleted_at IS NULL;`,
+    [tripId, dayDateISO],
   );
   return row?.c ?? 0;
 }
