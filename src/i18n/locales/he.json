@@ -655,6 +655,7 @@
     "shared": "משותף",
     "previousDay": "יום קודם",
     "nextDay": "יום הבא",
-    "chapterCardCounts": "📸 {{photos}}  🎤 {{voice}}  {{total}}"
+    "chapterCardCounts": "📸 {{photos}}  🎤 {{voice}}  {{total}}",
+    "dragToReorder": "גרירה לסידור מחדש"
   }
 }

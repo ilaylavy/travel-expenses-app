@@ -655,6 +655,7 @@
     "shared": "Shared",
     "previousDay": "Previous day",
     "nextDay": "Next day",
-    "chapterCardCounts": "📸 {{photos}}  🎤 {{voice}}  {{total}}"
+    "chapterCardCounts": "📸 {{photos}}  🎤 {{voice}}  {{total}}",
+    "dragToReorder": "Drag to reorder"
   }
 }

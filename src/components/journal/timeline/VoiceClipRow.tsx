@@ -18,6 +18,11 @@ interface Props {
   onOpenTranscript: () => void;
   onLongPress: () => void;
   onRetranscribe: () => void;
+  // Optional drag handle. When provided, the row renders a ≡ button whose
+  // long-press calls onDragStart (typically the `drag` callback from the
+  // draggable-flatlist renderItem). Row-body long-press still opens the
+  // actions sheet.
+  onDragStart?: () => void;
 }
 
 export function VoiceClipRow({
@@ -25,6 +30,7 @@ export function VoiceClipRow({
   onOpenTranscript,
   onLongPress,
   onRetranscribe,
+  onDragStart,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -86,6 +92,18 @@ export function VoiceClipRow({
           )}
         </Pressable>
       </View>
+      {onDragStart ? (
+        <Pressable
+          onLongPress={onDragStart}
+          delayLongPress={250}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={t('journal.dragToReorder')}
+          style={styles.handle}
+        >
+          <Text style={[styles.handleGlyph, { color: theme.textMuted }]}>≡</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -125,4 +143,14 @@ const styles = StyleSheet.create({
   transcriptWrap: { marginTop: 6 },
   pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   transcript: { fontSize: 11 },
+  handle: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  handleGlyph: {
+    fontSize: 18,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
 });

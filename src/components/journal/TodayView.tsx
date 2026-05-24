@@ -12,7 +12,10 @@
 //     then trigger a refresh so the card and rows stay in sync.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import DraggableFlatList, {
+  type RenderItemParams,
+} from 'react-native-draggable-flatlist';
 
 import { DayNav } from '@/components/journal/DayNav';
 import { DaySummaryCard } from '@/components/journal/DaySummaryCard';
@@ -42,7 +45,11 @@ import type { ExpenseWithPhotos } from '@/types/expense';
 import type { JournalPhotoEntryWithPhotos } from '@/types/journal';
 import type { VoiceClip } from '@/types/voice';
 import { todayIsoDate } from '@/utils/date';
-import { buildDayTimeline, type TimelineItem } from '@/utils/journalTimeline';
+import {
+  buildDayTimeline,
+  computeReorderTimestamp,
+  type TimelineItem,
+} from '@/utils/journalTimeline';
 
 interface Props {
   tripId: string;
@@ -82,6 +89,13 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
   );
   const [photoEntries, setPhotoEntries] = useState<JournalPhotoEntryWithPhotos[]>([]);
   const [clips, setClips] = useState<VoiceClip[]>([]);
+  // Optimistic order during a drag-reorder gesture. The drag handler
+  // sets this immediately so the row jumps to its new spot without
+  // waiting on the DB round-trip, then clears it after reloadDayLists
+  // returns the canonical order (driven by the new occurredAt /
+  // expenseTime). null = no override; the rendered list falls back to
+  // the timeline derived from the underlying queries.
+  const [localOrder, setLocalOrder] = useState<TimelineItem[] | null>(null);
   // Phase 3 editing slots. Mutually independent — long-press surfaces the
   // action sheet first, which then opens the timestamp editor or runs an
   // inline mutation. The transcript editor is reached from the row
@@ -263,6 +277,67 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
     }
   }, []);
 
+  // Drag-reorder state derives from the (possibly optimistic) localOrder
+  // when a gesture just finished; otherwise the canonical timeline
+  // computed from the underlying queries is rendered. Declared above the
+  // early return so hooks stay in stable order.
+  const visibleTimeline: TimelineItem[] = localOrder ?? timeline;
+
+  // When the underlying timeline shifts (a new save, a reload, a day
+  // change), drop any stale local override so the canonical order takes
+  // over. Without this, switching days mid-drag could show yesterday's
+  // optimistic order on today's screen.
+  useEffect(() => {
+    setLocalOrder(null);
+  }, [tripId, dayDate, timeline]);
+
+  const handleDragEnd = useCallback(
+    async (params: { data: TimelineItem[]; from: number; to: number }): Promise<void> => {
+      const { data, from, to } = params;
+      if (from === to) return;
+      // Optimistic: paint the new order immediately, then persist.
+      setLocalOrder(data);
+      const moved = data[to];
+      if (!moved) {
+        setLocalOrder(null);
+        return;
+      }
+      const above = to > 0 ? data[to - 1] : null;
+      const below = to < data.length - 1 ? data[to + 1] : null;
+      const newIso = computeReorderTimestamp({ above, below });
+      if (!newIso) {
+        // Single-item list or both neighbors missing — nothing to compute.
+        setLocalOrder(null);
+        return;
+      }
+      try {
+        if (moved.kind === 'photo') {
+          await journalPhotoEntries.updateEntryOccurredAt(moved.id, newIso);
+        } else if (moved.kind === 'voice') {
+          await voiceClips.updateClipOccurredAt(moved.id, newIso);
+        } else {
+          // Expense stores wall-clock date + time separately. Reorder
+          // happens within a single day, so only the time component
+          // changes; expense_date stays put.
+          const d = new Date(newIso);
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          await expenseQueries.updateExpense({
+            id: moved.id,
+            expenseTime: `${hh}:${mm}:00`,
+          });
+          await loadExpensesForTrip(tripId);
+        }
+        await reloadDayLists();
+      } catch (error) {
+        console.warn('TodayView drag reorder failed:', error);
+      } finally {
+        setLocalOrder(null);
+      }
+    },
+    [reloadDayLists, loadExpensesForTrip, tripId],
+  );
+
   if (!trip) {
     return (
       <View style={styles.centered}>
@@ -272,6 +347,66 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
   }
 
   const homeCurrency = trip.homeCurrency;
+
+  const renderRow = ({
+    item,
+    drag,
+    isActive,
+  }: RenderItemParams<TimelineItem>): React.ReactNode => {
+    // Lift the row slightly while it's being dragged so it visually
+    // detaches from the list. Subtle on purpose — the gesture-handler
+    // implementation already does most of the work.
+    const activeStyle = isActive ? styles.activeRow : null;
+
+    if (item.kind === 'photo') {
+      return (
+        <View style={activeStyle}>
+          <PhotoEntryRow
+            entry={item.entry as JournalPhotoEntryWithPhotos}
+            onCaptionChange={(next) => {
+              void handleCaptionChange(item.id, next);
+            }}
+            onOpenPhoto={(index) => handleOpenPhoto(item.id, index)}
+            onLongPress={() => handleLongPressItem(item)}
+            onDragStart={drag}
+          />
+        </View>
+      );
+    }
+    if (item.kind === 'voice') {
+      return (
+        <View style={activeStyle}>
+          <VoiceClipRow
+            clip={item.clip}
+            onOpenTranscript={() => handleOpenTranscript(item.id)}
+            onLongPress={() => handleLongPressItem(item)}
+            onRetranscribe={() => handleRetranscribe(item.id)}
+            onDragStart={drag}
+          />
+        </View>
+      );
+    }
+    // Expense row: ExpenseCard needs ExpenseWithPhotos + category. The
+    // timeline item carries the plain Expense from the merge helper;
+    // look up the full row (with photos) from the store so the badges
+    // line up with everywhere else expenses render.
+    const full = expenseById.get(item.id);
+    if (!full) return null;
+    const category = categoryById.get(full.categoryId) ?? null;
+    const isSelfLogged = full.userId === currentUserId;
+    return (
+      <View style={activeStyle}>
+        <ExpenseTimelineRow
+          expense={full}
+          category={category}
+          homeCurrency={homeCurrency}
+          isSelfLogged={isSelfLogged}
+          onLongPress={() => handleLongPressItem(item)}
+          onDragStart={drag}
+        />
+      </View>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -283,78 +418,42 @@ export function TodayView({ tripId, dayDateOverride, onDayDateChange }: Props) {
         onPrev={handlePrev}
         onNext={handleNext}
       />
-      <ScrollView
-        contentContainerStyle={styles.scroll}
+      <DraggableFlatList
+        data={visibleTimeline}
+        keyExtractor={(it) => `${it.kind}:${it.id}`}
+        renderItem={renderRow}
+        onDragEnd={handleDragEnd}
+        // activationDistance gives the row's text input + caption
+        // Pressables a little slack so the drag only kicks in once the
+        // user explicitly long-presses the handle and starts to move.
+        activationDistance={8}
         keyboardShouldPersistTaps="handled"
-      >
-        <DaySummaryCard
-          tripId={tripId}
-          dayDate={dayDate}
-          dayIndex={dayIndex ?? 1}
-          dayTotal={dayTotal}
-          isToday={isToday}
-          totalConvertedAmount={summary.totalConvertedAmount}
-          homeCurrency={homeCurrency}
-          photoCount={summary.photoCount}
-          voiceCount={summary.voiceCount}
-          expenseCount={summary.expenseCount}
-          coverStoragePath={summary.coverStoragePath}
-          effectiveLocation={summary.effectiveLocation}
-          onLocationChange={handleLocationChange}
-        />
-        {timeline.length === 0 ? (
+        contentContainerStyle={styles.scroll}
+        ListHeaderComponent={
+          <DaySummaryCard
+            tripId={tripId}
+            dayDate={dayDate}
+            dayIndex={dayIndex ?? 1}
+            dayTotal={dayTotal}
+            isToday={isToday}
+            totalConvertedAmount={summary.totalConvertedAmount}
+            homeCurrency={homeCurrency}
+            photoCount={summary.photoCount}
+            voiceCount={summary.voiceCount}
+            expenseCount={summary.expenseCount}
+            coverStoragePath={summary.coverStoragePath}
+            effectiveLocation={summary.effectiveLocation}
+            onLocationChange={handleLocationChange}
+          />
+        }
+        ListEmptyComponent={
           <View style={[styles.empty, { borderColor: theme.borderLight }]}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
               {t('journal.emptyDay')}
             </Text>
           </View>
-        ) : (
-          timeline.map((item) => {
-            if (item.kind === 'photo') {
-              return (
-                <PhotoEntryRow
-                  key={`photo:${item.id}`}
-                  entry={item.entry as JournalPhotoEntryWithPhotos}
-                  onCaptionChange={(next) => {
-                    void handleCaptionChange(item.id, next);
-                  }}
-                  onOpenPhoto={(index) => handleOpenPhoto(item.id, index)}
-                  onLongPress={() => handleLongPressItem(item)}
-                />
-              );
-            }
-            if (item.kind === 'voice') {
-              return (
-                <VoiceClipRow
-                  key={`voice:${item.id}`}
-                  clip={item.clip}
-                  onOpenTranscript={() => handleOpenTranscript(item.id)}
-                  onLongPress={() => handleLongPressItem(item)}
-                  onRetranscribe={() => handleRetranscribe(item.id)}
-                />
-              );
-            }
-            // Expense row: ExpenseCard needs ExpenseWithPhotos + category.
-            // The timeline item carries the plain Expense from the merge
-            // helper; look up the full row (with photos) from the store
-            // so the badges line up with everywhere else expenses render.
-            const full = expenseById.get(item.id);
-            if (!full) return null;
-            const category = categoryById.get(full.categoryId) ?? null;
-            const isSelfLogged = full.userId === currentUserId;
-            return (
-              <ExpenseTimelineRow
-                key={`expense:${item.id}`}
-                expense={full}
-                category={category}
-                homeCurrency={homeCurrency}
-                isSelfLogged={isSelfLogged}
-                onLongPress={() => handleLongPressItem(item)}
-              />
-            );
-          })
-        )}
-      </ScrollView>
+        }
+      />
       <JournalFab
         tripId={tripId}
         dayDate={dayDate}
@@ -509,4 +608,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: { fontSize: 13, fontWeight: '500' },
+  activeRow: {
+    transform: [{ scale: 1.02 }],
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
 });
