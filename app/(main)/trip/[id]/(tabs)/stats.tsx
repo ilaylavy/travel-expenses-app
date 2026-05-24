@@ -1,6 +1,6 @@
-import { useGlobalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useGlobalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryBreakdownCard } from '@/components/stats/CategoryBreakdownCard';
@@ -22,6 +22,7 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useSettlementStore } from '@/stores/settlementStore';
 import { useTripStore } from '@/stores/tripStore';
+import { syncEngine } from '@/sync/syncEngine';
 import type { Category } from '@/types/category';
 import { todayIsoDate } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -39,14 +40,17 @@ export default function TripStatsScreen() {
   const splits = useExpenseStore((s) => s.splits);
   const activeTripId = useExpenseStore((s) => s.activeTripId);
   const loadForTrip = useExpenseStore((s) => s.loadForTrip);
+  const refreshExpenses = useExpenseStore((s) => s.refresh);
   const settlements = useSettlementStore((s) => s.settlements);
   const activeSettlementTripId = useSettlementStore((s) => s.activeTripId);
   const loadSettlements = useSettlementStore((s) => s.loadForTrip);
+  const refreshSettlements = useSettlementStore((s) => s.refresh);
   const allCategories = useCategoryStore((s) => s.categories);
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (tripId && activeTripId !== tripId) void loadForTrip(tripId);
@@ -55,6 +59,25 @@ export default function TripStatsScreen() {
   useEffect(() => {
     if (tripId && activeSettlementTripId !== tripId) void loadSettlements(tripId);
   }, [tripId, activeSettlementTripId, loadSettlements]);
+
+  // Pull-to-refresh + focus-sync, same rationale as the balance screen: stats
+  // are derived from the same expenses/splits store, so a missed realtime
+  // event would leave the chart and split-balance card stale.
+  useFocusEffect(
+    useCallback(() => {
+      void syncEngine.triggerSync();
+    }, []),
+  );
+
+  const handleRefresh = useCallback(async (): Promise<void> => {
+    setRefreshing(true);
+    try {
+      await syncEngine.triggerSync();
+      await Promise.all([refreshExpenses(), refreshSettlements()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshExpenses, refreshSettlements]);
 
   useEffect(() => {
     if (!tripId) return;
@@ -160,6 +183,14 @@ export default function TripStatsScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.accent}
+              colors={[theme.accent]}
+            />
+          }
         >
           <SummaryPills
             stats={stats}

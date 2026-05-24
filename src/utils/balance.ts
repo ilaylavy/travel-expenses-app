@@ -15,7 +15,18 @@ export interface PairwiseSettlement {
 
 export interface BalanceSummary {
   byMember: MemberShareTotal[];
+  // Pairwise NETTED settlements. One entry per non-zero pair, after summing
+  // both directions and any unattributed settlement payments. Use this for
+  // single-line summaries (e.g. the stats SplitBalanceCard).
   settlements: PairwiseSettlement[];
+  // Gross directional debts. One entry per non-zero (from→to) direction.
+  // Unlike `settlements`, both directions can appear for the same pair: if
+  // Alice paid for $100 of Bob's stuff and Bob paid for $30 of Alice's, this
+  // contains BOTH { Bob→Alice: 100 } and { Alice→Bob: 30 } so the UI can
+  // surface each expense's contribution without losing offsets to netting.
+  // Attributed AND unattributed settlement_payments are applied directly to
+  // the matching direction (overpayment flips the excess to the opposite).
+  grossDebts: PairwiseSettlement[];
 }
 
 export interface ComputeBalanceInput {
@@ -120,19 +131,43 @@ export function computeBalance({
     }
   }
 
-  // Apply UNATTRIBUTED settlement payments only. Attributed ones are already
-  // handled above by skipping the matching split's debt contribution.
-  // A from→to payment reduces from's debt to to — modeled as "to owes from"
-  // in the bookkeeping so the existing pairwise netter cancels it naturally.
-  // Over-settling flips the direction (receiver now owes payer), which is
-  // correct.
+  // Apply UNATTRIBUTED settlement payments directly to the matching direction.
+  // Attributed ones were already handled above by skipping the matching
+  // split's debt contribution. A from→to payment reduces `from`'s debt to
+  // `to`; any excess flips to the opposite direction (receiver now owes
+  // payer). Applying directly (rather than the old reverse-debt trick) makes
+  // grossDebts below reflect what each side actually still owes — otherwise a
+  // partial payment would still appear under its original full amount.
   if (settlementPayments) {
     for (const p of settlementPayments) {
       if (p.deletedAt !== null) continue;
       if (p.expenseSplitId !== null) continue;
-      addDebt(p.toUserId, p.fromUserId, p.convertedAmount);
+      const fromInner = debts.get(p.fromUserId);
+      const fromOwes = fromInner?.get(p.toUserId) ?? 0;
+      const remaining = fromOwes - p.convertedAmount;
+      if (remaining >= 0) {
+        if (fromInner) fromInner.set(p.toUserId, remaining);
+        // If there was no existing fromInner, fromOwes was 0 → remaining is
+        // negative → goes to the else branch; we never reach this no-op path.
+      } else {
+        // Overpayment: clear this direction, add the excess to the opposite.
+        if (fromInner) fromInner.set(p.toUserId, 0);
+        addDebt(p.toUserId, p.fromUserId, -remaining);
+      }
     }
   }
+
+  // Gross directional debts: every (from, to) entry that still has a positive
+  // balance after settlements. Both directions of the same pair can appear.
+  const grossDebts: PairwiseSettlement[] = [];
+  for (const [from, inner] of debts) {
+    for (const [to, amount] of inner) {
+      const rounded = roundAmount(amount);
+      if (rounded < 0.01) continue;
+      grossDebts.push({ fromUserId: from, toUserId: to, amount: rounded });
+    }
+  }
+  grossDebts.sort((a, b) => b.amount - a.amount);
 
   // Net each pair: if A owes B 10 and B owes A 6, the net is A owes B 4.
   const settled = new Set<string>();
@@ -164,5 +199,5 @@ export function computeBalance({
 
   settlements.sort((a, b) => b.amount - a.amount);
 
-  return { byMember, settlements };
+  return { byMember, settlements, grossDebts };
 }

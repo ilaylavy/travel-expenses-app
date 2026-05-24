@@ -23,6 +23,7 @@ const TABLES: PullTable[] = [
   'expenses',
   'expense_splits',
   'expense_photos',
+  'settlement_payments',
 ];
 
 const HARD_DELETE_TABLES: ReadonlySet<PullTable> = new Set([

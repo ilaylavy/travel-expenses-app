@@ -2,13 +2,17 @@
 // pairwise debts (each with a "Settle up" CTA), and a history of recorded
 // payments. Long-press a history row to reverse it (soft-delete).
 //
-// The displayed debts are the NET of expense splits minus recorded
-// settlement_payments, computed by computeBalance. byMember is unchanged
+// Debts are shown UN-NETTED — both directions of the same pair appear as
+// their own card. This keeps each expense's contribution visible in its
+// "By Expense" breakdown; pairwise netting would hide whichever side has
+// the smaller gross. computeBalance.grossDebts drives the rendering;
+// settlement_payments reduce the matching direction directly, with
+// overpayments flipping to the opposite direction. byMember is unchanged
 // by settlements — it's share of trip cost, not who's paid whom.
 
-import { useGlobalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useGlobalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SettleUpModal } from '@/components/balance/SettleUpModal';
@@ -26,6 +30,7 @@ import {
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useSettlementStore } from '@/stores/settlementStore';
 import { useTripStore } from '@/stores/tripStore';
+import { syncEngine } from '@/sync/syncEngine';
 import type { Category } from '@/types/category';
 import type { SettlementPayment } from '@/types/settlement';
 import { computeBalance, type PairwiseSettlement } from '@/utils/balance';
@@ -69,15 +74,18 @@ export default function BalancesScreen() {
   const splits = useExpenseStore((s) => s.splits);
   const activeExpenseTripId = useExpenseStore((s) => s.activeTripId);
   const loadExpenses = useExpenseStore((s) => s.loadForTrip);
+  const refreshExpenses = useExpenseStore((s) => s.refresh);
   const settlements = useSettlementStore((s) => s.settlements);
   const activeSettlementTripId = useSettlementStore((s) => s.activeTripId);
   const loadSettlements = useSettlementStore((s) => s.loadForTrip);
+  const refreshSettlements = useSettlementStore((s) => s.refresh);
   const deleteSettlement = useSettlementStore((s) => s.deleteSettlement);
   const allCategories = useCategoryStore((s) => s.categories);
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [modalContext, setModalContext] = useState<PairCard | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (tripId && activeExpenseTripId !== tripId) void loadExpenses(tripId);
@@ -86,6 +94,29 @@ export default function BalancesScreen() {
   useEffect(() => {
     if (tripId && activeSettlementTripId !== tripId) void loadSettlements(tripId);
   }, [tripId, activeSettlementTripId, loadSettlements]);
+
+  // Re-sync whenever the user lands on this screen. In a shared trip, partner
+  // expenses arrive via realtime in the happy path, but a missed event (auth
+  // refresh gap, dropped channel, background app) would leave the balance
+  // stale forever otherwise — there's no other passive catch-up while sitting
+  // on this screen.
+  useFocusEffect(
+    useCallback(() => {
+      void syncEngine.triggerSync();
+    }, []),
+  );
+
+  const handleRefresh = useCallback(async (): Promise<void> => {
+    setRefreshing(true);
+    try {
+      await syncEngine.triggerSync();
+      // triggerSync only refreshes stores when pull actually applied changes;
+      // re-read locally so the spinner clears against fresh state either way.
+      await Promise.all([refreshExpenses(), refreshSettlements()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshExpenses, refreshSettlements]);
 
   useEffect(() => {
     if (!tripId) return;
@@ -244,6 +275,14 @@ export default function BalancesScreen() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.accent}
+            colors={[theme.accent]}
+          />
+        }
       >
         {/* Members + share totals */}
         {balance.byMember.length > 0 ? (
@@ -279,9 +318,11 @@ export default function BalancesScreen() {
           </StatsSectionCard>
         ) : null}
 
-        {/* Outstanding debts */}
+        {/* Outstanding debts — one card per direction (un-netted). If A owes B
+            $100 and B owes A $30, both cards are shown so each underlying
+            expense stays visible in its own card's breakdown. */}
         <StatsSectionCard title={t('balances.outstandingSection')}>
-          {balance.settlements.length === 0 ? (
+          {balance.grossDebts.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>🎉</Text>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
@@ -295,7 +336,7 @@ export default function BalancesScreen() {
             </View>
           ) : (
             <View style={{ gap: spacing.md }}>
-              {balance.settlements.map((p) => {
+              {balance.grossDebts.map((p) => {
                 const pairKey = `${p.fromUserId}|${p.toUserId}`;
                 const splitsForPair = contributingSplitsByPair.get(pairKey) ?? [];
                 return (
