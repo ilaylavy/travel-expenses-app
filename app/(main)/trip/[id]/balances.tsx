@@ -1,15 +1,15 @@
-// Trip Balances screen — shows per-member trip-cost share, a directional
-// OUTSTANDING summary (You owe / Owes you) listing each pair-direction the
-// current user is involved in, a read-only SHARED EXPENSES ledger of every
-// split expense the user participates in, and a HISTORY of recorded
-// payments. Tap any OUTSTANDING row to open the Settle Up modal pre-filled
-// with that direction's gross balance (amount editable for partial settle).
+// Trip Balances screen — shows per-member trip-cost share, an OUTSTANDING
+// summary (You owe / Owes you columns) with one row per other member after
+// pairwise netting, the HISTORY of recorded payments, then a read-only
+// SHARED EXPENSES ledger of every split expense the user participates in.
+// Tap any OUTSTANDING row to open the Settle Up modal pre-filled with the
+// netted balance (amount editable for partial settle).
 //
-// Settlements are always free-form unattributed under this design — they
-// reduce the matching pair-direction in computeBalance (overpayment flips
-// the excess). Legacy attributed settlement_payments (with expense_split_id
-// set) remain honored in computeBalance's gross derivation; the UI no
-// longer creates new attributed rows.
+// Settlements are always free-form unattributed under this design — the
+// pairwise netter in computeBalance absorbs them (overpayment flips the
+// direction). Legacy attributed settlement_payments (with expense_split_id
+// set) remain honored by computeBalance; the UI no longer creates new
+// attributed rows.
 
 import { useFocusEffect, useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -128,15 +128,15 @@ export default function BalancesScreen() {
     [expenses, splits, settlements],
   );
 
-  // Outstanding directional summary for the current user. Filters
-  // computeBalance.grossDebts to debts that involve them, partitioned by
-  // direction so the UI can render two columns.
+  // Outstanding netted summary for the current user. Each other person who
+  // has a non-zero balance with the current user appears in exactly one
+  // column — whoever owes after the pairwise netting in computeBalance.
   const outstanding = useMemo(
     () =>
       currentUserId
-        ? selectOutstandingForUser(balance.grossDebts, currentUserId)
+        ? selectOutstandingForUser(balance.settlements, currentUserId)
         : { youOwe: [] as PairwiseSettlement[], owesYou: [] as PairwiseSettlement[] },
-    [balance.grossDebts, currentUserId],
+    [balance.settlements, currentUserId],
   );
 
   // Read-only ledger: every split expense the current user participates in,
@@ -327,29 +327,8 @@ export default function BalancesScreen() {
           )}
         </StatsSectionCard>
 
-        {/* Shared Expenses — read-only ledger of every split expense the
-            current user participates in. No settle button per row; settle
-            from the OUTSTANDING summary above (or globally) instead. */}
-        <StatsSectionCard title={t('balances.sharedExpensesSection')}>
-          {mySharedExpenses.length === 0 ? (
-            <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
-              {t('balances.sharedExpensesEmpty')}
-            </Text>
-          ) : (
-            <View style={{ gap: spacing.sm }}>
-              {mySharedExpenses.map((row) => (
-                <SharedExpenseRowItem
-                  key={row.expense.id}
-                  row={row}
-                  currency={currency}
-                  resolveName={resolveName}
-                />
-              ))}
-            </View>
-          )}
-        </StatsSectionCard>
-
-        {/* History */}
+        {/* History — recorded settlement payments. Shown above the ledger so
+            recent activity is closer to the OUTSTANDING summary. */}
         <StatsSectionCard title={t('balances.historySection')}>
           {settlements.length === 0 ? (
             <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
@@ -366,6 +345,28 @@ export default function BalancesScreen() {
                   settlement={s}
                   resolveName={resolveName}
                   onLongPress={() => handleReverse(s)}
+                />
+              ))}
+            </View>
+          )}
+        </StatsSectionCard>
+
+        {/* Shared Expenses — read-only ledger of every split expense the
+            current user participates in. No settle button per row; settle
+            from the OUTSTANDING summary above instead. */}
+        <StatsSectionCard title={t('balances.sharedExpensesSection')}>
+          {mySharedExpenses.length === 0 ? (
+            <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
+              {t('balances.sharedExpensesEmpty')}
+            </Text>
+          ) : (
+            <View style={{ gap: spacing.sm }}>
+              {mySharedExpenses.map((row) => (
+                <SharedExpenseRowItem
+                  key={row.expense.id}
+                  row={row}
+                  currency={currency}
+                  resolveName={resolveName}
                 />
               ))}
             </View>

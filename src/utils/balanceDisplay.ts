@@ -9,17 +9,17 @@ export interface OutstandingSummary {
   owesYou: PairwiseSettlement[];
 }
 
-// Filters `grossDebts` (un-netted directional debts from computeBalance) to
-// just those involving the current user, split by direction. Cross-pair
-// debts between two other members are excluded — they don't affect what the
-// current user can act on.
+// Filters pairwise debts (typically the netted `settlements` from
+// computeBalance) to just those involving the current user, split by
+// direction. Cross-pair debts between two other members are excluded — they
+// don't affect what the current user can act on.
 export function selectOutstandingForUser(
-  grossDebts: PairwiseSettlement[],
+  debts: PairwiseSettlement[],
   currentUserId: string,
 ): OutstandingSummary {
   return {
-    youOwe: grossDebts.filter((d) => d.fromUserId === currentUserId),
-    owesYou: grossDebts.filter((d) => d.toUserId === currentUserId),
+    youOwe: debts.filter((d) => d.fromUserId === currentUserId),
+    owesYou: debts.filter((d) => d.toUserId === currentUserId),
   };
 }
 
