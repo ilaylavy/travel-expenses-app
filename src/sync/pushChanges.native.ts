@@ -99,6 +99,86 @@ async function uploadPhotoForEntry(
   payload.storage_path = storagePath;
 }
 
+// For a journal_photos create entry, upload the file to R2 (key
+// <tripId>/journal/<photoId>.jpg). Look up the parent entry to derive trip_id.
+// Stamp the resulting storage_path back into the local DB and the outgoing
+// payload. Throw on failure so the existing markError path retries.
+async function uploadJournalPhotoForEntry(
+  db: SQLiteDatabase,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const photoId = payload.id as string | undefined;
+  if (!photoId) return;
+  const { getPhotoById: getJournalPhotoById, setPhotoStoragePath: setJournalStoragePath } =
+    await import('@/db/queries/journalPhotos');
+  const photo = await getJournalPhotoById(db, photoId);
+  if (!photo) return;
+  if (photo.storagePath) {
+    payload.storage_path = photo.storagePath;
+    return;
+  }
+  if (!photo.localUri) return;
+  const row = await db.getFirstAsync<{ trip_id: string }>(
+    'SELECT trip_id FROM journal_photo_entries WHERE id = ?;',
+    [photo.entryId],
+  );
+  if (!row?.trip_id) {
+    throw new Error(`journal_photos: parent entry ${photo.entryId} not found`);
+  }
+  const storagePath = await uploadPhotoToStorage({
+    kind: 'journal-photo',
+    tripId: row.trip_id,
+    photoId,
+    localUri: photo.localUri,
+  });
+  await setJournalStoragePath(db, photoId, storagePath);
+  payload.storage_path = storagePath;
+}
+
+// Voice clips: upload audio to R2 (key <tripId>/<clipId>.m4a), stamp the path
+// back into the row + payload. Caller fire-and-forgets transcribe-voice after
+// the row reaches Postgres.
+async function uploadVoiceClipForEntry(
+  db: SQLiteDatabase,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const clipId = payload.id as string | undefined;
+  if (!clipId) return;
+  const { getClipById, setClipStoragePath } = await import('@/db/queries/voiceClips');
+  const clip = await getClipById(db, clipId);
+  if (!clip) return;
+  if (clip.storagePath) {
+    payload.storage_path = clip.storagePath;
+    return;
+  }
+  if (!clip.localUri) return;
+  const { uploadVoiceClipToStorage } = await import('@/services/voiceClipService');
+  const storagePath = await uploadVoiceClipToStorage({
+    tripId: clip.tripId,
+    clipId,
+    localUri: clip.localUri,
+  });
+  await setClipStoragePath(db, clipId, storagePath);
+  payload.storage_path = storagePath;
+}
+
+// Fire-and-forget the transcribe Edge Function after a voice_clip row has
+// been pushed. Runs outside any DB transaction. Errors are swallowed — the
+// UI will surface a "Retry" affordance once transcript_status='pending' has
+// been stuck for too long.
+async function kickTranscribe(
+  supabase: SupabaseClient,
+  clipId: string,
+): Promise<void> {
+  try {
+    await supabase.functions.invoke('transcribe-voice', {
+      body: { voice_clip_id: clipId },
+    });
+  } catch (err) {
+    console.warn('transcribe-voice invoke failed (will retry on next sync):', err);
+  }
+}
+
 async function pushEntry(
   db: SQLiteDatabase,
   supabase: SupabaseClient,
@@ -117,6 +197,12 @@ async function pushEntry(
     if (entry.tableName === 'expense_photos') {
       await uploadPhotoForEntry(db, payload);
     }
+    if (entry.tableName === 'journal_photos') {
+      await uploadJournalPhotoForEntry(db, payload);
+    }
+    if (entry.tableName === 'voice_clips') {
+      await uploadVoiceClipForEntry(db, payload);
+    }
     if (entry.tableName === 'trip_members') {
       // Remote trigger add_owner_to_trip_members() may have already created
       // the owner row with a server-side uuid. Merge-upsert on
@@ -134,6 +220,10 @@ async function pushEntry(
       .from(entry.tableName)
       .upsert(payload, { onConflict: 'id' });
     if (error) throw error;
+    // Now that the audio row is in Postgres, fire-and-forget transcription.
+    if (entry.tableName === 'voice_clips') {
+      void kickTranscribe(supabase, entry.recordId);
+    }
     return;
   }
 
@@ -148,6 +238,28 @@ async function pushEntry(
       const { error } = await supabase.from('expense_photos').delete().eq('id', id);
       if (error) throw error;
       return;
+    }
+
+    // journal_photo_entries soft-delete: best-effort R2 cleanup for every
+    // child photo. The payload only carries the parent id, so look up the
+    // children locally before they're cascaded off the device.
+    if (entry.action === 'delete' && entry.tableName === 'journal_photo_entries') {
+      const { listPhotoArtifactsForEntry } = await import('@/db/queries/journalPhotos');
+      const artifacts = await listPhotoArtifactsForEntry(entry.recordId);
+      for (const a of artifacts) {
+        if (a.storagePath) {
+          void deletePhotoFromStorage(a.storagePath, 'journal-photo').catch(() => undefined);
+        }
+      }
+    }
+
+    // voice_clips soft-delete: clean up the audio object server-side.
+    if (entry.action === 'delete' && entry.tableName === 'voice_clips') {
+      const storagePath = (payload.storage_path as string | undefined) ?? '';
+      if (storagePath) {
+        const { deleteVoiceClipFromStorage } = await import('@/services/voiceClipService');
+        void deleteVoiceClipFromStorage(storagePath).catch(() => undefined);
+      }
     }
 
     const { id: _omit, ...rest } = payload;
