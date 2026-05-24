@@ -77,37 +77,25 @@ drop policy if exists "journal_moments members can read" on public.journal_momen
 create policy "journal_moments members can read"
     on public.journal_moments
     for select
-    using (
-        exists (
-            select 1 from public.trip_members tm
-            where tm.trip_id = journal_moments.trip_id
-              and tm.user_id = auth.uid()
-              and tm.joined_at is not null
-        )
-    );
+    to authenticated
+    using (app_private.is_trip_member(trip_id));
 
 drop policy if exists "journal_moments members can write" on public.journal_moments;
 create policy "journal_moments members can write"
     on public.journal_moments
     for all
-    using (
-        exists (
-            select 1 from public.trip_members tm
-            where tm.trip_id = journal_moments.trip_id
-              and tm.user_id = auth.uid()
-              and tm.joined_at is not null
-        )
-    )
-    with check (
-        exists (
-            select 1 from public.trip_members tm
-            where tm.trip_id = journal_moments.trip_id
-              and tm.user_id = auth.uid()
-              and tm.joined_at is not null
-        )
-    );
+    to authenticated
+    using (app_private.is_trip_member(trip_id))
+    with check (app_private.is_trip_member(trip_id));
 
 ------------------------------------------------------------------
 -- Realtime publication: add the new table.
 ------------------------------------------------------------------
-alter publication supabase_realtime add table public.journal_moments;
+do $$
+begin
+    if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+        alter publication supabase_realtime add table public.journal_moments;
+    end if;
+exception
+    when duplicate_object then null;
+end $$;
