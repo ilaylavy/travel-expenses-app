@@ -152,6 +152,18 @@ interface TripContext {
   // signal for the summarizer when answering "have we settled anything?"
   // without needing a query.
   settlement_count: number;
+  // Journal photo captions, privacy-filtered (own + non-private), oldest
+  // first, capped to 100 entries. The LLM uses these to answer questions
+  // like "what was that photo of the temple?"
+  photo_captions: string[];
+  // Journal voice transcripts, privacy-filtered (own + non-private),
+  // most-recent first, capped to 30 entries and ~16K chars total.
+  // The LLM uses these to answer questions like "what did I say about X?"
+  voice_transcripts: Array<{ when: string; text: string }>;
+  // Total count of older transcripts not included above (so the LLM can
+  // tell the user "N earlier voice notes are available in the Journal tab"
+  // instead of hallucinating they don't exist).
+  voice_transcripts_omitted: number;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -442,6 +454,7 @@ Default to DATA_QUERY. Pick a non-DATA_QUERY intent only when clearly warranted.
 DATA_QUERY: any expense-related word (food, transport, hotel, spend, cost, budget, paid, owe, balance, settle, settled, settlement, payment, even, category, cash, card, day, location, place, member name, currency, refund, average, total, days, reimburse, pay back). Member comparisons. Trip metadata. Yes/no questions about state.
   - Empty result is fine: a non-existent category, settlement on a no-split trip, etc. — emit the query, the summarizer explains.
   - Some questions are answerable from TRIP CONTEXT alone (e.g. "what currency does this trip use?", "who's on this trip?", "what categories do we have?"). For those, set queries: [] — the summarizer will read TRIP CONTEXT and answer directly. Use sparingly; default to a query.
+  - Journal questions ("what did I say about X?", "what's the caption on the temple photo?", "what voice notes did I record?") are ANSWERABLE FROM TRIP CONTEXT — photo_captions and voice_transcripts are already there. Set queries: [] for these; the summarizer searches the context directly. There are no SQL views for journal data.
 
 CHITCHAT: pure greetings, thanks, casual chatter. directResponse, queries: [].
 CLARIFY: about expenses but truly ambiguous (rare). Ask ONE specific clarifying question. queries: [].
@@ -507,6 +520,13 @@ EMPTY RESULTS:
 - Empty category/payment/place result: "I don't see any [X] expenses logged yet on this trip."
 - Other empty: "I don't see any expenses matching that yet."
 - If results are empty AND the question is answerable from TRIP CONTEXT (e.g. "what currency?", "who's on the trip?", "what categories do we use?"), answer directly from context.
+
+JOURNAL QUESTIONS:
+- Photo captions live in TRIP CONTEXT.photo_captions (array, oldest first). Voice transcripts live in TRIP CONTEXT.voice_transcripts (array of {when, text}, newest first). Both are pre-filtered for privacy.
+- Answer "what did I say about X" by searching voice_transcripts.text. Quote the relevant transcript directly; don't paraphrase user's words.
+- Answer "what's the caption on the temple photo" by searching photo_captions for matching keywords. Quote the caption verbatim.
+- If voice_transcripts_omitted > 0, end with "(N earlier voice notes are in the Journal tab)" so the user knows the context is windowed.
+- If both arrays are empty: "Nothing's been logged in the journal for this trip yet."
 
 ERRORS:
 - Query error: "I had trouble looking that up. Try rephrasing or ask something different."
@@ -722,6 +742,51 @@ async function buildTripContext(
     );
   }
 
+  // Journal context. Photo captions (oldest first, capped at 100) and voice
+  // transcripts (newest first, capped at 30 entries / ~16K chars) are added
+  // to the prompt so the LLM can answer journal-aware questions. Privacy
+  // filter mirrors expenses: own rows OR non-private rows.
+  const captionRows = await sql`
+    select caption
+    from public.journal_photo_entries
+    where trip_id = ${tripId}
+      and deleted_at is null
+      and caption is not null
+      and (is_private = false or user_id = ${callerId})
+    order by occurred_at asc
+    limit 200
+  `;
+  const photoCaptions = (captionRows as Array<{ caption: string }>)
+    .map((r) => r.caption)
+    .filter((c) => typeof c === 'string' && c.trim().length > 0)
+    .slice(0, 100);
+
+  const transcriptRows = await sql`
+    select occurred_at::text as occurred_at, transcript
+    from public.voice_clips
+    where trip_id = ${tripId}
+      and deleted_at is null
+      and transcript_status = 'done'
+      and transcript is not null
+      and (is_private = false or user_id = ${callerId})
+    order by occurred_at desc
+    limit 50
+  `;
+  const allTranscripts = (transcriptRows as Array<{ occurred_at: string; transcript: string }>)
+    .map((r) => ({ when: r.occurred_at, text: r.transcript }))
+    .filter((t) => typeof t.text === 'string' && t.text.trim().length > 0);
+
+  // Char-budget cap so even 50 long clips don't blow the prompt window.
+  const CHAR_BUDGET = 16_000;
+  const voiceTranscripts: Array<{ when: string; text: string }> = [];
+  let used = 0;
+  for (const t of allTranscripts) {
+    const lineLen = t.when.length + t.text.length + 4; // overhead
+    if (used + lineLen > CHAR_BUDGET && voiceTranscripts.length > 0) break;
+    voiceTranscripts.push(t);
+    used += lineLen;
+  }
+
   return {
     trip: {
       id: trip.id,
@@ -754,6 +819,9 @@ async function buildTripContext(
     },
     balance_summary: balanceSummary,
     settlement_count: settlementCount,
+    photo_captions: photoCaptions,
+    voice_transcripts: voiceTranscripts,
+    voice_transcripts_omitted: Math.max(0, allTranscripts.length - voiceTranscripts.length),
   };
 }
 
