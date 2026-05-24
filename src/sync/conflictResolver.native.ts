@@ -70,8 +70,8 @@ async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
   await db.runAsync(
     `INSERT INTO trips
        (id, name, emoji, start_date, end_date, base_currency, home_currency,
-        budget, owner_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        budget, owner_id, cover_photo_storage_path, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name,
        emoji = excluded.emoji,
@@ -81,6 +81,7 @@ async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
        home_currency = excluded.home_currency,
        budget = excluded.budget,
        owner_id = excluded.owner_id,
+       cover_photo_storage_path = excluded.cover_photo_storage_path,
        created_at = excluded.created_at,
        updated_at = excluded.updated_at,
        deleted_at = excluded.deleted_at;`,
@@ -94,6 +95,7 @@ async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
       asString(r.home_currency) ?? 'USD',
       asNumber(r.budget),
       asString(r.owner_id) ?? '',
+      asString(r.cover_photo_storage_path),
       asString(r.created_at) ?? new Date().toISOString(),
       asString(r.updated_at) ?? new Date().toISOString(),
       asString(r.deleted_at),

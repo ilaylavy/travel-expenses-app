@@ -97,6 +97,7 @@ export interface PendingInviteRow extends TripMemberRow {
   trip_base_currency: string;
   trip_home_currency: string;
   trip_owner_id: string;
+  trip_cover_photo_storage_path: string | null;
   trip_created_at: string;
   trip_updated_at: string;
 }
