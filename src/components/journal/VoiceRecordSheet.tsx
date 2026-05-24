@@ -1,12 +1,13 @@
-// Bottom-sheet voice recorder. expo-audio's recording API is hook-only, so
-// the AudioRecorder instance lives inside this component (via
-// useAudioRecorder) rather than in a service module. The recorder is stable
-// across renders, so the auto-stop timer can reference it directly without
-// the ref pattern the expo-av version needed.
+// Bottom-sheet voice recorder. expo-audio's recording API is hook-only
+// (no imperative constructor), and the polling done by `useAudioRecorderState`
+// will keep talking to a SharedObject that may have been released — so we
+// lazy-mount the recorder body only while the sheet is actually visible.
+// That keeps the recorder's lifetime tied to the modal session and lets the
+// hook's own cleanup release the native object cleanly on close.
 //
-// State machine: idle → recording → finished → (saved|discarded). The
-// `finishedUri` field gates the save/discard pair, so save() can only run on
-// a successfully stopped recording.
+// State machine inside the body: idle → recording → finished → (saved|discarded).
+// The `finishedUri` field gates the save/discard pair, so save() can only run
+// on a successfully stopped recording.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -53,13 +54,59 @@ interface Props {
 export function VoiceRecordSheet({
   visible,
   tripId,
+  dayDate,
+  onDismiss,
+  onSaved,
+}: Props) {
+  const theme = useTheme();
+  // Keep the outer modal shell so the slide animation works, but only render
+  // the recorder body (and thus only call the expo-audio hooks) while the
+  // sheet is open. This avoids polling a released SharedObject when the
+  // sheet is dismissed.
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onDismiss}
+    >
+      <View style={styles.backdrop}>
+        <View
+          style={[
+            styles.sheet,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          {visible ? (
+            <RecorderBody
+              tripId={tripId}
+              dayDate={dayDate}
+              onDismiss={onDismiss}
+              onSaved={onSaved}
+            />
+          ) : null}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface BodyProps {
+  tripId: string;
+  dayDate: string;
+  onDismiss: () => void;
+  onSaved: () => void;
+}
+
+function RecorderBody({
+  tripId,
   // dayDate is reserved for future use — recordings are stamped with
   // `new Date().toISOString()` at save time. Keep it in the props so the
   // public surface matches the rest of the journal capture flow.
   dayDate: _dayDate,
   onDismiss,
   onSaved,
-}: Props) {
+}: BodyProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
@@ -70,19 +117,10 @@ export function VoiceRecordSheet({
   const [finishedUri, setFinishedUri] = useState<string | null>(null);
   const [finishedDuration, setFinishedDuration] = useState(0);
 
-  // Reset persisted state when the sheet re-opens. We don't reset on close so
-  // the discard path can clean up explicitly without racing the reset.
-  useEffect(() => {
-    if (!visible) return;
-    setFinishedUri(null);
-    setFinishedDuration(0);
-  }, [visible]);
-
   const stop = useCallback(async (): Promise<void> => {
     if (!recorder.isRecording) return;
     try {
       await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       const tempUri = recorder.uri;
       if (!tempUri) {
         console.warn('VoiceRecordSheet stop: recorder produced no URI');
@@ -96,6 +134,8 @@ export function VoiceRecordSheet({
       );
       setFinishedUri(targetUri);
       setFinishedDuration(durationSec);
+      // Tear the iOS recording session down only after we've safely read uri.
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     } catch (error) {
       console.warn('VoiceRecordSheet stop failed:', error);
     }
@@ -107,15 +147,6 @@ export function VoiceRecordSheet({
     if (!recording) return;
     if (elapsed >= MAX_SECONDS) void stop();
   }, [recording, elapsed, stop]);
-
-  // Best-effort cleanup if the sheet unmounts mid-recording.
-  useEffect(() => {
-    return () => {
-      if (recorder.isRecording) {
-        void recorder.stop().catch(() => undefined);
-      }
-    };
-  }, [recorder]);
 
   async function start(): Promise<void> {
     const granted = await requestMicPermission();
@@ -149,6 +180,9 @@ export function VoiceRecordSheet({
   }
 
   function discard(): void {
+    // Stopping a still-running recorder before unmount lets iOS release the
+    // audio session cleanly. The hook's own cleanup will release the
+    // SharedObject on the next render cycle.
     if (recorder.isRecording) {
       void recorder.stop().catch(() => undefined);
     }
@@ -158,85 +192,71 @@ export function VoiceRecordSheet({
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={discard}
-    >
-      <View style={styles.backdrop}>
-        <View
-          style={[
-            styles.sheet,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+    <>
+      <Text style={[styles.title, { color: theme.text }]}>
+        {t('journal.recordingTitle')}
+      </Text>
+      <Text style={[styles.timer, { color: theme.text }]}>
+        {`${formatSeconds(elapsed)} / ${formatSeconds(MAX_SECONDS)}`}
+      </Text>
+      {elapsed >= WARN_AT && recording ? (
+        <Text style={[styles.warn, { color: theme.red }]}>
+          {t('journal.recordingCapWarning', {
+            seconds: Math.max(0, MAX_SECONDS - elapsed),
+          })}
+        </Text>
+      ) : null}
+      {!recording && !finishedUri ? (
+        <Pressable
+          onPress={start}
+          style={({ pressed }) => [
+            styles.recBtn,
+            pressed && { opacity: 0.85 },
           ]}
         >
-          <Text style={[styles.title, { color: theme.text }]}>
-            {t('journal.recordingTitle')}
+          <LinearGradient
+            colors={[theme.red, theme.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <Text style={styles.recLabel}>●</Text>
+        </Pressable>
+      ) : null}
+      {recording ? (
+        <Pressable
+          onPress={stop}
+          style={[styles.stopBtn, { borderColor: theme.red }]}
+        >
+          <Text style={[styles.stopLabel, { color: theme.red }]}>
+            {t('journal.stopRecording')}
           </Text>
-          <Text style={[styles.timer, { color: theme.text }]}>
-            {`${formatSeconds(elapsed)} / ${formatSeconds(MAX_SECONDS)}`}
-          </Text>
-          {elapsed >= WARN_AT && recording ? (
-            <Text style={[styles.warn, { color: theme.red }]}>
-              {t('journal.recordingCapWarning', {
-                seconds: Math.max(0, MAX_SECONDS - elapsed),
-              })}
+        </Pressable>
+      ) : null}
+      {finishedUri ? (
+        <View style={styles.actions}>
+          <Pressable
+            onPress={discard}
+            style={[styles.actionBtn, { borderColor: theme.border }]}
+          >
+            <Text style={[styles.actionLabel, { color: theme.text }]}>
+              {t('journal.discardRecording')}
             </Text>
-          ) : null}
-          {!recording && !finishedUri ? (
-            <Pressable
-              onPress={start}
-              style={({ pressed }) => [
-                styles.recBtn,
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <LinearGradient
-                colors={[theme.red, theme.accent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <Text style={styles.recLabel}>●</Text>
-            </Pressable>
-          ) : null}
-          {recording ? (
-            <Pressable
-              onPress={stop}
-              style={[styles.stopBtn, { borderColor: theme.red }]}
-            >
-              <Text style={[styles.stopLabel, { color: theme.red }]}>
-                {t('journal.stopRecording')}
-              </Text>
-            </Pressable>
-          ) : null}
-          {finishedUri ? (
-            <View style={styles.actions}>
-              <Pressable
-                onPress={discard}
-                style={[styles.actionBtn, { borderColor: theme.border }]}
-              >
-                <Text style={[styles.actionLabel, { color: theme.text }]}>
-                  {t('journal.discardRecording')}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={save}
-                style={[
-                  styles.actionBtn,
-                  { backgroundColor: theme.accent, borderColor: theme.accent },
-                ]}
-              >
-                <Text style={[styles.actionLabel, { color: '#FFFFFF' }]}>
-                  {t('journal.saveRecording')}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
+          </Pressable>
+          <Pressable
+            onPress={save}
+            style={[
+              styles.actionBtn,
+              { backgroundColor: theme.accent, borderColor: theme.accent },
+            ]}
+          >
+            <Text style={[styles.actionLabel, { color: '#FFFFFF' }]}>
+              {t('journal.saveRecording')}
+            </Text>
+          </Pressable>
         </View>
-      </View>
-    </Modal>
+      ) : null}
+    </>
   );
 }
 
