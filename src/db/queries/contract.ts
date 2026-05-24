@@ -18,6 +18,7 @@ import type {
 import type {
   DaySummary,
   JournalDay,
+  JournalMoment,
   JournalPhotoEntryWithPhotos,
 } from '@/types/journal';
 import type { Profile, UpdateProfileInput } from '@/types/profile';
@@ -239,4 +240,31 @@ export interface JournalDaysQueries {
   ) => Promise<JournalDay>;
   // Aggregate read for the chapter (All-days) view.
   listDaySummaries: (tripId: string, currentUserId: string) => Promise<DaySummary[]>;
+}
+
+// -----------------------------------------------------------------------------
+// journal_moments
+// -----------------------------------------------------------------------------
+export interface JournalMomentsQueries {
+  listMomentsForDay(tripId: string, dayDate: string): Promise<JournalMoment[]>;
+  createMoment(input: {
+    tripId: string;
+    dayDate: string;
+    title: string | null;
+    coverPhotoEntryId: string | null;
+    createdBy: string;
+    memberIds: Array<{ kind: 'photo' | 'voice' | 'expense'; id: string }>;
+  }): Promise<JournalMoment>;
+  updateMomentTitle(momentId: string, title: string | null): Promise<void>;
+  updateMomentCover(momentId: string, coverPhotoEntryId: string | null): Promise<void>;
+  addMember(momentId: string, kind: 'photo' | 'voice' | 'expense', entryId: string): Promise<void>;
+  removeMember(kind: 'photo' | 'voice' | 'expense', entryId: string): Promise<void>;
+  /** Remove every member from a Moment and soft-delete the Moment itself. */
+  deleteMoment(momentId: string): Promise<void>;
+  /** Split a Moment after a specific member — kept-members stay; later-members
+   *  move into a new Moment titled `${originalTitle ?? 'Untitled'} (2)`. */
+  splitMomentAfter(
+    momentId: string,
+    afterMember: { kind: 'photo' | 'voice' | 'expense'; id: string },
+  ): Promise<JournalMoment>;
 }
