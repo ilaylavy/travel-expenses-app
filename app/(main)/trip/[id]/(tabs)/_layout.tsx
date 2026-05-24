@@ -64,6 +64,13 @@ export default function TripTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="journal"
+        options={{
+          title: t('journal.tabLabel'),
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="📖" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="ask"
         options={{
           title: t('tripView.tabAsk'),
