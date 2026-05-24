@@ -116,13 +116,18 @@ After this phase, the new schema is live locally + remotely, sync recognises the
 
 - [ ] **Step 1: Write the migration SQL**
 
+**IMPORTANT — RLS sequencing:** This migration is purely **additive** so it can be pushed to the live project before the new UI ships. The breaking change (dropping the per-user SELECT gate on `journal_photo_entries` and `voice_clips`) is deferred to **Task 12.3** at the very end of the plan, after Phase 1-11's new shared-journal UI has been deployed via an OTA update. Until Task 12.3 ships, the currently-deployed app keeps seeing only its own journal entries via the existing per-user RLS gate.
+
 ```sql
 -- Journal redesign — shared Moments + per-trip cover photo.
 -- - Adds journal_moments table (user-curated groupings of journal entries).
 -- - Adds nullable moment_id FK to journal_photo_entries, voice_clips, expenses.
 -- - Adds cover_photo_storage_path to trips (for the All Days hero banner).
--- - Drops the per-user SELECT gate on journal_photo_entries / voice_clips
---   so the whole journal is shared across all trip members (matches expenses).
+--
+-- Additive only — does NOT touch the existing per-user SELECT RLS on
+-- journal_photo_entries / voice_clips. That policy flip is deferred to
+-- Task 12.3 so the currently-deployed app keeps its private-by-default
+-- behavior until the shared-journal UI ships.
 --
 -- Note: journal_moments.cover_photo_entry_id is intentionally stored without
 -- a FK constraint so the sync engine can insert a Moment whose cover photo
@@ -224,54 +229,14 @@ create policy "journal_moments members can write"
     );
 
 ------------------------------------------------------------------
--- Drop per-user SELECT gate on journal_photo_entries / voice_clips so
--- the journal is fully shared across trip members. Existing INSERT/UPDATE
--- policies stay (any member can write).
---
--- The original policies were created in 20260523180000_trip_journal.sql.
--- Replace them with member-scoped SELECT (no user_id == auth.uid() check).
-------------------------------------------------------------------
-drop policy if exists "journal_photo_entries owner read" on public.journal_photo_entries;
-drop policy if exists "journal_photo_entries members read" on public.journal_photo_entries;
-create policy "journal_photo_entries members read"
-    on public.journal_photo_entries
-    for select
-    using (
-        exists (
-            select 1 from public.trip_members tm
-            where tm.trip_id = journal_photo_entries.trip_id
-              and tm.user_id = auth.uid()
-              and tm.joined_at is not null
-        )
-    );
-
-drop policy if exists "voice_clips owner read" on public.voice_clips;
-drop policy if exists "voice_clips members read" on public.voice_clips;
-create policy "voice_clips members read"
-    on public.voice_clips
-    for select
-    using (
-        exists (
-            select 1 from public.trip_members tm
-            where tm.trip_id = voice_clips.trip_id
-              and tm.user_id = auth.uid()
-              and tm.joined_at is not null
-        )
-    );
-
-------------------------------------------------------------------
 -- Realtime publication: add the new table.
 ------------------------------------------------------------------
 alter publication supabase_realtime add table public.journal_moments;
 ```
 
-- [ ] **Step 2: Inspect the actual policy names that exist today**
+- [ ] **Step 2: (Removed — no existing RLS policies are dropped in this task)**
 
-Before assuming policy names, list them on the live project:
-
-Run: use Supabase MCP `list_tables` and check `policies` on `journal_photo_entries` + `voice_clips`. If the existing SELECT policy is named differently from the guesses above, replace the `drop policy if exists "..."` lines with the actual names.
-
-Expected: confirms the actual policy names.
+The per-user SELECT-gate drops on `journal_photo_entries` / `voice_clips` moved to Task 12.3. This task only adds new objects.
 
 - [ ] **Step 3: Push the migration to the live project**
 
@@ -4979,6 +4944,99 @@ git status
 # if anything to commit:
 git add -A
 git commit -m "Journal redesign: final cleanup + manual smoke verification"
+```
+
+---
+
+### Task 12.3: Drop per-user RLS SELECT gate on journal_photo_entries + voice_clips
+
+**Prerequisite:** Phase 1-12.2 must be shipped to all users (via an OTA `eas update`) **before** this migration runs. Until the new UI is live, dropping the per-user RLS would expose other users' journal entries to the currently-deployed app, which has no per-user client-side filter (the server-side RLS gate is the only thing keeping entries private today).
+
+**Files:**
+- Create: `supabase/migrations/<NEW_TIMESTAMP>_journal_shared_rls.sql`
+
+- [ ] **Step 1: Verify the new shared-journal UI is deployed and adopted**
+
+Before applying the migration, confirm:
+- An `eas update --branch preview --platform android --message "Journal redesign"` (or production) has been published.
+- Active app installs have picked up the update (give it ~24h after publish, or check `eas update:view` for install/launch counts).
+
+If the update is fresh and not yet adopted, **wait**.
+
+- [ ] **Step 2: Inspect the actual policy names that exist today**
+
+Use Supabase MCP: `mcp__supabase__execute_sql`:
+```sql
+select schemaname, tablename, policyname, cmd
+from pg_policies
+where schemaname = 'public'
+  and tablename in ('journal_photo_entries', 'voice_clips')
+  and cmd in ('SELECT', 'ALL');
+```
+Expected: rows showing the current SELECT-side policy names. Note them so the `drop policy` statements below use the real names.
+
+- [ ] **Step 3: Write the migration**
+
+(Substitute the actual policy names from Step 2 into the `drop policy` lines.)
+
+```sql
+-- Switch journal entries to shared-by-trip RLS.
+-- Prerequisite: shared-journal UI shipped (Phases 1-12.2 of the redesign).
+-- Before this migration, journal_photo_entries and voice_clips were per-user
+-- SELECT-gated; this migration replaces those policies with trip-member gates,
+-- matching the existing model for expenses and the new journal_moments table.
+
+drop policy if exists "<actual_select_policy_name_for_photo_entries>" on public.journal_photo_entries;
+create policy "journal_photo_entries members read"
+    on public.journal_photo_entries
+    for select
+    using (
+        exists (
+            select 1 from public.trip_members tm
+            where tm.trip_id = journal_photo_entries.trip_id
+              and tm.user_id = auth.uid()
+              and tm.joined_at is not null
+        )
+    );
+
+drop policy if exists "<actual_select_policy_name_for_voice_clips>" on public.voice_clips;
+create policy "voice_clips members read"
+    on public.voice_clips
+    for select
+    using (
+        exists (
+            select 1 from public.trip_members tm
+            where tm.trip_id = voice_clips.trip_id
+              and tm.user_id = auth.uid()
+              and tm.joined_at is not null
+        )
+    );
+```
+
+- [ ] **Step 4: Push and verify**
+
+Run: `npx supabase db push`
+Expected: "Applied 1 migration." No errors.
+
+Verify via `mcp__supabase__execute_sql`:
+```sql
+select policyname, cmd from pg_policies
+where schemaname = 'public' and tablename in ('journal_photo_entries', 'voice_clips')
+order by tablename, cmd;
+```
+Expected: the new `members read` policies are present; the old per-user policies are gone.
+
+Run `mcp__supabase__get_advisors` (security) — expect no new high-severity issues.
+
+- [ ] **Step 5: Verify shared journal in the deployed app**
+
+Open the app as user A → confirm you can see user B's journal entries on a shared trip. Have user B confirm the same in reverse. (If anything looks wrong, the previous migrations are reversible by recreating the old per-user policy from the original `20260523180000_trip_journal.sql` — keep that as a known rollback path.)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/<filename>
+git commit -m "Switch journal_photo_entries + voice_clips to shared-trip RLS"
 ```
 
 ---
