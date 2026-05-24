@@ -278,6 +278,39 @@ export const V8_STATEMENTS: readonly string[] = [
   'CREATE INDEX IF NOT EXISTS idx_journal_days_trip_date ON journal_days(trip_id, day_date);',
 ] as const;
 
+// V9: journal redesign — journal_moments grouping table, moment_id foreign
+// keys on journal_photo_entries / voice_clips / expenses, and a cover photo
+// storage path on trips. Mirrors 20260524000000_journal_redesign.sql.
+export const V9_STATEMENTS: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS journal_moments (
+    id TEXT PRIMARY KEY,
+    trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    day_date TEXT NOT NULL,
+    title TEXT,
+    cover_photo_entry_id TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );`,
+
+  `CREATE INDEX IF NOT EXISTS idx_journal_moments_trip_day
+    ON journal_moments (trip_id, day_date);`,
+
+  `ALTER TABLE journal_photo_entries ADD COLUMN moment_id TEXT;`,
+  `ALTER TABLE voice_clips ADD COLUMN moment_id TEXT;`,
+  `ALTER TABLE expenses ADD COLUMN moment_id TEXT;`,
+
+  `CREATE INDEX IF NOT EXISTS idx_journal_photo_entries_moment
+    ON journal_photo_entries (moment_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_voice_clips_moment
+    ON voice_clips (moment_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_expenses_moment
+    ON expenses (moment_id);`,
+
+  `ALTER TABLE trips ADD COLUMN cover_photo_storage_path TEXT;`,
+] as const;
+
 export const ALL_TABLES = [
   'profiles',
   'trips',
