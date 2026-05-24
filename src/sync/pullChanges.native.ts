@@ -17,16 +17,20 @@ const PULL_ORDER: PullTable[] = [
   'expense_splits',
   'expense_photos',
   'settlement_payments',
+  'journal_photo_entries',
+  'journal_photos',
+  'voice_clips',
+  'journal_days',
 ];
 
 const PAGE_SIZE = 500;
 const EPOCH = '1970-01-01T00:00:00Z';
 
-// expense_photos has no updated_at; cursor on created_at. Every other table
-// (including trip_members since v5 — per-user budgets made it mutable) uses
-// updated_at as the cursor.
+// expense_photos and journal_photos have no updated_at; cursor on created_at.
+// Every other table (including trip_members since v5 — per-user budgets made
+// it mutable) uses updated_at as the cursor.
 function cursorColumn(table: PullTable): 'updated_at' | 'created_at' {
-  if (table === 'expense_photos') return 'created_at';
+  if (table === 'expense_photos' || table === 'journal_photos') return 'created_at';
   return 'updated_at';
 }
 

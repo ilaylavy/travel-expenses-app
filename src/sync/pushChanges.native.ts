@@ -22,6 +22,10 @@ const TABLE_ORDER: SyncTable[] = [
   'expense_splits',
   'expense_photos',
   'settlement_payments',
+  'journal_photo_entries',     // parent of journal_photos
+  'journal_photos',
+  'voice_clips',
+  'journal_days',              // references journal_photo_entries(cover) — must push after
 ];
 
 // is_archived is stored as INTEGER 0/1 locally but Postgres expects boolean.
