@@ -51,7 +51,6 @@ import { MomentSelectionBanner } from './MomentSelectionBanner';
 import { MomentTintBand } from './MomentTintBand';
 import { NODE_COLUMN_WIDTH } from './SpineNode';
 import { TimelineItemActions } from './TimelineItemActions';
-import { TimelineSpine } from './TimelineSpine';
 import { TimestampEditor } from './TimestampEditor';
 import { TranscriptEditor } from './TranscriptEditor';
 import { ExpenseTimelineRow } from './timeline/ExpenseTimelineRow';
@@ -428,9 +427,19 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
 
   const inSelection = selectionPurpose != null;
 
+  // Per-row cap flags: capTop on the very first visible row, capBottom on
+  // the very last. Computed here so the renderRow logic can stay simple.
+  const totalSections = sections.length;
+  const isFirstSection = (sIdx: number): boolean => sIdx === 0;
+  const isLastSection = (sIdx: number): boolean => sIdx === totalSections - 1;
+
   const renderRow = (
     item: TimelineItem,
-    opts: { isMember: boolean },
+    opts: {
+      isMember: boolean;
+      spineCapTop?: boolean;
+      spineCapBottom?: boolean;
+    },
   ): React.ReactNode => {
     // Lookup the attribution name only when the trip is shared AND the
     // entry is not the current user's.
@@ -451,6 +460,9 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
           entry={item.entry as JournalPhotoEntryWithPhotos}
           loggedByName={loggedByName}
           isMember={opts.isMember}
+          spineThickness={opts.isMember ? 'thick' : 'thin'}
+          spineCapTop={opts.spineCapTop ?? false}
+          spineCapBottom={opts.spineCapBottom ?? false}
           selectable={inSelection}
           selected={selected}
           onSelectToggle={toggleThis}
@@ -480,6 +492,9 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
           clip={item.clip}
           loggedByName={loggedByName}
           isMember={opts.isMember}
+          spineThickness={opts.isMember ? 'thick' : 'thin'}
+          spineCapTop={opts.spineCapTop ?? false}
+          spineCapBottom={opts.spineCapBottom ?? false}
           selectable={inSelection}
           selected={selected}
           onSelectToggle={toggleThis}
@@ -509,6 +524,9 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
         loggedByName={loggedByName}
         isSelfLogged={isSelfLogged}
         isMember={opts.isMember}
+        spineThickness={opts.isMember ? 'thick' : 'thin'}
+        spineCapTop={opts.spineCapTop ?? false}
+        spineCapBottom={opts.spineCapBottom ?? false}
         selectable={inSelection}
         selected={selected}
         onSelectToggle={toggleThis}
@@ -682,10 +700,10 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
             timelineWrapYRef.current = e.nativeEvent.layout.y;
           }}
         >
-          {/* Lesson #5: the spine is one continuous line behind every row,
-              including through Moments. MomentTintBand draws its thicker
-              accent bracket OVER the spine for the Moment's vertical span. */}
-          <TimelineSpine />
+          {/* Spine: per-row slices via SpineSlice (inside SpineNode and
+              MomentHeader). No global spine here — see SpineSlice.tsx and
+              Lesson #5: spine is ONE line, ownership is per-row to handle
+              caps + Moment thickness transitions cleanly. */}
           {isEmpty ? (
             <View style={styles.emptyDay}>
               {/* Three stacked dots evoke the spine continuing into nothing
@@ -722,14 +740,18 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
               </Text>
             </View>
           ) : (
-            sections.map((s) => {
+            sections.map((s, sIdx) => {
               if (s.kind === 'solo') {
                 return (
                   <View
                     key={`solo:${s.id}`}
                     onLayout={handleRowLayout(`solo:${s.item.kind}:${s.item.id}`)}
                   >
-                    {renderRow(s.item, { isMember: false })}
+                    {renderRow(s.item, {
+                      isMember: false,
+                      spineCapTop: isFirstSection(sIdx),
+                      spineCapBottom: isLastSection(sIdx),
+                    })}
                   </View>
                 );
               }
@@ -751,6 +773,8 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
                       setEditingMomentId(s.id);
                     }}
                     onToggleCollapse={() => toggleMomentCollapse(s.id)}
+                    spineCapTop={isFirstSection(sIdx)}
+                    spineCapBottom={isLastSection(sIdx) && collapsed}
                   />
                   {collapsed ? (
                     <View style={styles.collapsedHint}>
@@ -767,7 +791,12 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
                     <MomentTintBand>
                       {s.members.map((it, idx) => (
                         <Fragment key={`${it.kind}:${it.id}`}>
-                          {renderRow(it, { isMember: true })}
+                          {renderRow(it, {
+                            isMember: true,
+                            spineCapTop: false,
+                            spineCapBottom:
+                              isLastSection(sIdx) && idx === s.members.length - 1,
+                          })}
                           {isSplitting && idx < s.members.length - 1 ? (
                             <Pressable
                               onPress={() => {

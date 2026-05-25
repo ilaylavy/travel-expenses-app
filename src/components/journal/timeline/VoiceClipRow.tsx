@@ -31,6 +31,9 @@ interface Props {
   onRetranscribe: () => void;
   onDragStart?: () => void;
   isMember?: boolean;
+  spineThickness?: 'thin' | 'thick';
+  spineCapTop?: boolean;
+  spineCapBottom?: boolean;
   selectable?: boolean;
   selected?: boolean;
   onSelectToggle?: () => void;
@@ -47,6 +50,9 @@ export function VoiceClipRow({
   onRetranscribe,
   onDragStart,
   isMember,
+  spineThickness,
+  spineCapTop,
+  spineCapBottom,
   selectable,
   selected,
   onSelectToggle,
@@ -77,11 +83,7 @@ export function VoiceClipRow({
 
   return (
     <Animated.View
-      style={[
-        styles.row,
-        isMember && styles.indented,
-        { opacity, transform: [{ translateY }] },
-      ]}
+      style={[styles.row, { opacity, transform: [{ translateY }] }]}
     >
       <SpineNode
         occurredAt={clip.occurredAt}
@@ -90,6 +92,9 @@ export function VoiceClipRow({
         onDragStart={onDragStart}
         selectable={selectable}
         selected={selected}
+        spineThickness={spineThickness}
+        spineCapTop={spineCapTop}
+        spineCapBottom={spineCapBottom}
       />
       <View style={styles.body}>
         <Pressable
@@ -187,9 +192,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 4,
-    marginBottom: 18,
+    paddingBottom: 18,
   },
-  indented: { marginInlineStart: 12 },
   body: {
     flex: 1,
     paddingTop: 4,

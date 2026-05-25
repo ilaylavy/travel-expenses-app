@@ -3,9 +3,9 @@
 // Title taps open the MomentOptionsSheet (rename / cover / split / delete);
 // chevron taps collapse/expand the Moment's member list.
 //
-// Layout: a 64px gutter holds the spine in place behind the pill, then the
-// pill itself fills the rest of the row. The gutter width matches NODE_COLUMN_WIDTH
-// from SpineNode so the pill aligns flush with the row bodies below.
+// Spine: the row owns its own thick spine slice plus a horizontal branch
+// stub from the spine to the pill's inline-start edge — together these
+// visibly anchor the pill to the spine instead of letting it float beside.
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,6 +14,24 @@ import { useTranslation } from '@/hooks/useTranslation';
 import type { JournalMoment } from '@/types/journal';
 
 import { NODE_COLUMN_WIDTH } from './SpineNode';
+import { SpineBranch, SpineSlice } from './SpineSlice';
+
+// Vertical anchor inside the pill row, used to align the horizontal
+// branch and (when capped) to truncate the spine slice. The pill is a
+// flex row with alignItems: 'center'; its height is driven by the tallest
+// child. Candidates:
+//   - glyphDisc:   22px (fixed)
+//   - titleCol:    title 14px + range 11px + marginTop 1 ≈ 30px at default RN line-height
+//   - countBadge:  20px
+//   - chev text:   ~16px
+// titleCol dominates, so pill row ≈ paddingVertical(8) + titleCol(~30) +
+// paddingVertical(8) ≈ 46px; center ≈ 23. Rounded to 22 because RN
+// line-height rendering tends to come in a hair under nominal.
+//
+// This is a hand-computed value, not a measured one. If the pill's
+// content geometry changes (title font size, range removal, larger disc),
+// re-derive — or replace this with an onLayout measurement.
+const PILL_CENTER_Y = 22;
 
 interface Props {
   moment: JournalMoment;
@@ -23,6 +41,8 @@ interface Props {
   collapsed: boolean;
   onPress: () => void;
   onToggleCollapse: () => void;
+  spineCapTop?: boolean;
+  spineCapBottom?: boolean;
 }
 
 export function MomentHeader({
@@ -33,6 +53,8 @@ export function MomentHeader({
   collapsed,
   onPress,
   onToggleCollapse,
+  spineCapTop = false,
+  spineCapBottom = false,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -41,9 +63,20 @@ export function MomentHeader({
 
   return (
     <View style={styles.row}>
-      {/* Gutter reserves the spine x-position so the spine line runs cleanly
-          behind the pill without the pill having to align to it manually. */}
-      <View style={styles.gutter} />
+      {/* Gutter holds the thick spine slice + horizontal branch. The slice
+          extends the full row height so it connects to the slices above
+          and below; the branch sits at PILL_CENTER_Y and reaches into the
+          pill. capTop/capBottom truncate the slice for first/last-row
+          edge cases (collapsed moment as the only section, etc.). */}
+      <View style={styles.gutter}>
+        <SpineSlice
+          thickness="thick"
+          capTop={spineCapTop}
+          capBottom={spineCapBottom}
+          dotCenterY={PILL_CENTER_Y}
+        />
+        <SpineBranch thickness="thick" anchorY={PILL_CENTER_Y} length={18} />
+      </View>
       <Pressable
         onPress={onPress}
         style={({ pressed }) => [
@@ -55,8 +88,6 @@ export function MomentHeader({
           pressed && { opacity: 0.92 },
         ]}
       >
-        {/* Decorative ✦ in a tinted disc — feels like a chapter mark in
-            an editorial album rather than a plain bullet. */}
         <View style={[styles.glyphDisc, { backgroundColor: theme.accent }]}>
           <Text style={styles.glyph}>✦</Text>
         </View>
@@ -109,10 +140,16 @@ function shortTime(iso: string): string {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    marginBottom: 6,
+    // paddingBottom (not marginBottom) so the gutter — which stretches to
+    // row height — extends through the gap. The thick spine slice inside
+    // the gutter therefore reaches the top of the first member row below
+    // without a visible discontinuity.
+    paddingBottom: 6,
   },
   gutter: {
     width: NODE_COLUMN_WIDTH,
+    alignSelf: 'stretch',
+    position: 'relative',
   },
   pill: {
     flex: 1,

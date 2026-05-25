@@ -13,7 +13,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
+import { SpineSlice } from './SpineSlice';
+
 export const NODE_COLUMN_WIDTH = 64;
+// Y-offset (from row top) of the dot's visual center. Composed of the
+// root's paddingTop (8) plus half the dotWrap (18/2 = 9). Exported so
+// SpineSlice can default its capTop/capBottom anchor to the same y.
+export const DOT_CENTER_Y = 17;
 const DOT_FILLED = 9;
 const DOT_HOLLOW = 8;
 
@@ -27,6 +33,12 @@ interface Props {
   // toggle this state.
   selectable?: boolean;
   selected?: boolean;
+  // Per-row spine parameters. The owning row decides these based on its
+  // position in the section list (first / last) and whether it's inside a
+  // Moment (thick).
+  spineThickness?: 'thin' | 'thick';
+  spineCapTop?: boolean;
+  spineCapBottom?: boolean;
 }
 
 export function SpineNode({
@@ -36,6 +48,9 @@ export function SpineNode({
   onDragStart,
   selectable,
   selected,
+  spineThickness = 'thin',
+  spineCapTop = false,
+  spineCapBottom = false,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -70,6 +85,11 @@ export function SpineNode({
       accessibilityLabel={onDragStart ? t('journal.dragToReorder') : undefined}
       style={styles.root}
     >
+      <SpineSlice
+        thickness={spineThickness}
+        capTop={spineCapTop}
+        capBottom={spineCapBottom}
+      />
       <View style={styles.dotWrap}>
         <View style={[styles.dot, dotStyle]} />
         {selectable ? (
@@ -132,6 +152,8 @@ const styles = StyleSheet.create({
     width: NODE_COLUMN_WIDTH,
     alignItems: 'center',
     paddingTop: 8,
+    alignSelf: 'stretch',
+    position: 'relative',
   },
   dotWrap: {
     width: 18,
@@ -139,6 +161,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    zIndex: 1,
   },
   dot: {
     elevation: 2,
