@@ -33,7 +33,7 @@ import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expe
 import { getCategoryDisplayName } from '@/utils/category';
 import { showConfirmDialog } from '@/utils/confirmDialog';
 import { formatAmount } from '@/utils/currency';
-import { formatDayWithYear } from '@/utils/date';
+import { countDaysInRange, formatDayWithYear } from '@/utils/date';
 import { href } from '@/utils/nav';
 import { shareExpense } from '@/utils/share';
 
@@ -290,12 +290,37 @@ export default function ExpenseDetailScreen() {
             {formatDayWithYear(expense.expenseDate)} · {expense.expenseTime.slice(0, 5)}
           </Text>
           {expense.spreadStartDate && expense.spreadEndDate ? (
-            <Text style={[styles.fieldSub, { color: theme.textSecondary }]}>
-              {t('expenseDetail.spreadRange', {
-                start: formatDayWithYear(expense.spreadStartDate),
-                end: formatDayWithYear(expense.spreadEndDate),
-              })}
-            </Text>
+            <>
+              <Text style={[styles.fieldSub, { color: theme.textSecondary }]}>
+                {t('expenseDetail.spreadRange', {
+                  start: formatDayWithYear(expense.spreadStartDate),
+                  end: formatDayWithYear(expense.spreadEndDate),
+                })}
+              </Text>
+              {(() => {
+                // Matches the per-day fraction displayed on the journal day
+                // timeline card so the two views agree on the number.
+                const days = countDaysInRange(
+                  expense.spreadStartDate,
+                  expense.spreadEndDate,
+                );
+                if (days <= 1) return null;
+                const perDay = expense.convertedAmount / days;
+                return (
+                  <Text
+                    style={[
+                      styles.fieldSub,
+                      { color: theme.accent, fontWeight: '700', marginTop: 4 },
+                    ]}
+                  >
+                    {t('expenseDetail.spreadPerDayBreakdown', {
+                      days,
+                      perDay: formatAmount(perDay, trip?.homeCurrency ?? expense.currency),
+                    })}
+                  </Text>
+                );
+              })()}
+            </>
           ) : null}
         </FieldCard>
 

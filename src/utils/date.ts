@@ -72,6 +72,42 @@ export function formatReadableDateRange(startIso: string, endIso: string): strin
   return `${formatReadableDate(startIso)} → ${formatReadableDate(endIso)}`;
 }
 
+// Combine a target day (YYYY-MM-DD) with the *time-of-day* portion of a
+// reference timestamp, returning an ISO string anchored at the target day's
+// local midnight. Used when uploading photos/voice clips while viewing a
+// specific day: the user expects the entry to land on the day they're
+// looking at, but if the source has a usable time-of-day (EXIF taken
+// timestamp), we keep that part so morning shots stay in the morning.
+//
+// referenceTime null/undefined → midnight of dayDate.
+export function combineDateWithTimeOfDay(
+  dayDate: string,
+  referenceTime: string | null | undefined,
+): string {
+  // dayDate is YYYY-MM-DD. We build a local-timezone Date so the resulting
+  // ISO string reflects the user's wall-clock time of day.
+  const [y, m, d] = dayDate.split('-').map((v) => Number.parseInt(v, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+    return new Date().toISOString();
+  }
+  if (!referenceTime) {
+    return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+  }
+  const ref = new Date(referenceTime);
+  if (Number.isNaN(ref.getTime())) {
+    return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+  }
+  return new Date(
+    y,
+    m - 1,
+    d,
+    ref.getHours(),
+    ref.getMinutes(),
+    ref.getSeconds(),
+    ref.getMilliseconds(),
+  ).toISOString();
+}
+
 export function countDaysInRange(startIso: string, endIso: string): number {
   const start = parseIsoDate(startIso);
   const end = parseIsoDate(endIso);

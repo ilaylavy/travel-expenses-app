@@ -1,7 +1,7 @@
-// Bottom-anchored action sheet shown when the user taps the JournalFab. Three
-// presentational rows: add photos (gallery), record a voice clip, jump to the
-// expense entry screen. Behavior lives entirely in the parent; this component
-// only renders the choices and notifies the parent on press.
+// Bottom-anchored action sheet shown when the user taps the JournalFab.
+// Four rows: Add photos, Record voice, Add expense, Create Moment.
+// Create Moment is disabled (with a helper line) when the day has no
+// entries yet — selection mode needs at least one row to pick.
 
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,6 +14,8 @@ interface Props {
   onAddPhotos: () => void;
   onRecordVoice: () => void;
   onAddExpense: () => void;
+  onCreateMoment: () => void;
+  momentEnabled: boolean;
 }
 
 export function AddMenuSheet({
@@ -22,6 +24,8 @@ export function AddMenuSheet({
   onAddPhotos,
   onRecordVoice,
   onAddExpense,
+  onCreateMoment,
+  momentEnabled,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -33,8 +37,6 @@ export function AddMenuSheet({
       onRequestClose={onDismiss}
     >
       <Pressable style={styles.backdrop} onPress={onDismiss}>
-        {/* Inner Pressable swallows taps so picking a row doesn't dismiss
-            via the backdrop before the parent's onPress handler runs. */}
         <Pressable
           style={[
             styles.sheet,
@@ -43,20 +45,35 @@ export function AddMenuSheet({
         >
           <Pressable style={styles.row} onPress={onAddPhotos}>
             <Text style={[styles.label, { color: theme.text }]}>
-              {`📸  ${t('journal.addPhotos')}`}
+              📸  {t('journal.addPhotos')}
             </Text>
           </Pressable>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <Pressable style={styles.row} onPress={onRecordVoice}>
             <Text style={[styles.label, { color: theme.text }]}>
-              {`🎤  ${t('journal.recordVoice')}`}
+              🎤  {t('journal.recordVoice')}
             </Text>
           </Pressable>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <Pressable style={styles.row} onPress={onAddExpense}>
             <Text style={[styles.label, { color: theme.text }]}>
-              {`📋  ${t('journal.addExpense')}`}
+              💳  {t('journal.addExpense')}
             </Text>
+          </Pressable>
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <Pressable
+            style={[styles.row, !momentEnabled && { opacity: 0.5 }]}
+            disabled={!momentEnabled}
+            onPress={onCreateMoment}
+          >
+            <Text style={[styles.label, { color: theme.accent }]}>
+              ✦  {t('journal.createMoment')}
+            </Text>
+            {!momentEnabled ? (
+              <Text style={[styles.help, { color: theme.textMuted }]}>
+                {t('journal.createMomentDisabled')}
+              </Text>
+            ) : null}
           </Pressable>
         </Pressable>
       </Pressable>
@@ -78,6 +95,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   row: { paddingVertical: 16, paddingHorizontal: 18 },
-  label: { fontSize: 16, fontWeight: '600' },
+  label: { fontSize: 16, fontWeight: '700' },
+  help: { fontSize: 11, fontWeight: '500', marginTop: 4 },
   divider: { height: StyleSheet.hairlineWidth },
 });

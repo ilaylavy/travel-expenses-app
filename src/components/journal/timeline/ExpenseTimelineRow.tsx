@@ -1,20 +1,21 @@
-// Timeline row for one expense. Thin wrapper that places the shared
-// TimestampGutter beside the existing ExpenseCard so all three row types
-// align on the same vertical edge. The card itself owns all of the
-// expense styling, category coloring, badges, and per-user share display
-// — we just pipe through what it needs.
+// Timeline row for one expense. Places SpineNode beside the unchanged
+// ExpenseCard — the card is the only row shape that keeps its outer
+// surface, by design (expense rows are a different visual register and the
+// card contrast is useful in the spine layout).
+//
+// Lesson #9: keep using ExpenseCard so the existing MULTI-DAY spread badge
+// keeps rendering.
 
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
 import { ExpenseCard } from '@/components/expense/card/ExpenseCard';
-import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
+import { SpineNode } from '@/components/journal/SpineNode';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
+import { countDaysInRange } from '@/utils/date';
 import { href } from '@/utils/nav';
-
-import { TimestampGutter } from './TimestampGutter';
 
 interface Props {
   expense: ExpenseWithPhotos;
@@ -25,11 +26,12 @@ interface Props {
   userShareAmount?: number;
   userShareConverted?: number;
   onLongPress: () => void;
-  // Optional drag handle. When provided, the row renders a ≡ button whose
-  // long-press calls onDragStart (typically the `drag` callback from the
-  // draggable-flatlist renderItem). Row-body long-press still opens the
-  // actions sheet.
   onDragStart?: () => void;
+  isMember?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectToggle?: () => void;
+  animateIn?: boolean;
 }
 
 export function ExpenseTimelineRow({
@@ -42,66 +44,102 @@ export function ExpenseTimelineRow({
   userShareConverted,
   onLongPress,
   onDragStart,
+  isMember,
+  selectable,
+  selected,
+  onSelectToggle,
+  animateIn,
 }: Props) {
-  const theme = useTheme();
-  const { t } = useTranslation();
   const router = useRouter();
-  // The timestamp gutter only renders HH:MM. expense_date is YYYY-MM-DD
-  // and expense_time is HH:MM(:SS); a bare local concat is sufficient —
-  // appending Z would falsely treat the local time as UTC.
+  const opacity = useRef(new Animated.Value(animateIn ? 0 : 1)).current;
+  const translateY = useRef(new Animated.Value(animateIn ? -8 : 0)).current;
+  useEffect(() => {
+    if (!animateIn) return;
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 280, useNativeDriver: true }),
+    ]).start();
+  }, [animateIn, opacity, translateY]);
+  // expense_date is YYYY-MM-DD, expense_time is HH:MM(:SS). Concatenating
+  // without "Z" keeps the time interpreted as local wall-clock (which the
+  // SpineNode's formatTime expects for expenses).
   const occurredAt = `${expense.expenseDate}T${expense.expenseTime}`;
+
+  // Spread expense: show the per-day fraction as the primary card amount,
+  // since this card is rendered once per day inside the journal timeline.
+  // A €400 / 4-day hotel reads €100 on each day; the MULTI-DAY badge
+  // still tells the user it's a multi-day expense, and the detail screen
+  // shows the full total.
+  const isSpread = !!(expense.spreadStartDate && expense.spreadEndDate);
+  const spreadDays = isSpread
+    ? countDaysInRange(expense.spreadStartDate!, expense.spreadEndDate!)
+    : 1;
+  const perDayAmount = isSpread && spreadDays > 1
+    ? expense.amount / spreadDays
+    : undefined;
+  const perDayConverted = isSpread && spreadDays > 1
+    ? expense.convertedAmount / spreadDays
+    : undefined;
+
   return (
-    <Pressable
-      onLongPress={onLongPress}
-      style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    <Animated.View
+      style={[
+        styles.row,
+        isMember && styles.indented,
+        { opacity, transform: [{ translateY }] },
+      ]}
     >
-      <TimestampGutter occurredAt={occurredAt} />
+      <SpineNode
+        occurredAt={occurredAt}
+        loggedByName={!isSelfLogged && loggedByName ? loggedByName : undefined}
+        variant={isMember ? 'member' : 'solo'}
+        onDragStart={onDragStart}
+        selectable={selectable}
+        selected={selected}
+      />
       <View style={styles.body}>
-        <ExpenseCard
-          expense={expense}
-          category={category}
-          homeCurrency={homeCurrency}
-          loggedByName={loggedByName}
-          isSelfLogged={isSelfLogged}
-          userShareAmount={userShareAmount}
-          userShareConverted={userShareConverted}
-          onPress={() => router.push(href(`/trip/${expense.tripId}/expense/${expense.id}`))}
-        />
-      </View>
-      {onDragStart ? (
         <Pressable
-          onLongPress={onDragStart}
-          delayLongPress={250}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('journal.dragToReorder')}
-          style={styles.handle}
+          onLongPress={onLongPress}
+          delayLongPress={420}
+          style={styles.bodyInner}
         >
-          <Text style={[styles.handleGlyph, { color: theme.textMuted }]}>≡</Text>
+          <ExpenseCard
+            expense={expense}
+            category={category}
+            homeCurrency={homeCurrency}
+            loggedByName={loggedByName}
+            isSelfLogged={isSelfLogged}
+            userShareAmount={userShareAmount}
+            userShareConverted={userShareConverted}
+            perDayAmount={perDayAmount}
+            perDayConverted={perDayConverted}
+            onPress={() =>
+              router.push(href(`/trip/${expense.tripId}/expense/${expense.id}`))
+            }
+          />
         </Pressable>
-      ) : null}
-    </Pressable>
+        {selectable && onSelectToggle ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onSelectToggle}
+          />
+        ) : null}
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 10,
-    padding: 12,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 10,
+    gap: 4,
+    marginBottom: 18,
   },
-  body: { flex: 1 },
-  handle: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+  indented: { marginInlineStart: 12 },
+  body: {
+    flex: 1,
+    paddingTop: 2,
+    position: 'relative',
   },
-  handleGlyph: {
-    fontSize: 18,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
+  bodyInner: {},
 });

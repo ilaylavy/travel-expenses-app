@@ -1,138 +1,186 @@
-// Timeline row for one journal photo entry. Combines TimestampGutter on
-// the inline-start, a PhotoGrid for the photos themselves, and an
-// inline-editable caption underneath. Tap the caption text to edit;
-// blur commits (empty → null clears). Long-press opens the delete
-// confirm (wired in Phase 3).
+// Timeline row for one journal photo entry. New layout: [SpineNode] [body],
+// no wrapping card. Drag is initiated by long-press on the SpineNode (its
+// touch target is enlarged to be easy to grab without colliding with body
+// taps). Body taps open photos / enter caption edit; body long-press opens
+// the entry-level actions sheet.
+//
+// Lesson #6: long-press on a single photo is wired via onPhotoLongPress so
+// the user can perform photo-specific actions (set this one as cover, remove
+// just this photo) without it bubbling to the entry-level actions.
 
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { SpineNode } from '@/components/journal/SpineNode';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { JournalPhotoEntryWithPhotos } from '@/types/journal';
 
 import { PhotoGrid } from './PhotoGrid';
-import { TimestampGutter } from './TimestampGutter';
 
 interface Props {
   entry: JournalPhotoEntryWithPhotos;
+  loggedByName?: string | null;
   onCaptionChange: (next: string | null) => void;
   onOpenPhoto: (index: number) => void;
   onLongPress: () => void;
-  // Optional drag handle wiring. When provided, the row renders a small
-  // ≡ touch target whose long-press calls onDragStart (typically the
-  // `drag` callback from react-native-draggable-flatlist's renderItem).
-  // Row-body long-press still fires onLongPress so the actions sheet
-  // keeps working.
+  onPhotoLongPress?: (index: number) => void;
   onDragStart?: () => void;
+  isMember?: boolean;
+  // Selection mode (Phase 7+).
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectToggle?: () => void;
+  // When true, the row mounts with a subtle fade + slide-up. Used by the
+  // DayScreen after a fresh create so the new entry quietly arrives instead
+  // of popping in.
+  animateIn?: boolean;
 }
 
 export function PhotoEntryRow({
   entry,
+  loggedByName,
   onCaptionChange,
   onOpenPhoto,
   onLongPress,
+  onPhotoLongPress,
   onDragStart,
+  isMember,
+  selectable,
+  selected,
+  onSelectToggle,
+  animateIn,
 }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(entry.caption ?? '');
 
-  const photoCountLabel =
-    entry.photos.length === 1
-      ? t('journal.photoCount_one', { count: 1 })
-      : t('journal.photoCount_other', { count: entry.photos.length });
+  // Keep the draft in sync if the entry's caption is mutated remotely
+  // (e.g., realtime updates from a partner editing on another device).
+  useEffect(() => {
+    if (!editing) setDraft(entry.caption ?? '');
+  }, [entry.caption, editing]);
+
+  const opacity = useRef(new Animated.Value(animateIn ? 0 : 1)).current;
+  const translateY = useRef(new Animated.Value(animateIn ? -8 : 0)).current;
+  useEffect(() => {
+    if (!animateIn) return;
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 280, useNativeDriver: true }),
+    ]).start();
+  }, [animateIn, opacity, translateY]);
 
   return (
-    <Pressable
-      onLongPress={onLongPress}
-      style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    <Animated.View
+      style={[
+        styles.row,
+        isMember && styles.indented,
+        { opacity, transform: [{ translateY }] },
+      ]}
     >
-      <TimestampGutter occurredAt={entry.occurredAt} />
+      <SpineNode
+        occurredAt={entry.occurredAt}
+        loggedByName={loggedByName ?? undefined}
+        variant={isMember ? 'member' : 'solo'}
+        onDragStart={onDragStart}
+        selectable={selectable}
+        selected={selected}
+      />
       <View style={styles.body}>
-        <Text style={[styles.type, { color: theme.textMuted }]}>
-          📸 {photoCountLabel}
-        </Text>
-        <PhotoGrid photos={entry.photos} onOpen={onOpenPhoto} />
-        {editing ? (
-          <TextInput
-            autoFocus
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={t('journal.captionPlaceholder')}
-            placeholderTextColor={theme.textMuted}
-            maxLength={200}
-            style={[
-              styles.captionInput,
-              { color: theme.text, borderColor: theme.border },
-            ]}
-            onBlur={() => {
-              const trimmed = draft.trim();
-              onCaptionChange(trimmed.length === 0 ? null : trimmed);
-              setEditing(false);
-            }}
-          />
-        ) : (
-          <Pressable onPress={() => setEditing(true)}>
-            <Text
-              style={[
-                styles.caption,
-                { color: theme.text, opacity: entry.caption ? 1 : 0.5 },
-              ]}
-            >
-              {entry.caption ?? t('journal.captionPlaceholder')}
-            </Text>
-          </Pressable>
-        )}
-      </View>
-      {onDragStart ? (
         <Pressable
-          onLongPress={onDragStart}
-          delayLongPress={250}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('journal.dragToReorder')}
-          style={styles.handle}
+          onLongPress={onLongPress}
+          delayLongPress={420}
+          // The body Pressable doesn't have an onPress — taps on its
+          // children (the photo tiles, the caption text) handle themselves.
+          // Long-press still bubbles to open the actions sheet.
+          style={styles.bodyInner}
         >
-          <Text style={[styles.handleGlyph, { color: theme.textMuted }]}>≡</Text>
+          <PhotoGrid
+            photos={entry.photos}
+            onOpen={onOpenPhoto}
+            onLongPress={onLongPress}
+            onPhotoLongPress={onPhotoLongPress}
+          />
+          {editing ? (
+            <TextInput
+              autoFocus
+              value={draft}
+              onChangeText={setDraft}
+              placeholder={t('journal.captionPlaceholder')}
+              placeholderTextColor={theme.textMuted}
+              maxLength={200}
+              multiline
+              style={[
+                styles.captionInput,
+                { color: theme.text, borderColor: theme.border },
+              ]}
+              onBlur={() => {
+                const trimmed = draft.trim();
+                onCaptionChange(trimmed.length === 0 ? null : trimmed);
+                setEditing(false);
+              }}
+            />
+          ) : (
+            <Pressable onPress={() => setEditing(true)} hitSlop={4}>
+              <Text
+                style={[
+                  styles.caption,
+                  {
+                    color: entry.caption ? theme.text : theme.textMuted,
+                    fontStyle: entry.caption ? 'normal' : 'italic',
+                  },
+                ]}
+              >
+                {entry.caption ?? t('journal.captionPlaceholder')}
+              </Text>
+            </Pressable>
+          )}
         </Pressable>
-      ) : null}
-    </Pressable>
+        {selectable && onSelectToggle ? (
+          // Lesson #13: selection-mode tap should toggle on ANY tap of the
+          // row body. A transparent overlay is the cleanest way to do this
+          // without rewiring every inner Pressable's onPress.
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onSelectToggle}
+          />
+        ) : null}
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 10,
-    padding: 12,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 10,
+    gap: 4,
+    marginBottom: 18,
   },
-  body: { flex: 1 },
-  type: {
-    fontSize: 9,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+  indented: {
+    marginInlineStart: 12,
   },
-  caption: { marginTop: 6, fontSize: 11 },
+  body: {
+    flex: 1,
+    paddingTop: 4,
+    position: 'relative',
+  },
+  bodyInner: {
+    gap: 8,
+  },
+  caption: {
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+    letterSpacing: 0.1,
+  },
   captionInput: {
-    marginTop: 6,
-    fontSize: 11,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 4,
-  },
-  handle: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-  handleGlyph: {
-    fontSize: 18,
-    lineHeight: 18,
-    fontWeight: '600',
+    minHeight: 32,
   },
 });

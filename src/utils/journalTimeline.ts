@@ -109,7 +109,7 @@ function buildItems(input: {
   return items;
 }
 
-function momentIdOf(it: TimelineItem): string | null {
+export function momentIdOf(it: TimelineItem): string | null {
   if (it.kind === 'photo') return it.entry.momentId;
   if (it.kind === 'voice') return it.clip.momentId;
   return it.expense.momentId;

@@ -67,7 +67,7 @@ export default function TripTabsLayout() {
         name="journal"
         options={{
           title: t('journal.tabLabel'),
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="📖" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="book" focused={focused} color={color} />,
         }}
       />
       <Tabs.Screen

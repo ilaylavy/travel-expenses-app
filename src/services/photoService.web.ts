@@ -162,6 +162,10 @@ export async function uploadPhotoToStorage(args: UploadArgs): Promise<string> {
 
 const SIGNED_TTL_MS = 50 * 60 * 1000;
 const signedCache = new Map<string, { url: string; expiresAt: number }>();
+// In-flight dedup: shares one network promise across concurrent callers
+// for the same (kind, path). Without this, a cold All Days mount can fire
+// 40+ parallel Edge Function calls for day-cover photos.
+const pendingFetches = new Map<string, Promise<string | null>>();
 
 export async function getSignedPhotoUrl(
   storagePath: string,
@@ -171,14 +175,25 @@ export async function getSignedPhotoUrl(
   const cached = signedCache.get(storagePath);
   const now = Date.now();
   if (cached && cached.expiresAt > now) return cached.url;
-  try {
-    const { url } = await requestPresignedR2Url(kind, storagePath, 'GET');
-    signedCache.set(storagePath, { url, expiresAt: now + SIGNED_TTL_MS });
-    return url;
-  } catch (error) {
-    console.warn('r2-media-url GET failed:', error);
-    return null;
-  }
+
+  const key = `${kind}:${storagePath}`;
+  const existing = pendingFetches.get(key);
+  if (existing) return existing;
+
+  const p = (async (): Promise<string | null> => {
+    try {
+      const { url } = await requestPresignedR2Url(kind, storagePath, 'GET');
+      signedCache.set(storagePath, { url, expiresAt: Date.now() + SIGNED_TTL_MS });
+      return url;
+    } catch (error) {
+      console.warn('r2-media-url GET failed:', error);
+      return null;
+    } finally {
+      pendingFetches.delete(key);
+    }
+  })();
+  pendingFetches.set(key, p);
+  return p;
 }
 
 export async function deleteLocalPhoto(localUri: string | null): Promise<void> {

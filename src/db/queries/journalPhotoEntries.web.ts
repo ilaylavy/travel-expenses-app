@@ -39,6 +39,24 @@ function rowToPhoto(r: Record<string, unknown>): JournalPhoto {
   };
 }
 
+export async function listAllEntriesForTrip(
+  tripId: string,
+): Promise<JournalPhotoEntryWithPhotos[]> {
+  const { data: entries, error } = await supabase
+    .from('journal_photo_entries')
+    .select('*, journal_photos(*)')
+    .eq('trip_id', tripId)
+    .is('deleted_at', null)
+    .order('occurred_at', { ascending: false });
+  if (error) throw error;
+  return (entries ?? []).map((row) => {
+    const photos = ((row as { journal_photos?: Record<string, unknown>[] }).journal_photos ?? [])
+      .map(rowToPhoto)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    return { ...rowToEntry(row), photos };
+  });
+}
+
 export async function listEntriesForDay(
   tripId: string,
   dayDateISO: string,
@@ -178,6 +196,7 @@ export async function storagePathForEntry(entryId: string): Promise<string | nul
 
 const _check: JournalPhotoEntriesQueries = {
   listEntriesForDay,
+  listAllEntriesForTrip,
   createEntry,
   updateEntryCaption,
   updateEntryOccurredAt,

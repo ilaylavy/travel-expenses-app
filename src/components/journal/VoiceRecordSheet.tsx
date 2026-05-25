@@ -28,6 +28,7 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
+import { combineDateWithTimeOfDay } from '@/utils/date';
 import { newId } from '@/utils/id';
 
 const MAX_SECONDS = 300;
@@ -100,10 +101,11 @@ interface BodyProps {
 
 function RecorderBody({
   tripId,
-  // dayDate is reserved for future use — recordings are stamped with
-  // `new Date().toISOString()` at save time. Keep it in the props so the
-  // public surface matches the rest of the journal capture flow.
-  dayDate: _dayDate,
+  // Anchors the recording to the day the user is viewing. The recording's
+  // wall-clock time-of-day (now) is preserved — so a 14:30 recording made
+  // while viewing May 22 lands at May 22 14:30, regardless of the
+  // trip's actual date range.
+  dayDate,
   onDismiss,
   onSaved,
 }: BodyProps) {
@@ -168,7 +170,7 @@ function RecorderBody({
       await voiceClips.createClip({
         tripId,
         userId: me,
-        occurredAt: new Date().toISOString(),
+        occurredAt: combineDateWithTimeOfDay(dayDate, new Date().toISOString()),
         localUri: finishedUri,
         durationSec: finishedDuration,
         isPrivate: false,

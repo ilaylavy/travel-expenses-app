@@ -172,10 +172,20 @@ export async function listDaySummaries(tripId: string): Promise<DaySummary[]> {
            AND SUBSTR(v.occurred_at, 1, 10) = d.day_date) AS voice_count,
       (SELECT COUNT(*) FROM expenses x
          WHERE x.trip_id = ? AND x.deleted_at IS NULL
-           AND x.expense_date = d.day_date) AS expense_count,
-      (SELECT COALESCE(SUM(x.converted_amount), 0) FROM expenses x
+           AND d.day_date BETWEEN COALESCE(x.spread_start_date, x.expense_date)
+                              AND COALESCE(x.spread_end_date, x.expense_date)) AS expense_count,
+      -- Spread expenses (Lesson #8): pro-rate the amount across every day
+      -- in the spread range. A €400/4-day hotel contributes €100 per day.
+      -- Non-spread rows divide by 1 (the COALESCE collapses to expense_date).
+      (SELECT COALESCE(SUM(
+          x.converted_amount * 1.0 / (
+            CAST(julianday(COALESCE(x.spread_end_date, x.expense_date))
+               - julianday(COALESCE(x.spread_start_date, x.expense_date)) AS INTEGER) + 1
+          )
+        ), 0) FROM expenses x
          WHERE x.trip_id = ? AND x.deleted_at IS NULL
-           AND x.expense_date = d.day_date
+           AND d.day_date BETWEEN COALESCE(x.spread_start_date, x.expense_date)
+                              AND COALESCE(x.spread_end_date, x.expense_date)
            AND x.is_excluded_from_daily_metrics = 0) AS total_converted_amount,
       COALESCE(
         (SELECT jp.storage_path
@@ -197,13 +207,14 @@ export async function listDaySummaries(tripId: string): Promise<DaySummary[]> {
          WHERE jd.trip_id = ? AND jd.day_date = d.day_date AND jd.deleted_at IS NULL) AS override_location,
       (SELECT x.place_name FROM expenses x
          WHERE x.trip_id = ? AND x.deleted_at IS NULL
-           AND x.expense_date = d.day_date
+           AND d.day_date BETWEEN COALESCE(x.spread_start_date, x.expense_date)
+                              AND COALESCE(x.spread_end_date, x.expense_date)
            AND x.place_name IS NOT NULL
          GROUP BY x.place_name
          ORDER BY COUNT(*) DESC, x.place_name ASC
          LIMIT 1) AS inferred_location
     FROM days d
-    ORDER BY d.day_date DESC;
+    ORDER BY d.day_date ASC;
     `,
     [
       trip.start_date,

@@ -24,6 +24,13 @@ interface ExpenseCardProps {
   // still visible in the expense detail screen.
   userShareAmount?: number;
   userShareConverted?: number;
+  // When the card is shown inside a single-day context (e.g., the journal
+  // day timeline) for a spread expense, callers can pass the pre-computed
+  // per-day fraction. The card displays this as the primary amount instead
+  // of the full expense total — so a €400 / 4-day hotel reads €100 on each
+  // day it appears, with the MULTI-DAY badge clarifying the context.
+  perDayAmount?: number;
+  perDayConverted?: number;
 }
 
 function ExpenseCardInner({
@@ -35,13 +42,17 @@ function ExpenseCardInner({
   isSelfLogged,
   userShareAmount,
   userShareConverted,
+  perDayAmount,
+  perDayConverted,
 }: ExpenseCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
   const showConverted = expense.currency !== homeCurrency;
-  const displayAmount = userShareAmount ?? expense.amount;
-  const displayConverted = userShareConverted ?? expense.convertedAmount;
+  // Display priority: per-day amount (if provided and expense is spread)
+  // > user's split share > full expense amount.
+  const displayAmount = perDayAmount ?? userShareAmount ?? expense.amount;
+  const displayConverted = perDayConverted ?? userShareConverted ?? expense.convertedAmount;
   const primary = formatAmount(displayAmount, expense.currency);
   const secondary = showConverted ? formatAmount(displayConverted, homeCurrency) : null;
 

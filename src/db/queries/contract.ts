@@ -179,6 +179,9 @@ export interface JournalPhotoEntriesQueries {
     tripId: string,
     dayDateISO: string,
   ) => Promise<JournalPhotoEntryWithPhotos[]>;
+  listAllEntriesForTrip: (
+    tripId: string,
+  ) => Promise<JournalPhotoEntryWithPhotos[]>;
   createEntry: (input: {
     tripId: string;
     userId: string;

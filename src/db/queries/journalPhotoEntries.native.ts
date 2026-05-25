@@ -95,6 +95,40 @@ export async function setPhotoStoragePath(
 // SUBSTR(occurred_at, 1, 10) returns the date portion — works because we
 // store ISO-8601 with timezone, and the user's local-timezone day is what
 // matters for grouping.
+// List every non-deleted photo entry for the trip across ALL days, newest
+// first. Used by the trip-cover picker on the All Days screen so the user
+// can pick any photo from the whole trip as the cover.
+export async function listAllEntriesForTrip(
+  tripId: string,
+): Promise<JournalPhotoEntryWithPhotos[]> {
+  const db = await getDatabase();
+  const entries = await db.getAllAsync<JournalPhotoEntryRow>(
+    `SELECT * FROM journal_photo_entries
+      WHERE trip_id = ? AND deleted_at IS NULL
+      ORDER BY occurred_at DESC;`,
+    [tripId],
+  );
+  if (entries.length === 0) return [];
+  const entryIds = entries.map((e) => e.id);
+  const placeholders = entryIds.map(() => '?').join(',');
+  const photos = await db.getAllAsync<JournalPhotoRow>(
+    `SELECT * FROM journal_photos
+      WHERE entry_id IN (${placeholders})
+      ORDER BY entry_id ASC, sort_order ASC;`,
+    entryIds,
+  );
+  const photosByEntry = new Map<string, JournalPhoto[]>();
+  for (const p of photos) {
+    const list = photosByEntry.get(p.entry_id) ?? [];
+    list.push(rowToPhoto(p));
+    photosByEntry.set(p.entry_id, list);
+  }
+  return entries.map((e) => ({
+    ...rowToEntry(e),
+    photos: photosByEntry.get(e.id) ?? [],
+  }));
+}
+
 export async function listEntriesForDay(
   tripId: string,
   dayDateISO: string,
@@ -316,6 +350,7 @@ export async function firstPhotoStoragePathForDay(
 
 const _check: JournalPhotoEntriesQueries = {
   listEntriesForDay,
+  listAllEntriesForTrip,
   createEntry,
   updateEntryCaption,
   updateEntryOccurredAt,
