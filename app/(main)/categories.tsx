@@ -3,16 +3,14 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Icon } from '@/components/Icon';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useCategoryStore } from '@/stores/categoryStore';
 import type { Category } from '@/types/category';
-import {
-  getCategoryColor,
-  getCategoryDisplayName,
-  getCategorySoftColor,
-} from '@/utils/category';
+import { getCategoryDisplayName } from '@/utils/category';
 
 // App-wide default (global) categories manager. Accessed from Settings.
 // Only shows categories with trip_id IS NULL. Archive toggle is local-only:
@@ -31,16 +29,12 @@ export default function DefaultCategoriesScreen() {
   );
 
   const renderRow = (category: Category) => {
-    const color = getCategoryColor(category.color, theme);
-    const soft = getCategorySoftColor(category.color, theme);
     return (
       <View
         key={category.id}
         style={[styles.row, { borderBottomColor: theme.borderLight }]}
       >
-        <View style={[styles.iconBox, { backgroundColor: soft, borderColor: color }]}>
-          <Text style={styles.emoji}>{category.emoji}</Text>
-        </View>
+        <CategoryIcon category={category} size={sizing.categoryIconSmall} />
         <View style={styles.rowBody}>
           <Text
             style={[
@@ -94,7 +88,7 @@ export default function DefaultCategoriesScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerBtnText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>
           {t('defaultCategories.title')}
@@ -137,13 +131,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerBtnText: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
+  // (formerly headerBtnText — replaced by SVG chevron-left.)
   title: { ...typography.screenTitle, flex: 1 },
   list: { padding: spacing.base, paddingBottom: spacing.xxl, gap: spacing.md },
   subtitle: { ...typography.body, marginBottom: spacing.sm },
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: 1.5,
+    borderWidth: 1,
     paddingHorizontal: spacing.lg,
   },
   row: {
@@ -153,15 +147,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
   },
-  iconBox: {
-    width: sizing.categoryIconSmall,
-    height: sizing.categoryIconSmall,
-    borderRadius: sizing.radiusIcon,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: { fontSize: 18 },
+  // (iconBox + emoji moved into CategoryIcon component.)
   rowBody: { flex: 1 },
   rowName: { ...typography.body, fontWeight: '600' },
   rowMeta: { ...typography.caption, marginTop: 2 },

@@ -3,6 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
 import { RateOverrideChip } from '@/components/currency/RateOverrideChip';
+import {
+  evaluate,
+  hasOperator,
+  tokenize,
+} from '@/components/expense/numpad/calculator';
 import { CURRENCIES } from '@/constants/currencies';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -42,20 +47,48 @@ export function AmountSection({
   onSetManualRate: (rate: number | null) => void;
 }) {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const symbol = currency ? getCurrencySymbol(currency) : '';
+  // Tokenize the expression for styled rendering. When the user has
+  // typed nothing we fall back to a literal "0" so the hero never goes
+  // blank.
+  const tokens = amountText ? tokenize(amountText, i18n.language) : [];
+  const isExpression = hasOperator(amountText);
+  const evaluatedValue = isExpression ? evaluate(amountText) : null;
 
   return (
     <>
       {/* Amount hero — pressing it brings up the numpad and dismisses
           the system keyboard, so the two are never visible together. */}
       <Pressable onPress={onAmountPress} style={styles.amountHero}>
-        <Text style={[styles.amountDisplay, { color: theme.text }]}>
-          {symbol}
-          {amountText || '0'}
-        </Text>
+        {tokens.length === 0 ? (
+          <Text style={[styles.amountDisplay, { color: theme.text }]}>
+            {symbol}0
+          </Text>
+        ) : (
+          <Text style={[styles.amountDisplay, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
+            <Text>{symbol}</Text>
+            {tokens.map((tk, i) =>
+              tk.kind === 'number' ? (
+                <Text key={i}>{tk.formatted}</Text>
+              ) : (
+                <Text key={i} style={{ color: theme.accent }}>
+                  {' '}{tk.glyph}{' '}
+                </Text>
+              ),
+            )}
+          </Text>
+        )}
+        {/* Evaluated total — only shown when the expression contains at
+            least one operator AND resolves to a finite value. */}
+        {isExpression && evaluatedValue !== null ? (
+          <Text style={[styles.evaluated, { color: theme.textSecondary }]} numberOfLines={1}>
+            ={' '}
+            {formatAmount(evaluatedValue, currency || '')}
+          </Text>
+        ) : null}
         {showConverted && homeCurrency ? (
           <>
             <Text style={[styles.converted, { color: theme.textMuted }]}>
@@ -155,6 +188,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   amountDisplay: { ...typography.entryAmount },
+  evaluated: {
+    fontSize: 16,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    marginTop: -spacing.xs,
+  },
   converted: { ...typography.subtitle },
   staleHint: { ...typography.caption, marginTop: spacing.xs },
   section: { gap: spacing.sm },
@@ -165,10 +204,10 @@ const styles = StyleSheet.create({
   },
   chipRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   currencyChip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8, // chip compact geometry
-    borderRadius: sizing.radiusChip,
-    borderWidth: borderWidth.base,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: 7, // chip compact geometry
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
   },
   currencyChipText: { fontSize: 12, fontWeight: '700' },
 });

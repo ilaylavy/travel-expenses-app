@@ -15,6 +15,7 @@ import { ExpensePhotosSection } from '@/components/expense/detail/ExpensePhotosS
 import { ExpenseSplitBreakdown } from '@/components/expense/detail/ExpenseSplitBreakdown';
 import { FieldCard } from '@/components/expense/detail/FieldCard';
 import { PhotoGalleryModal } from '@/components/expense/photo/PhotoGalleryModal';
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { SettlementAttributedError } from '@/db/queries/errors';
 import { getProfileName } from '@/db/queries/profiles';
@@ -203,7 +204,7 @@ export default function ExpenseDetailScreen() {
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
           >
-            <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
+            <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
             {t('expenseDetail.title')}
@@ -232,7 +233,7 @@ export default function ExpenseDetailScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
           {t('expenseDetail.title')}
@@ -250,7 +251,7 @@ export default function ExpenseDetailScreen() {
               },
             ]}
           >
-            <Text style={[styles.headerButtonText, { color: theme.accent }]}>✎</Text>
+            <Icon name="edit" size={15} color={theme.accent} stroke={1.8} />
           </Pressable>
         ) : (
           <View style={styles.headerButton} />
@@ -309,11 +310,13 @@ export default function ExpenseDetailScreen() {
             >
               {({ pressed }) => (
                 <View style={{ opacity: pressed ? 0.6 : 1 }}>
-                  <Text style={[styles.fieldValue, { color: theme.text }]}>
-                    📍{' '}
-                    {expense.placeName ??
-                      `${expense.latitude!.toFixed(4)}, ${expense.longitude!.toFixed(4)}`}
-                  </Text>
+                  <View style={styles.locationRow}>
+                    <Icon name="map-pin" size={14} color={theme.textSecondary} stroke={1.8} />
+                    <Text style={[styles.fieldValue, { color: theme.text, flex: 1 }]} numberOfLines={2}>
+                      {expense.placeName ??
+                        `${expense.latitude!.toFixed(4)}, ${expense.longitude!.toFixed(4)}`}
+                    </Text>
+                  </View>
                   <Text style={[styles.fieldSub, { color: theme.accent }]}>
                     {t('expenseDetail.viewOnMapHint')}
                   </Text>
@@ -390,9 +393,12 @@ export default function ExpenseDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
-            ↗  {t('expenseDetail.shareButton')}
-          </Text>
+          <View style={styles.buttonRow}>
+            <Icon name="share" size={15} color={theme.text} stroke={1.8} />
+            <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
+              {t('expenseDetail.shareButton')}
+            </Text>
+          </View>
         </Pressable>
         {canMutate ? (
           <Pressable
@@ -441,7 +447,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 18, fontWeight: '700' },
+  // (formerly headerButtonText — replaced by SVG icons.)
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  buttonRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitle: { ...typography.itemTitle, flex: 1, textAlign: 'center' },
   content: {
     padding: spacing.base,
@@ -465,7 +473,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14, // button tall geometry
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
   },
   secondaryButtonText: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },

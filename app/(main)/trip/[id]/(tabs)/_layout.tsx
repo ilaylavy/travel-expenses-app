@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { sizing } from '@/constants/theme';
+import { Icon, type IconName } from '@/components/Icon';
+import { borderWidth, sizing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
-function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
+function TabIcon({ name, focused, color }: { name: IconName; focused: boolean; color: string }) {
   const theme = useTheme();
   // The active background is a square (width === height) with radiusPill so it
   // renders as a true circle, not a wide oval. iconBox is wider than the circle
@@ -18,7 +19,7 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
           focused ? { backgroundColor: theme.accentSoft } : null,
         ]}
       >
-        <Text style={[styles.emoji, { opacity: focused ? 1 : 0.45 }]}>{emoji}</Text>
+        <Icon name={name} size={20} color={color} stroke={2} />
       </View>
     </View>
   );
@@ -35,6 +36,13 @@ export default function TripTabsLayout() {
         tabBarStyle: {
           backgroundColor: theme.navBg,
           borderTopColor: theme.border,
+          borderTopWidth: borderWidth.hairline,
+          // Floating-card top corners per design-system/components/bottom-nav.
+          // RN clips children to these so we keep the inner padding moderate
+          // and rely on the system safe-area inset for bottom breathing room.
+          borderTopLeftRadius: sizing.radiusCardInner,
+          borderTopRightRadius: sizing.radiusCardInner,
+          overflow: 'hidden',
         },
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.textMuted,
@@ -45,28 +53,28 @@ export default function TripTabsLayout() {
         name="index"
         options={{
           title: t('tripView.tabExpenses'),
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="📋" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="list" focused={focused} color={color} />,
         }}
       />
       <Tabs.Screen
         name="map"
         options={{
           title: t('tripView.tabMap'),
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="📍" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="map-pin" focused={focused} color={color} />,
         }}
       />
       <Tabs.Screen
         name="ask"
         options={{
           title: t('tripView.tabAsk'),
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="🧠" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="sparkles" focused={focused} color={color} />,
         }}
       />
       <Tabs.Screen
         name="stats"
         options={{
           title: t('tripView.tabStats'),
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="📊" focused={focused} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="bar-chart" focused={focused} color={color} />,
         }}
       />
     </Tabs>
@@ -89,9 +97,5 @@ const styles = StyleSheet.create({
     borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 20,
-    lineHeight: 24, // generous so emoji glyph (with descenders) never clips
   },
 });

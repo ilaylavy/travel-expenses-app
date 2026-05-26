@@ -10,7 +10,6 @@
 // All settlements created here are UNATTRIBUTED (expense_split_id = NULL).
 // Legacy attributed rows in the database remain honored by computeBalance.
 
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
@@ -23,12 +22,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { CalendarPickerModal } from '@/components/ui/CalendarPickerModal';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fetchRate } from '@/services/exchangeRates';
 import { useSettlementStore } from '@/stores/settlementStore';
+import { pushToast } from '@/stores/toastStore';
 import {
   formatAmount,
   roundAmount,
@@ -196,6 +197,7 @@ export function SettleUpModal({
         expenseSplitId: null,
       });
       setIsSubmitting(false);
+      pushToast(t('settleUp.toastSaved'), 'success');
       onClose();
     } catch (e) {
       console.warn('SettleUpModal: createSettlement failed', e);
@@ -223,13 +225,8 @@ export function SettleUpModal({
       <View style={styles.root}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <SafeAreaView edges={['bottom']} style={styles.safe}>
-          <View style={[styles.sheetWrap, { borderColor: theme.border }]}>
-            <LinearGradient
-              colors={theme.cardGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.sheet}
-            >
+          <View style={[styles.sheetWrap, { borderColor: theme.border, backgroundColor: theme.surfaceRaised }]}>
+            <View style={styles.sheet}>
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.scroll}
@@ -247,7 +244,7 @@ export function SettleUpModal({
                       { opacity: pressed ? 0.6 : 1 },
                     ]}
                   >
-                    <Text style={[styles.closeText, { color: theme.textMuted }]}>✕</Text>
+                    <Icon name="x" size={16} color={theme.textMuted} stroke={2.2} />
                   </Pressable>
                 </View>
 
@@ -438,7 +435,7 @@ export function SettleUpModal({
                   </Text>
                 </Pressable>
               </ScrollView>
-            </LinearGradient>
+            </View>
           </View>
         </SafeAreaView>
       </View>
@@ -463,7 +460,7 @@ const styles = StyleSheet.create({
   sheetWrap: {
     borderTopLeftRadius: sizing.radiusCard,
     borderTopRightRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderBottomWidth: 0,
     overflow: 'hidden',
   },
@@ -482,7 +479,7 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.itemTitle },
   closeButton: { padding: 4 },
-  closeText: { fontSize: 18, fontWeight: '600' },
+  // (formerly closeText — replaced by SVG x icon.)
   label: {
     ...typography.micro,
     textTransform: 'uppercase',
@@ -508,7 +505,7 @@ const styles = StyleSheet.create({
   amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
@@ -530,12 +527,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderRadius: sizing.radiusChip,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
   },
   toggleText: { fontSize: 12, fontWeight: '700' },
   dateRow: {
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
     paddingVertical: 14, // form-field tall geometry
@@ -543,7 +540,7 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 14, fontWeight: '600' },
   noteInput: {
     minHeight: 64,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderRadius: sizing.radiusInput,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md + 2, // 12 — note field height

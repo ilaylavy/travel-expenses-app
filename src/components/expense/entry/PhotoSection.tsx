@@ -1,5 +1,6 @@
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -27,6 +28,8 @@ export function PhotoSection({
       <View style={styles.photoButtonRow}>
         <Pressable
           onPress={onCamera}
+          accessibilityRole="button"
+          accessibilityLabel={t('expense.photosCamera')}
           style={({ pressed }) => [
             styles.photoButton,
             {
@@ -36,12 +39,15 @@ export function PhotoSection({
             },
           ]}
         >
+          <Icon name="camera" size={15} color={theme.text} stroke={1.8} />
           <Text style={{ color: theme.text, fontWeight: '600' }}>
-            📷 {t('expense.photosCamera')}
+            {t('expense.photosCamera')}
           </Text>
         </Pressable>
         <Pressable
           onPress={onGallery}
+          accessibilityRole="button"
+          accessibilityLabel={t('expense.photosGallery')}
           style={({ pressed }) => [
             styles.photoButton,
             {
@@ -51,8 +57,9 @@ export function PhotoSection({
             },
           ]}
         >
+          <Icon name="photo" size={15} color={theme.text} stroke={1.8} />
           <Text style={{ color: theme.text, fontWeight: '600' }}>
-            🖼️ {t('expense.photosGallery')}
+            {t('expense.photosGallery')}
           </Text>
         </Pressable>
       </View>
@@ -90,10 +97,13 @@ const styles = StyleSheet.create({
   photoButtonRow: { flexDirection: 'row', gap: spacing.sm },
   photoButton: {
     flex: 1,
-    paddingVertical: spacing.md + 2, // 12 — button tall geometry
+    paddingVertical: spacing.md + 2, // 14 — button tall geometry
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
   },
   photoRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   photoThumb: { width: 72, height: 72, borderRadius: sizing.radiusSmall },

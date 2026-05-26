@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   leaveButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingVertical: 14, // button tall geometry
     alignItems: 'center',
   },

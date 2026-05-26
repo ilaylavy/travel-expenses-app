@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
+import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Trip } from '@/types/trip';
@@ -32,6 +32,9 @@ interface ExpenseStatsStripProps {
   expenseCount: number;
 }
 
+// Trip-dashboard hero. The brand moment — indigo monochrome gradient,
+// white type. Matches the design system's `.hero` card (the one card
+// surface that owns a gradient).
 export function ExpenseStatsStrip({
   trip,
   totalSpent,
@@ -57,42 +60,47 @@ export function ExpenseStatsStrip({
   const spentPctLabel = `${Math.round(spentPct * 100)}%`;
   const remainingPctLabel = `${Math.round(Math.max(0, remainingPct) * 100)}%`;
 
+  // Used to tint the "budget left" amount in the bottom cell — the bar
+  // itself stays white-on-white per the design system. Color only leaks
+  // into the cell value (subtle), not the bar (which would clash).
   const budgetTone: 'ok' | 'warn' | 'alert' = (() => {
     if (!hasBudget) return 'ok';
     if (remainingPct > 0.3) return 'ok';
     if (remainingPct >= 0.1) return 'warn';
     return 'alert';
   })();
-
-  const remainingColor =
-    budgetTone === 'ok' ? theme.green : budgetTone === 'warn' ? theme.orange : theme.red;
+  const remainingCellColor =
+    budgetTone === 'ok' ? 'rgba(255,255,255,0.96)'
+    : budgetTone === 'warn' ? '#FFE9A8'
+    : '#FFB3B3';
 
   return (
-    <View style={[styles.wrap, { borderColor: theme.border }]}>
+    <View style={styles.wrap}>
       <LinearGradient
-        colors={theme.cardGradient}
-        start={{ x: 0, y: 0 }}
+        colors={theme.gradient1}
+        start={{ x: 0.1, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.card}
+        style={[styles.card, { shadowColor: theme.accent }]}
       >
+        {/* Decorative discs (design-system .hero .disc) — soft white
+            circles for depth without color noise. */}
+        <View style={[styles.disc, styles.discTop]} />
+        <View style={[styles.disc, styles.discBottom]} />
+
         <View style={styles.hero}>
-          <Text style={[styles.heroLabel, { color: theme.textMuted }]}>
+          <Text style={styles.heroLabel}>
             {t('expenses.statsTotal')}
           </Text>
-          <Text
-            style={[styles.heroAmount, { color: theme.text }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
+          <Text style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>
             {formatAmount(totalSpent, currency)}
           </Text>
 
           {hasBudget ? (
             <View style={styles.heroBudget}>
-              <View style={[styles.heroBar, { backgroundColor: theme.bgSoft }]}>
-                <BudgetFill spentPct={spentPct} tone={budgetTone} theme={theme} />
+              <View style={styles.heroBar}>
+                <View style={[styles.heroBarFill, { width: `${spentPct * 100}%` }]} />
               </View>
-              <Text style={[styles.heroBudgetText, { color: theme.textSecondary }]}>
+              <Text style={styles.heroBudgetText}>
                 {t('expenses.statsBudgetUsed', {
                   pct: spentPctLabel,
                   total: formatAmount(budgetHome as number, currency),
@@ -103,33 +111,33 @@ export function ExpenseStatsStrip({
           ) : null}
         </View>
 
-        <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
+        <View style={styles.divider} />
 
         <View style={styles.row}>
           <View style={styles.cell}>
-            <Text style={[styles.cellLabel, { color: theme.textMuted }]}>
+            <Text style={styles.cellLabel}>
               {t('expenses.statsDailyAvg')}
             </Text>
-            <Text style={[styles.cellValue, { color: theme.text }]} numberOfLines={1}>
+            <Text style={styles.cellValue} numberOfLines={1}>
               {formatAmount(dailyAverage, currency)}
             </Text>
-            <Text style={[styles.cellSub, { color: theme.textMuted }]} numberOfLines={1}>
+            <Text style={styles.cellSub} numberOfLines={1}>
               {dayLabel}
             </Text>
           </View>
 
-          <View style={[styles.cellDivider, { backgroundColor: theme.borderLight }]} />
+          <View style={styles.cellDivider} />
 
           <View style={styles.cell}>
             {hasBudget ? (
               <>
-                <Text style={[styles.cellLabel, { color: theme.textMuted }]}>
+                <Text style={styles.cellLabel}>
                   {t('expenses.statsBudgetLeft')}
                 </Text>
-                <Text style={[styles.cellValue, { color: remainingColor }]} numberOfLines={1}>
+                <Text style={[styles.cellValue, { color: remainingCellColor }]} numberOfLines={1}>
                   {formatAmount(remaining, currency)}
                 </Text>
-                <Text style={[styles.cellSub, { color: theme.textMuted }]} numberOfLines={1}>
+                <Text style={styles.cellSub} numberOfLines={1}>
                   {t('expenses.statsBudgetRemaining', {
                     pct: remainingPctLabel,
                     defaultValue: `${remainingPctLabel} left`,
@@ -138,10 +146,10 @@ export function ExpenseStatsStrip({
               </>
             ) : (
               <>
-                <Text style={[styles.cellLabel, { color: theme.textMuted }]}>
+                <Text style={styles.cellLabel}>
                   {t('expenses.statsExpenses')}
                 </Text>
-                <Text style={[styles.cellValue, { color: theme.text }]} numberOfLines={1}>
+                <Text style={styles.cellValue} numberOfLines={1}>
                   {expenseCount}
                 </Text>
                 <View style={styles.cellSubSpacer} />
@@ -154,103 +162,80 @@ export function ExpenseStatsStrip({
   );
 }
 
-interface BudgetFillProps {
-  spentPct: number;
-  tone: 'ok' | 'warn' | 'alert';
-  theme: ReturnType<typeof useTheme>;
-}
-
-function BudgetFill({ spentPct, tone, theme }: BudgetFillProps) {
-  const fillWidth = `${spentPct * 100}%` as const;
-  if (tone === 'alert') {
-    return (
-      <View
-        style={{
-          width: fillWidth,
-          height: '100%',
-          backgroundColor: theme.red,
-          borderRadius: sizing.radiusPill,
-        }}
-      />
-    );
-  }
-  const colors = tone === 'warn' ? theme.gradient2 : theme.gradient1;
-  return (
-    <LinearGradient
-      colors={colors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={{ width: fillWidth, height: '100%', borderRadius: sizing.radiusPill }}
-    />
-  );
-}
-
 const styles = StyleSheet.create({
   wrap: {
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
   card: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.base,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 6,
+    overflow: 'hidden',
   },
-  hero: {
-    gap: spacing.xs,
+  disc: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
+  discTop: { width: 160, height: 160, top: -50, right: -40 },
+  discBottom: { width: 100, height: 100, bottom: -30, left: '30%', backgroundColor: 'rgba(255,255,255,0.04)' },
+  hero: { gap: spacing.xs },
   heroLabel: {
     ...typography.micro,
+    color: 'rgba(255,255,255,0.7)',
     textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  heroAmount: {
-    ...typography.amountHero,
-  },
-  heroBudget: {
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
+  heroAmount: { ...typography.amountHero, color: '#FFFFFF' },
+  heroBudget: { marginTop: spacing.md, gap: spacing.sm },
   heroBar: {
-    height: 6, // bar geometry, intentional
+    height: 5,
     width: '100%',
     borderRadius: sizing.radiusPill,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  heroBarFill: {
+    height: '100%',
+    borderRadius: sizing.radiusPill,
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
   heroBudgetText: {
     ...typography.caption,
+    color: 'rgba(255,255,255,0.78)',
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
   divider: {
-    height: borderWidth.hairline,
+    height: 1,
     marginTop: spacing.lg,
     marginBottom: spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  cell: {
-    flex: 1,
-    gap: spacing.xs / 2, // 2px optical tighten between label/value/sub
-  },
+  row: { flexDirection: 'row', alignItems: 'stretch' },
+  cell: { flex: 1, gap: 2 },
   cellDivider: {
-    width: borderWidth.hairline,
+    width: 1,
     marginHorizontal: spacing.lg,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   cellLabel: {
     ...typography.micro,
+    color: 'rgba(255,255,255,0.7)',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  cellValue: {
-    ...typography.amountMedium,
-  },
+  cellValue: { ...typography.amountMedium, color: '#FFFFFF' },
   cellSub: {
     ...typography.caption,
+    color: 'rgba(255,255,255,0.7)',
     fontVariant: ['tabular-nums'],
   },
-  cellSubSpacer: {
-    height: typography.caption.fontSize + 2,
-  },
+  cellSubSpacer: { height: typography.caption.fontSize + 2 },
 });

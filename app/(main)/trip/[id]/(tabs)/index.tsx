@@ -20,6 +20,10 @@ import {
   type ExpenseFilterKey,
 } from '@/components/expense/list/ExpenseFilterChips';
 import { ExpenseStatsStrip } from '@/components/expense/stats/ExpenseStatsStrip';
+import { Icon } from '@/components/Icon';
+import { AskAnythingCard } from '@/components/trip/AskAnythingCard';
+import { BalanceCard } from '@/components/trip/BalanceCard';
+import { Avatar } from '@/components/ui/Avatar';
 import type { FilterOption } from '@/components/ui/FilterModal';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { SyncStatusDot } from '@/components/ui/SyncStatusDot';
@@ -37,15 +41,20 @@ import {
   useCategoryStore,
 } from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
+import { useSettlementStore } from '@/stores/settlementStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
 import type { ExpenseWithPhotos } from '@/types/expense';
+import { computeBalance } from '@/utils/balance';
+import { selectBalanceCardSummary } from '@/utils/balanceDisplay';
 import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount, todayDateString } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
 import { groupExpensesByDate, type ExpenseDateGroup } from '@/utils/expenseGrouping';
+import { initials } from '@/utils/initials';
 import { href } from '@/utils/nav';
 import { aggregate } from '@/utils/statsAggregations';
+import { getTripTint } from '@/utils/tripTint';
 
 const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -86,6 +95,9 @@ export default function TripExpensesScreen() {
   const loadForTrip = useExpenseStore((s) => s.loadForTrip);
   const deleteExpense = useExpenseStore((s) => s.deleteExpense);
   const allCategories = useCategoryStore((s) => s.categories);
+  const settlements = useSettlementStore((s) => s.settlements);
+  const activeSettlementTripId = useSettlementStore((s) => s.activeTripId);
+  const loadSettlementsForTrip = useSettlementStore((s) => s.loadForTrip);
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const [query, setQuery] = useState('');
@@ -139,6 +151,10 @@ export default function TripExpensesScreen() {
   }, [tripId, activeTripId, loadForTrip]);
 
   useEffect(() => {
+    if (tripId && activeSettlementTripId !== tripId) void loadSettlementsForTrip(tripId);
+  }, [tripId, activeSettlementTripId, loadSettlementsForTrip]);
+
+  useEffect(() => {
     if (!tripId) return;
     let cancelled = false;
     (async () => {
@@ -183,6 +199,16 @@ export default function TripExpensesScreen() {
     () => expenses.filter((e) => e.deletedAt === null && !e.isRefund).length,
     [expenses],
   );
+
+  const balanceSummary = useMemo(() => {
+    if (!isSharedTrip || !currentUserId) return null;
+    const { settlements: netted } = computeBalance({
+      expenses,
+      splits,
+      settlementPayments: settlements,
+    });
+    return selectBalanceCardSummary(netted, currentUserId);
+  }, [isSharedTrip, currentUserId, expenses, splits, settlements]);
 
   const categoryOptions = useMemo<FilterOption[]>(() => {
     const tally = new Map<string, number>();
@@ -363,6 +389,19 @@ export default function TripExpensesScreen() {
         />
       ) : null}
 
+      <AskAnythingCard onPress={() => router.push(href(`/trip/${tripId}/ask`))} />
+
+      {balanceSummary && isSharedTrip ? (
+        <BalanceCard
+          summary={balanceSummary}
+          topOtherName={
+            balanceSummary.top ? memberNames[balanceSummary.top.otherUserId] : undefined
+          }
+          currency={trip.homeCurrency}
+          onPress={() => router.push(href(`/trip/${tripId}/balances`))}
+        />
+      ) : null}
+
       <View
         style={[
           styles.searchWrap,
@@ -372,7 +411,7 @@ export default function TripExpensesScreen() {
           },
         ]}
       >
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Icon name="search" size={16} color={theme.textMuted} stroke={1.8} style={styles.searchIcon} />
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -390,9 +429,10 @@ export default function TripExpensesScreen() {
             onPress={() => setQuery('')}
             hitSlop={8}
             style={[styles.searchClear, { backgroundColor: theme.bgSoft }]}
+            accessibilityRole="button"
             accessibilityLabel={t('common.cancel')}
           >
-            <Text style={[styles.searchClearText, { color: theme.textSecondary }]}>✕</Text>
+            <Icon name="x" size={11} color={theme.textSecondary} stroke={2.2} />
           </Pressable>
         ) : null}
       </View>
@@ -434,16 +474,23 @@ export default function TripExpensesScreen() {
       >
         <Pressable
           onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
           style={[
             styles.headerButton,
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerEmoji}>{trip.emoji}</Text>
+          <Avatar
+            label={initials(trip.name)}
+            tint={getTripTint(trip.id, theme)}
+            size={32}
+            radius={10}
+          />
           <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
             {trip.name}
           </Text>
@@ -534,9 +581,9 @@ export default function TripExpensesScreen() {
           }}
           ListEmptyComponent={
             filteredAway ? (
-              <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+              <View style={[styles.empty, { borderColor: theme.border }]}>
                 <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
-                  <Text style={styles.emptyEmoji}>🔍</Text>
+                  <Icon name="search" size={30} color={theme.accent} stroke={1.8} />
                 </View>
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                   {t('expensesList.emptyFilteredTitle')}
@@ -546,6 +593,7 @@ export default function TripExpensesScreen() {
                 </Text>
                 <Pressable
                   onPress={handleClearAll}
+                  accessibilityRole="button"
                   style={({ pressed }) => [
                     styles.emptyCta,
                     {
@@ -561,9 +609,9 @@ export default function TripExpensesScreen() {
                 </Pressable>
               </View>
             ) : (
-              <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+              <View style={[styles.empty, { borderColor: theme.border }]}>
                 <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
-                  <Text style={styles.emptyEmoji}>💸</Text>
+                  <Icon name="plus" size={30} color={theme.accent} stroke={2} />
                 </View>
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                   {t('tripView.emptyExpensesTitle')}
@@ -573,8 +621,10 @@ export default function TripExpensesScreen() {
                 </Text>
                 <Pressable
                   onPress={() => router.push(href(`/add-expense?tripId=${tripId}`))}
+                  accessibilityRole="button"
                   style={({ pressed }) => [
                     styles.emptyCta,
+                    styles.emptyCtaRow,
                     {
                       backgroundColor: theme.accentSoft,
                       borderColor: theme.accent,
@@ -582,8 +632,9 @@ export default function TripExpensesScreen() {
                     },
                   ]}
                 >
+                  <Icon name="plus" size={14} color={theme.accent} stroke={2.2} />
                   <Text style={[styles.emptyCtaText, { color: theme.accent }]}>
-                    ＋ {t('tripView.addExpense')}
+                    {t('tripView.addExpense')}
                   </Text>
                 </Pressable>
               </View>
@@ -610,7 +661,7 @@ export default function TripExpensesScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.fabInner}
         >
-          <Text style={styles.fabPlus}>＋</Text>
+          <Icon name="plus" size={28} color="#FFFFFF" stroke={2.4} />
         </LinearGradient>
       </Pressable>
     </SafeAreaView>
@@ -636,21 +687,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
+  // (headerButtonText was replaced by SVG chevron-left.)
   headerTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  headerEmoji: { fontSize: 24 },
   headerTitle: { ...typography.itemTitle, flex: 1 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: sizing.radiusInput,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingHorizontal: spacing.lg,
     paddingVertical: 8, // compact form geometry; intermediate between sm/md
     gap: 8,
     marginBottom: spacing.sm,
   },
-  searchIcon: { fontSize: 14, opacity: 0.7 },
+  searchIcon: {},
   searchInput: {
     flex: 1,
     fontSize: 15,
@@ -688,7 +738,7 @@ const styles = StyleSheet.create({
   sectionSubtotal: { ...typography.amountSmall },
   empty: {
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderStyle: 'dashed',
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.lg,
@@ -704,7 +754,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 2, // optical nudge above title
   },
-  emptyEmoji: { fontSize: 36 },
   emptyTitle: { ...typography.itemTitle, marginBottom: 0 },
   emptyBody: { ...typography.secondary, textAlign: 'center' },
   emptyCta: {
@@ -714,6 +763,7 @@ const styles = StyleSheet.create({
     borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
   },
+  emptyCtaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
   emptyCtaText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fab: {
@@ -735,5 +785,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fabPlus: { color: '#FFFFFF', fontSize: 30, fontWeight: '700', lineHeight: 32 },
 });

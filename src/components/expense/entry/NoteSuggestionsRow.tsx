@@ -62,9 +62,9 @@ const styles = StyleSheet.create({
   },
   chipRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   noteChip: {
-    paddingHorizontal: spacing.md + 2, // 12 — chip compact geometry
-    paddingVertical: 8,
-    borderRadius: sizing.radiusChip,
+    paddingHorizontal: spacing.md + 2, // 14 — chip compact geometry
+    paddingVertical: 7,
+    borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
     maxWidth: 220,
   },

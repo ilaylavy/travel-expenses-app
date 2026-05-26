@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -107,7 +108,7 @@ export function SplitParticipantsList({
                     },
                   ]}
                 >
-                  {checked ? <Text style={styles.checkmark}>✓</Text> : null}
+                  {checked ? <Icon name="check" size={12} color="#FFFFFF" stroke={3} /> : null}
                 </View>
                 <Text
                   style={{ color: theme.text, flex: 1, fontWeight: '600' }}
@@ -248,7 +249,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkmark: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  // (formerly checkmark — replaced by SVG check icon.)
   paidBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,

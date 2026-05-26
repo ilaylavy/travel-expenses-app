@@ -12,6 +12,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MarkedDates } from 'react-native-calendars/src/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -107,7 +108,7 @@ export function CalendarPickerModal({
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>{headerTitle}</Text>
             <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
-              <Text style={[styles.closeText, { color: theme.textMuted }]}>✕</Text>
+              <Icon name="x" size={14} color={theme.textMuted} stroke={2.2} />
             </Pressable>
           </View>
 
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 16, fontWeight: '700' },
   closeButton: { padding: 4 },
-  closeText: { fontSize: 18, fontWeight: '600' },
+  // (formerly closeText — replaced by SVG x icon.)
   fields: { paddingVertical: spacing.md, gap: spacing.sm },
   fieldRow: { gap: 4 },
   fieldLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },

@@ -1,8 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { useIsDark, useTheme } from '@/hooks/useTheme';
 import type { Category } from '@/types/category';
-import { getCategoryColor } from '@/utils/category';
+import { getCategoryColor, getCategoryIconName } from '@/utils/category';
 
 interface CategoryPinProps {
   category: Category | null;
@@ -14,6 +15,7 @@ export function CategoryPin({ category, selected, amountLabel }: CategoryPinProp
   const theme = useTheme();
   const isDark = useIsDark();
   const color = category ? getCategoryColor(category.color, theme) : theme.accent;
+  const iconName = category ? getCategoryIconName(category) : null;
 
   return (
     <View style={styles.wrap}>
@@ -25,18 +27,21 @@ export function CategoryPin({ category, selected, amountLabel }: CategoryPinProp
       >
         <View
           style={[
-            styles.rect,
+            styles.circle,
             {
               backgroundColor: color,
               shadowColor: color,
               shadowOpacity: selected ? 0.5 : 0.35,
-              shadowRadius: selected ? 10 : 6,
+              shadowRadius: selected ? 12 : 8,
             },
           ]}
         >
-          <Text style={styles.emoji}>{category?.emoji ?? '•'}</Text>
+          {iconName ? (
+            <Icon name={iconName} size={20} color="#FFFFFF" stroke={2} />
+          ) : (
+            <Text style={styles.emoji}>{category?.emoji ?? '•'}</Text>
+          )}
         </View>
-        <View style={[styles.tail, { borderTopColor: color }]} />
       </View>
       {amountLabel ? (
         <View
@@ -68,9 +73,12 @@ interface ClusterPinProps {
   count: number;
 }
 
+// Cluster pin sizes track the count to give a visual weight cue. Geometry
+// stays as a true circle to match the design-system spec for single-pin
+// markers — the cluster reads as "more of the same".
 export function ClusterPin({ count }: ClusterPinProps) {
   const theme = useTheme();
-  const size = count > 99 ? 40 : count > 9 ? 36 : 32;
+  const size = count > 99 ? 48 : count > 9 ? 44 : 42;
   return (
     <View style={styles.wrap}>
       <View
@@ -87,54 +95,46 @@ export function ClusterPin({ count }: ClusterPinProps) {
       >
         <Text style={styles.count}>{count}</Text>
       </View>
-      <View style={[styles.tail, { borderTopColor: theme.accent }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center' },
+  wrap: { alignItems: 'center', gap: 4 },
   scaleWrap: { alignItems: 'center' },
-  scaleSelected: { transform: [{ scale: 1.2 }] },
-  rect: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  scaleSelected: { transform: [{ scale: 1.15 }] },
+  circle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  emoji: { fontSize: 16, lineHeight: 18 },
-  tail: {
-    width: 0,
-    height: 0,
-    marginTop: -1,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderTopWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-  },
+  emoji: { fontSize: 20, lineHeight: 22 },
   cluster: {
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 6,
+    borderColor: 'rgba(255,255,255,0.15)',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 7,
   },
-  count: { color: '#FFFFFF', fontWeight: '800', fontSize: 14, letterSpacing: -0.2 },
+  count: { color: '#FFFFFF', fontWeight: '800', fontSize: 15, letterSpacing: -0.2 },
   amountPill: {
-    marginTop: 3,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    maxWidth: 80,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    maxWidth: 90,
   },
-  amountText: { fontSize: 10, fontWeight: '700' },
+  amountText: {
+    fontSize: 10,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
 });

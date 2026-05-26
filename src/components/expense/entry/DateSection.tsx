@@ -1,6 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -53,25 +53,22 @@ export function DateSection({
   const perDay = amountValue > 0 && spreadDays > 0 ? amountValue / spreadDays : 0;
 
   return (
-    <LinearGradient
-      colors={theme.cardGradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[styles.dateCard, { borderColor: theme.border }]}
-    >
+    <View style={[styles.dateCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {isSpread ? (
         <View style={{ gap: spacing.xs }}>
           <View style={styles.dateRow}>
             <Pressable onPress={onOpenSpreadPicker} hitSlop={6} style={styles.dateLeft}>
-              <Text style={[styles.dateText, { color: theme.text }]} numberOfLines={1}>
-                📅{' '}
-                {spreadStart && spreadEnd
-                  ? formatReadableDateRange(spreadStart, spreadEnd)
-                  : t('calendar.selectRange')}
-              </Text>
+              <View style={styles.dateInline}>
+                <Icon name="calendar" size={14} color={theme.textSecondary} stroke={1.8} />
+                <Text style={[styles.dateText, { color: theme.text }]} numberOfLines={1}>
+                  {spreadStart && spreadEnd
+                    ? formatReadableDateRange(spreadStart, spreadEnd)
+                    : t('calendar.selectRange')}
+                </Text>
+              </View>
             </Pressable>
             <Pressable onPress={onExitSpread} hitSlop={8} style={styles.spreadClose}>
-              <Text style={[styles.spreadCloseText, { color: theme.textMuted }]}>✕</Text>
+              <Icon name="x" size={14} color={theme.textMuted} stroke={2.2} />
             </Pressable>
           </View>
           <Text style={[styles.spreadHint, { color: theme.textMuted }]}>
@@ -86,9 +83,12 @@ export function DateSection({
       ) : (
         <View style={styles.dateRow}>
           <Pressable onPress={onOpenDatePicker} hitSlop={6} style={styles.dateLeft}>
-            <Text style={[styles.dateText, { color: theme.text }]} numberOfLines={1}>
-              📅 {formatReadableDate(date)}
-            </Text>
+            <View style={styles.dateInline}>
+              <Icon name="calendar" size={14} color={theme.textSecondary} stroke={1.8} />
+              <Text style={[styles.dateText, { color: theme.text }]} numberOfLines={1}>
+                {formatReadableDate(date)}
+              </Text>
+            </View>
           </Pressable>
           <TextInput
             value={time.slice(0, 5)}
@@ -103,26 +103,29 @@ export function DateSection({
               styles.timeField,
               {
                 color: theme.text,
-                backgroundColor: theme.surface,
+                backgroundColor: theme.bgSoft,
                 borderColor: theme.border,
               },
             ]}
           />
           <Pressable onPress={onEnterSpread} hitSlop={6} style={styles.spreadButton}>
-            <Text style={[styles.spreadButtonText, { color: theme.textMuted }]}>
-              ⟷ {t('datePicker.spread')}
-            </Text>
+            <View style={styles.dateInline}>
+              <Icon name="calendar" size={11} color={theme.textMuted} stroke={1.8} />
+              <Text style={[styles.spreadButtonText, { color: theme.textMuted }]}>
+                {t('datePicker.spread')}
+              </Text>
+            </View>
           </Pressable>
         </View>
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   dateCard: {
     borderRadius: sizing.radiusInput,
-    borderWidth: 1.5,
+    borderWidth: 1,
     padding: spacing.md,
   },
   dateRow: {
@@ -131,6 +134,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   dateLeft: { flex: 1 },
+  dateInline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dateText: { fontSize: 14, fontWeight: '600' },
   timeField: {
     width: 64,
@@ -145,6 +149,5 @@ const styles = StyleSheet.create({
   spreadButton: { paddingHorizontal: 4, paddingVertical: 4 },
   spreadButtonText: { fontSize: 12, fontWeight: '600' },
   spreadClose: { paddingHorizontal: 4 },
-  spreadCloseText: { fontSize: 14, fontWeight: '600' },
   spreadHint: { fontSize: 12, fontWeight: '500' },
 });

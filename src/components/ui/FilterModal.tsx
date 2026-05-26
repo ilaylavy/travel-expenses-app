@@ -1,7 +1,7 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -49,13 +49,8 @@ export function FilterModal({
       <View style={styles.root}>
         <Pressable style={styles.backdrop} onPress={onDone} />
         <SafeAreaView edges={['bottom']} style={styles.safe}>
-          <View style={[styles.sheetWrap, { borderColor: theme.border }]}>
-            <LinearGradient
-              colors={theme.cardGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.sheet}
-            >
+          <View style={[styles.sheetWrap, { borderColor: theme.border, backgroundColor: theme.surfaceRaised }]}>
+            <View style={styles.sheet}>
               <View style={styles.header}>
                 <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
                 <Pressable
@@ -96,6 +91,8 @@ export function FilterModal({
                         },
                       ]}
                     >
+                      {/* Emoji on options is data-driven (user-custom category
+                          emoji is allowed per the design system rule). */}
                       {opt.emoji ? <Text style={styles.rowEmoji}>{opt.emoji}</Text> : null}
                       <Text
                         style={[styles.rowLabel, { color: theme.text }]}
@@ -115,7 +112,7 @@ export function FilterModal({
                           },
                         ]}
                       >
-                        {checked ? <Text style={styles.checkMark}>✓</Text> : null}
+                        {checked ? <Icon name="check" size={12} color="#FFFFFF" stroke={3} /> : null}
                       </View>
                     </Pressable>
                   );
@@ -124,6 +121,7 @@ export function FilterModal({
 
               <Pressable
                 onPress={onDone}
+                accessibilityRole="button"
                 style={({ pressed }) => [
                   styles.doneButton,
                   {
@@ -134,7 +132,7 @@ export function FilterModal({
               >
                 <Text style={styles.doneButtonText}>{t('expenses.filterDone')}</Text>
               </Pressable>
-            </LinearGradient>
+            </View>
           </View>
         </SafeAreaView>
       </View>
@@ -149,7 +147,7 @@ const styles = StyleSheet.create({
   sheetWrap: {
     borderTopLeftRadius: sizing.radiusCard,
     borderTopRightRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderBottomWidth: 0,
     overflow: 'hidden',
   },
@@ -167,9 +165,9 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.itemTitle },
   allChip: {
-    paddingHorizontal: spacing.md + 2, // 12 — chip compact geometry
-    paddingVertical: spacing.sm,
-    borderRadius: sizing.radiusChip,
+    paddingHorizontal: spacing.md + 2, // 14 — chip compact geometry
+    paddingVertical: spacing.sm - 1,
+    borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
   },
   allChipText: { fontSize: 12, fontWeight: '600' },
@@ -189,11 +187,10 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: sizing.radiusSmall - 4, // 6 — checkbox-style square radius
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkMark: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', lineHeight: 16 },
   doneButton: {
     marginTop: spacing.md,
     borderRadius: sizing.radiusButton,

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/ui/Avatar';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { PendingInvite } from '@/db/queries/tripMembers';
+import { initials } from '@/utils/initials';
+import { getTripTint } from '@/utils/tripTint';
 
 interface Props {
   invite: PendingInvite;
@@ -37,7 +40,12 @@ export function PendingInviteCard({ invite, inviterName, onAccept, onDecline }: 
       ]}
     >
       <View style={styles.header}>
-        <Text style={styles.emoji}>{invite.trip.emoji}</Text>
+        <Avatar
+          label={initials(invite.trip.name)}
+          tint={getTripTint(invite.trip.id, theme)}
+          size={44}
+          radius={14}
+        />
         <View style={styles.meta}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
             {invite.trip.name}
@@ -100,7 +108,7 @@ export function PendingInviteCard({ invite, inviterName, onAccept, onDecline }: 
 const styles = StyleSheet.create({
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     padding: spacing.lg,
     gap: spacing.md,
     marginBottom: spacing.md,
@@ -110,7 +118,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  emoji: { fontSize: 32 },
   meta: { flex: 1 },
   title: { ...typography.itemTitle },
   subtitle: { ...typography.secondary, marginTop: 2 },

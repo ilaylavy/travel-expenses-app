@@ -41,9 +41,9 @@ export function FollowUpChips({ chips, onPress }: FollowUpChipsProps) {
 const styles = StyleSheet.create({
   container: { gap: spacing.md - 2, paddingHorizontal: spacing.xl, paddingVertical: spacing.md - 2 },
   chip: {
-    paddingVertical: 8, // chip compact geometry
-    paddingHorizontal: spacing.lg,
-    borderRadius: sizing.radiusChip,
+    paddingVertical: 7, // chip compact geometry
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
   },
   text: { fontSize: 12, fontWeight: '600' },

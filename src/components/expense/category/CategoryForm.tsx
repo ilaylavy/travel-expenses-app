@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   label: typography.subtitle,
   input: {
     borderRadius: sizing.radiusInput,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md + 2, // 12 — form-field height
     fontSize: 15,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

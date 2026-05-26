@@ -10,6 +10,7 @@ import {
 import { ExpensePopup } from '@/components/map/ExpensePopup';
 import { TripMap } from '@/components/map/TripMap';
 import type { TripMapHandle } from '@/components/map/types';
+import { Icon } from '@/components/Icon';
 import type { FilterOption } from '@/components/ui/FilterModal';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
@@ -308,7 +309,7 @@ export default function TripMapScreen() {
           ]}
           hitSlop={6}
         >
-          <Text style={styles.locateIcon}>📍</Text>
+          <Icon name="map-pin" size={20} color={theme.accent} stroke={1.8} />
         </Pressable>
       ) : null}
 
@@ -320,7 +321,9 @@ export default function TripMapScreen() {
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
           >
-            <Text style={styles.emptyEmoji}>🗺️</Text>
+            <View style={[styles.emptyIcon, { backgroundColor: theme.accentSoft }]}>
+              <Icon name="map-pin" size={32} color={theme.accent} stroke={1.8} />
+            </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               {t('tripView.mapEmptyTitle')}
             </Text>
@@ -374,7 +377,7 @@ const styles = StyleSheet.create({
   },
   locateButtonRight: { right: 16 },
   locateButtonLeft: { left: 16 },
-  locateIcon: { fontSize: 20, lineHeight: 22 },
+  // (formerly locateIcon — replaced by SVG <Icon name="map-pin" />.)
   bottomOverlay: {
     position: 'absolute',
     left: spacing.base,
@@ -398,7 +401,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     maxWidth: 320,
   },
-  emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
   emptyTitle: { ...typography.itemTitle, marginBottom: spacing.xs },
   emptyBody: { ...typography.secondary, textAlign: 'center' },
 });

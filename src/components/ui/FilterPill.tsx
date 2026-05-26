@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -22,10 +23,12 @@ export function FilterPill({ label, summary, active, onPress, activeCount }: Fil
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       style={({ pressed }) => [
         styles.pill,
         {
-          backgroundColor: active ? theme.accentSoft : theme.surface,
+          backgroundColor: active ? theme.accentSoft : 'transparent',
           borderColor: active ? theme.accent : theme.border,
           transform: [{ scale: pressed ? 0.97 : 1 }],
         },
@@ -43,8 +46,14 @@ export function FilterPill({ label, summary, active, onPress, activeCount }: Fil
         ]}
         numberOfLines={1}
       >
-        {text} ▾
+        {text}
       </Text>
+      <Icon
+        name="chevron-down"
+        size={11}
+        color={active ? theme.accent : theme.textMuted}
+        stroke={2}
+      />
     </Pressable>
   );
 }
@@ -53,11 +62,10 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    // 12/7 padding is intentional compact-pill geometry; tighter than spacing.md.
-    paddingHorizontal: 12,
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md + 2,
     paddingVertical: 7,
-    borderRadius: sizing.radiusChip,
+    borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
   },
   pillText: { fontSize: 12, fontWeight: '600', maxWidth: 200 },

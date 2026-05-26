@@ -31,7 +31,7 @@ export function StatsSectionCard({ title, children, style }: Props) {
 const styles = StyleSheet.create({
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     padding: spacing.xl,
     gap: spacing.md,
   },

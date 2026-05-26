@@ -1,6 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -22,14 +22,9 @@ export function EmptyState({ trip, onPick }: EmptyStateProps) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={theme.gradient3}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <Text style={styles.heroEmoji}>🧠</Text>
-      </LinearGradient>
+      <View style={[styles.hero, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+        <Icon name="sparkles" size={28} color={theme.accent} stroke={2} />
+      </View>
       <Text style={[styles.title, { color: theme.text }]}>{t('ask.title')}</Text>
       <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
         {t('ask.subtitle')}
@@ -42,19 +37,20 @@ export function EmptyState({ trip, onPick }: EmptyStateProps) {
             <Pressable
               key={key}
               onPress={() => onPick(text)}
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.cardPressable,
                 { transform: [{ scale: pressed ? 0.98 : 1 }] },
               ]}
             >
-              <LinearGradient
-                colors={theme.cardGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.card, { borderColor: theme.border }]}
+              <View
+                style={[
+                  styles.card,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
               >
                 <Text style={[styles.cardText, { color: theme.text }]}>{text}</Text>
-              </LinearGradient>
+              </View>
             </Pressable>
           );
         })}
@@ -66,9 +62,9 @@ export function EmptyState({ trip, onPick }: EmptyStateProps) {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl + 2, // 24 — extra breathing room
+    paddingVertical: spacing.xxl + 2, // 30 — extra breathing room
     alignItems: 'center',
-    gap: spacing.md - 2, // 8
+    gap: spacing.sm,
   },
   hero: {
     width: 56,
@@ -76,15 +72,15 @@ const styles = StyleSheet.create({
     borderRadius: sizing.radiusCardInner,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md - 2, // 8
+    borderWidth: borderWidth.hairline,
+    marginBottom: spacing.sm,
   },
-  heroEmoji: { fontSize: 28 },
   title: { fontSize: 16, fontWeight: '700' },
-  subtitle: { fontSize: 13, fontWeight: '500', marginBottom: spacing.md + 2 }, // 12
-  cards: { width: '100%', gap: spacing.md - 2 },
+  subtitle: { fontSize: 13, fontWeight: '500', marginBottom: spacing.md + 2 }, // 14
+  cards: { width: '100%', gap: spacing.sm + 2 },
   cardPressable: { width: '100%' },
   card: {
-    borderRadius: sizing.radiusIcon, // 12
+    borderRadius: sizing.radiusCardInner,
     borderWidth: borderWidth.hairline,
     padding: spacing.lg,
   },

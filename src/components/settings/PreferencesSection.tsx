@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -36,8 +37,8 @@ export function PreferencesSection({
           right={
             <Segment
               options={[
-                { value: 'light', label: `☀️ ${t('settings.preferences.themeLight')}` },
-                { value: 'dark', label: `🌙 ${t('settings.preferences.themeDark')}` },
+                { value: 'light', label: t('settings.preferences.themeLight') },
+                { value: 'dark', label: t('settings.preferences.themeDark') },
               ]}
               value={isDark ? 'dark' : 'light'}
               onChange={(v) => {
@@ -65,6 +66,8 @@ export function PreferencesSection({
         <Divider />
         <Pressable
           onPress={onOpenCurrencyPicker}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.preferences.defaultCurrency')}
           style={({ pressed }) => [pressed && { opacity: 0.7 }]}
         >
           <Row
@@ -74,7 +77,7 @@ export function PreferencesSection({
                 <Text style={[styles.valuePillText, { color: theme.accent }]}>
                   {defaultCurrency}
                 </Text>
-                <Text style={[styles.chevron, { color: theme.textMuted }]}>›</Text>
+                <Icon name="chevron-right" size={14} color={theme.textMuted} stroke={2} />
               </View>
             }
           />
@@ -88,8 +91,7 @@ const styles = StyleSheet.create({
   valuePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   valuePillText: { ...typography.body, fontWeight: '700' },
-  chevron: { fontSize: 20, fontWeight: '600' },
 });

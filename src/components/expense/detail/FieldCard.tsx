@@ -16,7 +16,7 @@ export function FieldCard({
     <View
       style={[
         styles.fieldCard,
-        { backgroundColor: theme.surface, borderColor: theme.borderLight },
+        { backgroundColor: theme.surface, borderColor: theme.border },
       ]}
     >
       <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>{title}</Text>

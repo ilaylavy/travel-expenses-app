@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { MembersSection } from '@/components/trip/MembersSection';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
@@ -159,7 +160,7 @@ export default function TripSettingsScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.backButtonText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('tripSettings.title')}</Text>
         <View style={styles.spacer} />
@@ -168,6 +169,7 @@ export default function TripSettingsScreen() {
       <KeyboardAwareWrapper>
       <TripForm
         initial={initial}
+        monogramSeed={trip.id}
         displayCurrency={trip.homeCurrency}
         submitLabel={t('tripSettings.submit')}
         submittingLabel={t('tripSettings.submitting')}
@@ -273,13 +275,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backButtonText: { fontSize: 24, fontWeight: '600', lineHeight: 24 },
+  // (formerly backButtonText — replaced by SVG chevron-left.)
   title: { ...typography.screenTitle, flex: 1 },
   spacer: { width: sizing.headerButton },
   syncButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingVertical: spacing.md + 2, // 12
     alignItems: 'center',
     gap: 2,
@@ -289,7 +291,7 @@ const styles = StyleSheet.create({
   manageButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingVertical: 14, // button tall geometry
     alignItems: 'center',
     gap: 2,
@@ -299,7 +301,7 @@ const styles = StyleSheet.create({
   deleteButton: {
     marginTop: spacing.sm,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingVertical: 14,
     alignItems: 'center',
   },

@@ -22,6 +22,7 @@ import {
 } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import type { MapHandle, TripMapHandle } from '@/components/map/types';
 import { spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -255,7 +256,7 @@ function MissingKeyState() {
         { backgroundColor: theme.surface, borderColor: theme.border },
       ]}
     >
-      <Text style={styles.emoji}>🗺️</Text>
+      <Icon name="map-pin" size={40} color={theme.textSecondary} stroke={1.8} />
       <Text style={[styles.missingKeyTitle, { color: theme.text }]}>
         Map unavailable
       </Text>
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
   },
-  emoji: { fontSize: 40, marginBottom: spacing.sm },
+  // (formerly emoji — replaced by SVG map-pin.)
   missingKeyTitle: { ...typography.itemTitle, marginBottom: 4 },
   missingKeyBody: { ...typography.secondary, textAlign: 'center' },
 });

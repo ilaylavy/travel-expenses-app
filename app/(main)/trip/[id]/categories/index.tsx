@@ -3,17 +3,15 @@ import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Icon, type IconName } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { selectCategoriesForTrip, useCategoryStore } from '@/stores/categoryStore';
 import { useTripStore } from '@/stores/tripStore';
 import type { Category } from '@/types/category';
-import {
-  getCategoryColor,
-  getCategoryDisplayName,
-  getCategorySoftColor,
-} from '@/utils/category';
+import { getCategoryDisplayName } from '@/utils/category';
 import { showConfirmDialog } from '@/utils/confirmDialog';
 import { href } from '@/utils/nav';
 
@@ -77,17 +75,13 @@ export default function CategoriesScreen() {
   };
 
   const renderRow = (category: Category, index: number, scope: Category[]) => {
-    const color = getCategoryColor(category.color, theme);
-    const soft = getCategorySoftColor(category.color, theme);
     const isTripSpecific = category.tripId !== null;
     return (
       <View
         key={category.id}
         style={[styles.row, { borderBottomColor: theme.borderLight }]}
       >
-        <View style={[styles.iconBox, { backgroundColor: soft, borderColor: color }]}>
-          <Text style={styles.emoji}>{category.emoji}</Text>
-        </View>
+        <CategoryIcon category={category} size={sizing.categoryIconSmall} />
         <Pressable
           style={styles.rowBody}
           onPress={() => router.push(href(`/trip/${tripId}/categories/${category.id}`))}
@@ -108,20 +102,20 @@ export default function CategoriesScreen() {
           )}
         </Pressable>
         <View style={styles.actions}>
-          <ActionButton theme={theme} onPress={() => handleMove(scope, index, -1)} label="↑" />
-          <ActionButton theme={theme} onPress={() => handleMove(scope, index, 1)} label="↓" />
+          <ActionButton theme={theme} onPress={() => handleMove(scope, index, -1)} icon="arrow-up" />
+          <ActionButton theme={theme} onPress={() => handleMove(scope, index, 1)} icon="arrow-down" />
           <ActionButton
             theme={theme}
             onPress={() =>
               void updateCategory({ id: category.id, isArchived: !category.isArchived })
             }
-            label={category.isArchived ? '◉' : '◎'}
+            icon={category.isArchived ? 'eye-off' : 'eye'}
           />
           {isTripSpecific && (
             <ActionButton
               theme={theme}
               onPress={() => handleDelete(category)}
-              label="✕"
+              icon="x"
               tint={theme.red}
             />
           )}
@@ -145,11 +139,13 @@ export default function CategoriesScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerBtnText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('categories.title')}</Text>
         <Pressable
           onPress={() => router.push(href(`/trip/${tripId}/categories/new`))}
+          accessibilityRole="button"
+          accessibilityLabel={t('categories.addCta', { defaultValue: 'Add category' })}
           style={({ pressed }) => [
             styles.headerBtn,
             {
@@ -160,7 +156,7 @@ export default function CategoriesScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerBtnText, { color: theme.accent }]}>＋</Text>
+          <Icon name="plus" size={18} color={theme.accent} stroke={2.4} />
         </Pressable>
       </View>
 
@@ -188,18 +184,19 @@ export default function CategoriesScreen() {
 function ActionButton({
   theme,
   onPress,
-  label,
+  icon,
   tint,
 }: {
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
-  label: string;
+  icon: IconName;
   tint?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
       hitSlop={6}
+      accessibilityRole="button"
       style={({ pressed }) => [
         styles.actionBtn,
         {
@@ -209,7 +206,7 @@ function ActionButton({
         },
       ]}
     >
-      <Text style={[styles.actionText, { color: tint ?? theme.textSecondary }]}>{label}</Text>
+      <Icon name={icon} size={14} color={tint ?? theme.textSecondary} stroke={2} />
     </Pressable>
   );
 }
@@ -232,7 +229,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerBtnText: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
+  // (formerly headerBtnText — replaced by SVG icons.)
   title: { ...typography.screenTitle, flex: 1 },
   list: { padding: spacing.base, paddingBottom: spacing.xxl },
   sectionTitle: {
@@ -248,15 +245,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: borderWidth.hairline,
   },
-  iconBox: {
-    width: sizing.categoryIconSmall,
-    height: sizing.categoryIconSmall,
-    borderRadius: sizing.radiusIcon,
-    borderWidth: borderWidth.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: { fontSize: 18 },
+  // (iconBox + emoji moved into CategoryIcon component.)
   rowBody: { flex: 1 },
   rowName: { ...typography.body, fontWeight: '600' },
   rowMeta: { ...typography.caption },
@@ -269,7 +258,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionText: { fontSize: 14, fontWeight: '700' },
+  // (actionText replaced by SVG icons.)
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   missingText: typography.body,
 });

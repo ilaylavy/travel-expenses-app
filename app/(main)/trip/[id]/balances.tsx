@@ -1,23 +1,35 @@
-// Trip Balances screen — shows per-member trip-cost share, an OUTSTANDING
-// summary (You owe / Owes you columns) with one row per other member after
-// pairwise netting, the HISTORY of recorded payments, then a read-only
-// SHARED EXPENSES ledger of every split expense the user participates in.
-// Tap any OUTSTANDING row to open the Settle Up modal pre-filled with the
-// netted balance (amount editable for partial settle).
+// Trip Balances screen — redesigned per
+// .claude/skills/travel-expenses-design/redesigns/balance/balance-screen.jsx.
 //
-// Settlements are always free-form unattributed under this design — the
-// pairwise netter in computeBalance absorbs them (overpayment flips the
-// direction). Legacy attributed settlement_payments (with expense_split_id
-// set) remain honored by computeBalance; the UI no longer creates new
-// attributed rows.
+// Sections, top → bottom:
+//   1. Header (back + "Balance" title + trip · N members subtitle)
+//   2. BalanceHero  — big signed net amount + tone sentence
+//   3. SettledEmptyCard (when no outstanding)
+//   4. Owes you      — section label + OwesYouRow per debt
+//   5. You owe       — section label + YouOweRow per debt
+//   6. Members       — section label + MembersShareCard
+//   7. Recent settlements — section label + BalanceHistoryRow per entry
+//   8. Shared expenses    — section label + inline read-only ledger
+//
+// Behavior preservation: tapping a debt on EITHER side still opens the
+// SettleUpModal pre-filled with that pair's direction + amount. The design's
+// asymmetric "receiver-only" model is intentionally NOT adopted here — that
+// would be a behavior change, not a reskin.
 
 import { useFocusEffect, useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BalanceHero } from '@/components/balance/BalanceHero';
+import { BalanceHistoryRow } from '@/components/balance/BalanceHistoryRow';
+import { MembersShareCard } from '@/components/balance/MembersShareCard';
+import { OwesYouRow } from '@/components/balance/OwesYouRow';
+import { SettledEmptyCard } from '@/components/balance/SettledEmptyCard';
 import { SettleUpModal } from '@/components/balance/SettleUpModal';
-import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
+import { YouOweRow } from '@/components/balance/YouOweRow';
+import { Icon } from '@/components/Icon';
+import { SectionLabel } from '@/components/ui/SectionLabel';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { getProfileName } from '@/db/queries/profiles';
 import { listTripMembers } from '@/db/queries/trips';
@@ -26,11 +38,12 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useSettlementStore } from '@/stores/settlementStore';
+import { pushToast } from '@/stores/toastStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
-import type { SettlementPayment } from '@/types/settlement';
-import { computeBalance, type PairwiseSettlement } from '@/utils/balance';
+import { computeBalance } from '@/utils/balance';
 import {
+  selectBalanceCardSummary,
   selectMySharedExpenses,
   selectOutstandingForUser,
   type SharedExpenseRow,
@@ -38,7 +51,6 @@ import {
 import { showConfirmDialog } from '@/utils/confirmDialog';
 import { formatAmount } from '@/utils/currency';
 import { formatReadableDate } from '@/utils/date';
-import { initials } from '@/utils/initials';
 import { href } from '@/utils/nav';
 
 // Settle modal pre-fill: pair direction + gross amount (editable in the modal).
@@ -80,11 +92,10 @@ export default function BalancesScreen() {
     if (tripId && activeSettlementTripId !== tripId) void loadSettlements(tripId);
   }, [tripId, activeSettlementTripId, loadSettlements]);
 
-  // Re-sync whenever the user lands on this screen. In a shared trip, partner
-  // expenses arrive via realtime in the happy path, but a missed event (auth
-  // refresh gap, dropped channel, background app) would leave the balance
-  // stale forever otherwise — there's no other passive catch-up while sitting
-  // on this screen.
+  // Re-sync whenever the user lands on this screen. In a shared trip,
+  // partner expenses arrive via realtime in the happy path, but a missed
+  // event (auth refresh gap, dropped channel, background app) would leave
+  // the balance stale forever otherwise.
   useFocusEffect(
     useCallback(() => {
       void syncEngine.triggerSync();
@@ -95,8 +106,6 @@ export default function BalancesScreen() {
     setRefreshing(true);
     try {
       await syncEngine.triggerSync();
-      // triggerSync only refreshes stores when pull actually applied changes;
-      // re-read locally so the spinner clears against fresh state either way.
       await Promise.all([refreshExpenses(), refreshSettlements()]);
     } finally {
       setRefreshing(false);
@@ -128,20 +137,26 @@ export default function BalancesScreen() {
     [expenses, splits, settlements],
   );
 
-  // Outstanding netted summary for the current user. Each other person who
-  // has a non-zero balance with the current user appears in exactly one
-  // column — whoever owes after the pairwise netting in computeBalance.
   const outstanding = useMemo(
     () =>
       currentUserId
         ? selectOutstandingForUser(balance.settlements, currentUserId)
-        : { youOwe: [] as PairwiseSettlement[], owesYou: [] as PairwiseSettlement[] },
+        : { youOwe: [], owesYou: [] },
     [balance.settlements, currentUserId],
   );
 
-  // Read-only ledger: every split expense the current user participates in,
-  // newest first. Excludes private/deleted/non-split and anything the user
-  // isn't a participant in.
+  // Signed net across all the current user's outstanding pairs. Drives
+  // the hero amount + sentence tone.
+  const balanceSummary = useMemo(
+    () =>
+      currentUserId
+        ? selectBalanceCardSummary(balance.settlements, currentUserId)
+        : null,
+    [balance.settlements, currentUserId],
+  );
+
+  // Read-only ledger: every split expense the current user participates
+  // in, newest first.
   const mySharedExpenses = useMemo(
     () =>
       currentUserId ? selectMySharedExpenses(expenses, splits, currentUserId) : [],
@@ -170,8 +185,11 @@ export default function BalancesScreen() {
   };
 
   const currency = trip.homeCurrency;
+  const memberCount = Object.keys(memberNames).length;
+  const hasOutstanding =
+    outstanding.youOwe.length > 0 || outstanding.owesYou.length > 0;
 
-  const handleReverse = (s: SettlementPayment): void => {
+  const handleReverse = (s: typeof settlements[number]): void => {
     showConfirmDialog({
       title: t('balances.reverseTitle'),
       body: t('balances.reverseBody'),
@@ -181,6 +199,7 @@ export default function BalancesScreen() {
       onConfirm: async () => {
         try {
           await deleteSettlement(s.id);
+          pushToast(t('settleUp.toastReversed'), 'success');
         } catch (e) {
           console.warn('Reverse settlement failed', e);
         }
@@ -193,21 +212,38 @@ export default function BalancesScreen() {
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
-          style={[
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back')}
+          style={({ pressed }) => [
             styles.headerButton,
-            { backgroundColor: theme.surface, borderColor: theme.border },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerEmoji}>{trip.emoji}</Text>
-          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+        <View style={styles.headerTitleCol}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.headerTitle, { color: theme.text }]}
+            numberOfLines={1}
+          >
             {t('balances.title')}
           </Text>
+          <Text
+            style={[styles.headerSubtitle, { color: theme.textMuted }]}
+            numberOfLines={1}
+          >
+            {t('balances.tripSubtitle', { tripName: trip.name, count: memberCount })}
+          </Text>
         </View>
-        <View style={styles.headerButton} />
+        {/* Trailing spacer matches the leading button slot so the title
+            column is visually centered without a real action on this side. */}
+        <View style={[styles.headerButton, styles.headerSpacer]} />
       </View>
 
       <ScrollView
@@ -222,141 +258,100 @@ export default function BalancesScreen() {
           />
         }
       >
-        {/* Members + share totals */}
-        {balance.byMember.length > 0 ? (
-          <StatsSectionCard title={t('balances.membersSection')}>
-            <View style={{ gap: spacing.sm }}>
-              {balance.byMember.map((m) => {
-                const name = resolveName(m.userId);
-                return (
-                  <View key={m.userId} style={styles.memberRow}>
-                    <View
-                      style={[
-                        styles.avatar,
-                        { backgroundColor: theme.accentSoft },
-                      ]}
-                    >
-                      <Text style={[styles.avatarText, { color: theme.accent }]}>
-                        {initials(name)}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[styles.memberName, { color: theme.text }]}
-                      numberOfLines={1}
-                    >
-                      {name}
-                    </Text>
-                    <Text style={[styles.memberAmount, { color: theme.text }]}>
-                      {formatAmount(m.total, currency)}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          </StatsSectionCard>
+        <BalanceHero net={balanceSummary?.net ?? 0} currency={currency} />
+
+        {!hasOutstanding ? (
+          <View style={styles.settledWrap}>
+            <SettledEmptyCard sharedExpenseCount={mySharedExpenses.length} />
+          </View>
         ) : null}
 
-        {/* Outstanding — two-column directional summary. Each row is one
-            pair-direction the current user is involved in; tap to settle. */}
-        <StatsSectionCard title={t('balances.outstandingSection')}>
-          {outstanding.youOwe.length === 0 && outstanding.owesYou.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>🎉</Text>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                {t('balances.allSettled')}
-              </Text>
-              <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-                {t('balances.allSettledHint')}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.directionalColumns}>
-              <View style={styles.directionalColumn}>
-                <Text style={[styles.columnHeader, { color: theme.textMuted }]}>
-                  {t('balances.youOweColumn')}
-                </Text>
-                {outstanding.youOwe.length === 0 ? (
-                  <Text style={[styles.columnEmpty, { color: theme.textMuted }]}>—</Text>
-                ) : (
-                  outstanding.youOwe.map((d) => (
-                    <DirectionalDebtRow
-                      key={`${d.fromUserId}|${d.toUserId}`}
-                      debt={d}
-                      name={resolveName(d.toUserId)}
-                      currency={currency}
-                      tone="youOwe"
-                      cta={t('balances.payCta')}
-                      onPress={() =>
-                        setModalContext({
-                          fromUserId: d.fromUserId,
-                          toUserId: d.toUserId,
-                          amount: d.amount,
-                        })
-                      }
-                    />
-                  ))
-                )}
-              </View>
-              <View style={styles.directionalColumn}>
-                <Text style={[styles.columnHeader, { color: theme.textMuted }]}>
-                  {t('balances.owesYouColumn')}
-                </Text>
-                {outstanding.owesYou.length === 0 ? (
-                  <Text style={[styles.columnEmpty, { color: theme.textMuted }]}>—</Text>
-                ) : (
-                  outstanding.owesYou.map((d) => (
-                    <DirectionalDebtRow
-                      key={`${d.fromUserId}|${d.toUserId}`}
-                      debt={d}
-                      name={resolveName(d.fromUserId)}
-                      currency={currency}
-                      tone="owesYou"
-                      cta={t('balances.recordCta')}
-                      onPress={() =>
-                        setModalContext({
-                          fromUserId: d.fromUserId,
-                          toUserId: d.toUserId,
-                          amount: d.amount,
-                        })
-                      }
-                    />
-                  ))
-                )}
-              </View>
-            </View>
-          )}
-        </StatsSectionCard>
+        {outstanding.owesYou.length > 0 ? (
+          <View>
+            <SectionLabel
+              count={outstanding.owesYou.length}
+              dotColor={theme.green}
+            >
+              {t('balances.owesYouLabel')}
+            </SectionLabel>
+            {outstanding.owesYou.map((d) => (
+              <OwesYouRow
+                key={`${d.fromUserId}|${d.toUserId}`}
+                debt={d}
+                name={resolveName(d.fromUserId)}
+                currency={currency}
+                onPress={() =>
+                  setModalContext({
+                    fromUserId: d.fromUserId,
+                    toUserId: d.toUserId,
+                    amount: d.amount,
+                  })
+                }
+              />
+            ))}
+          </View>
+        ) : null}
 
-        {/* History — recorded settlement payments. Shown above the ledger so
-            recent activity is closer to the OUTSTANDING summary. */}
-        <StatsSectionCard title={t('balances.historySection')}>
-          {settlements.length === 0 ? (
-            <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
-              {t('balances.noHistory')}
+        {outstanding.youOwe.length > 0 ? (
+          <View>
+            <SectionLabel
+              count={outstanding.youOwe.length}
+              dotColor={theme.red}
+            >
+              {t('balances.youOweLabel')}
+            </SectionLabel>
+            {outstanding.youOwe.map((d) => (
+              <YouOweRow
+                key={`${d.fromUserId}|${d.toUserId}`}
+                debt={d}
+                name={resolveName(d.toUserId)}
+                currency={currency}
+                onPress={() =>
+                  setModalContext({
+                    fromUserId: d.fromUserId,
+                    toUserId: d.toUserId,
+                    amount: d.amount,
+                  })
+                }
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {balance.byMember.length > 0 ? (
+          <View>
+            <SectionLabel>{t('balances.membersSection')}</SectionLabel>
+            <MembersShareCard
+              members={balance.byMember}
+              resolveName={resolveName}
+              currency={currency}
+            />
+          </View>
+        ) : null}
+
+        {settlements.length > 0 ? (
+          <View>
+            <SectionLabel count={settlements.length}>
+              {t('balances.historySection')}
+            </SectionLabel>
+            {settlements.map((s) => (
+              <BalanceHistoryRow
+                key={s.id}
+                settlement={s}
+                resolveName={resolveName}
+                onReverse={() => handleReverse(s)}
+              />
+            ))}
+            <Text style={[styles.footnote, { color: theme.textMuted }]}>
+              {t('balances.historyReverseFootnote')}
             </Text>
-          ) : (
-            <View style={{ gap: spacing.sm }}>
-              <Text style={[styles.historyHint, { color: theme.textMuted }]}>
-                {t('balances.longPressHint')}
-              </Text>
-              {settlements.map((s) => (
-                <HistoryRow
-                  key={s.id}
-                  settlement={s}
-                  resolveName={resolveName}
-                  onLongPress={() => handleReverse(s)}
-                />
-              ))}
-            </View>
-          )}
-        </StatsSectionCard>
+          </View>
+        ) : null}
 
-        {/* Shared Expenses — read-only ledger of every split expense the
-            current user participates in. No settle button per row; settle
-            from the OUTSTANDING summary above instead. */}
-        <StatsSectionCard title={t('balances.sharedExpensesSection')}>
+        <View>
+          <SectionLabel>{t('balances.sharedExpensesSection')}</SectionLabel>
           {mySharedExpenses.length === 0 ? (
-            <Text style={[styles.emptyHistory, { color: theme.textMuted }]}>
+            <Text style={[styles.emptyLedger, { color: theme.textMuted }]}>
               {t('balances.sharedExpensesEmpty')}
             </Text>
           ) : (
@@ -371,7 +366,7 @@ export default function BalancesScreen() {
               ))}
             </View>
           )}
-        </StatsSectionCard>
+        </View>
       </ScrollView>
 
       {modalContext ? (
@@ -392,48 +387,9 @@ export default function BalancesScreen() {
   );
 }
 
-interface DirectionalDebtRowProps {
-  debt: PairwiseSettlement;
-  name: string;
-  currency: string;
-  // "youOwe" → red palette (you're the debtor). "owesYou" → green palette.
-  tone: 'youOwe' | 'owesYou';
-  cta: string;
-  onPress: () => void;
-}
-
-function DirectionalDebtRow({
-  debt,
-  name,
-  currency,
-  tone,
-  cta,
-  onPress,
-}: DirectionalDebtRowProps) {
-  const theme = useTheme();
-  const bg = tone === 'youOwe' ? theme.redSoft : theme.greenSoft;
-  const fg = tone === 'youOwe' ? theme.red : theme.green;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.directionalRow,
-        { backgroundColor: bg, transform: [{ scale: pressed ? 0.98 : 1 }] },
-      ]}
-    >
-      <Text style={[styles.directionalName, { color: fg }]} numberOfLines={1}>
-        {name}
-      </Text>
-      <Text style={[styles.directionalAmount, { color: fg }]}>
-        {formatAmount(debt.amount, currency)}
-      </Text>
-      <View style={[styles.directionalCta, { backgroundColor: fg }]}>
-        <Text style={styles.directionalCtaText}>{cta}</Text>
-      </View>
-    </Pressable>
-  );
-}
-
+// Inline read-only ledger row — kept from the previous implementation
+// because the design's "ledger link" variant requires a separate screen
+// which is feature work, not a reskin.
 interface SharedExpenseRowItemProps {
   row: SharedExpenseRow;
   currency: string;
@@ -444,9 +400,6 @@ function SharedExpenseRowItem({ row, currency, resolveName }: SharedExpenseRowIt
   const theme = useTheme();
   const { t } = useTranslation();
 
-  // Body line:
-  //   - user is payer: "You paid · {name1} owes you {amt1} · {name2} owes you {amt2} ..."
-  //   - someone else paid: "{payerName} paid · you owe {amt}"
   const headLabel = row.userIsPayer
     ? t('balances.rowYouPaid')
     : t('balances.rowPaidBy', { name: resolveName(row.payerUserId) });
@@ -465,72 +418,29 @@ function SharedExpenseRowItem({ row, currency, resolveName }: SharedExpenseRowIt
       ];
 
   return (
-    <View style={[styles.sharedExpenseRow, { backgroundColor: theme.surface }]}>
-      <View style={styles.sharedExpenseHeader}>
-        <Text style={[styles.sharedExpenseTitle, { color: theme.text }]} numberOfLines={1}>
+    <View
+      style={[
+        styles.ledgerRow,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}
+    >
+      <View style={styles.ledgerHeader}>
+        <Text style={[styles.ledgerTitle, { color: theme.text }]} numberOfLines={1}>
           {row.expense.note && row.expense.note.trim().length > 0
             ? row.expense.note
             : '—'}
         </Text>
-        <Text style={[styles.sharedExpenseTotal, { color: theme.text }]}>
+        <Text style={[styles.ledgerTotal, { color: theme.text }]}>
           {formatAmount(row.expense.convertedAmount, currency)}
         </Text>
       </View>
-      <Text style={[styles.sharedExpenseMeta, { color: theme.textMuted }]}>
+      <Text style={[styles.ledgerMeta, { color: theme.textMuted }]}>
         {formatReadableDate(row.expense.expenseDate)}
       </Text>
-      <Text style={[styles.sharedExpenseBody, { color: theme.textSecondary }]}>
+      <Text style={[styles.ledgerBody, { color: theme.textSecondary }]}>
         {[headLabel, ...tailLabels].join(' · ')}
       </Text>
     </View>
-  );
-}
-
-interface HistoryRowProps {
-  settlement: SettlementPayment;
-  resolveName: (userId: string) => string;
-  onLongPress: () => void;
-}
-
-function HistoryRow({ settlement, resolveName, onLongPress }: HistoryRowProps) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-  const fromName = resolveName(settlement.fromUserId);
-  const toName = resolveName(settlement.toUserId);
-
-  return (
-    <Pressable
-      onLongPress={onLongPress}
-      delayLongPress={400}
-      style={({ pressed }) => [
-        styles.historyRow,
-        {
-          backgroundColor: theme.surface,
-          borderColor: theme.borderLight,
-          opacity: pressed ? 0.85 : 1,
-        },
-      ]}
-    >
-      <View style={styles.historyLeft}>
-        <Text style={[styles.historyDate, { color: theme.textMuted }]}>
-          {formatReadableDate(settlement.settledDate)}
-        </Text>
-        <Text style={[styles.historyFlow, { color: theme.text }]} numberOfLines={1}>
-          {t('balances.fromTo', { from: fromName, to: toName })}
-        </Text>
-        {settlement.note ? (
-          <Text
-            style={[styles.historyNote, { color: theme.textSecondary }]}
-            numberOfLines={2}
-          >
-            {settlement.note}
-          </Text>
-        ) : null}
-      </View>
-      <Text style={[styles.historyAmount, { color: theme.text }]}>
-        {formatAmount(settlement.amount, settlement.currency)}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -540,8 +450,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xs + 2,
+    paddingBottom: spacing.sm,
     gap: spacing.md,
   },
   headerButton: {
@@ -552,177 +462,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
-  headerTitleWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  headerEmoji: { fontSize: 24 },
-  headerTitle: { ...typography.itemTitle, flex: 1 },
-  scroll: {
-    padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
-    gap: spacing.lg,
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  avatar: {
-    width: sizing.categoryIconSmall,
-    height: sizing.categoryIconSmall,
-    borderRadius: sizing.radiusPill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { ...typography.micro, fontSize: 12 },
-  memberName: { ...typography.body, flex: 1 },
-  memberAmount: { ...typography.amountSmall },
-  emptyState: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
-  emptyEmoji: { fontSize: 32 },
-  emptyTitle: { ...typography.itemTitle },
-  emptyBody: { ...typography.body, textAlign: 'center' },
-  pairCard: {
-    borderRadius: sizing.radiusInput,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  pairLabel: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  pairActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  settleButton: {
-    flex: 1,
-    borderRadius: sizing.radiusButton,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  settleButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  expandToggle: {
-    borderRadius: sizing.radiusChip,
-    borderWidth: borderWidth.base,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8, // chip compact geometry
-  },
-  expandToggleText: { fontSize: 12, fontWeight: '700' },
-  splitsList: { gap: spacing.xs, marginTop: spacing.xs },
-  splitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: sizing.radiusInput,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
-  },
-  splitEmoji: { fontSize: 20 },
-  splitMeta: { flex: 1, gap: 2 },
-  splitTitle: { fontSize: 13, fontWeight: '700' },
-  splitSub: { fontSize: 11, fontWeight: '500' },
-  splitSettleButton: {
-    borderRadius: sizing.radiusChip,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-  },
-  splitSettleButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  directionalColumns: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  directionalColumn: {
-    flex: 1,
-    gap: spacing.sm,
-  },
-  columnHeader: {
-    ...typography.micro,
-    textTransform: 'uppercase',
-    marginBottom: spacing.xs,
-  },
-  columnEmpty: {
-    ...typography.body,
-    textAlign: 'center',
-    paddingVertical: spacing.sm,
-  },
-  directionalRow: {
-    borderRadius: sizing.radiusCard,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  directionalName: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  directionalAmount: {
-    fontSize: 18,
+  headerSpacer: { borderColor: 'transparent', opacity: 0 },
+  headerTitleCol: { flex: 1, minWidth: 0, gap: 2 },
+  headerTitle: {
+    fontSize: 22,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  directionalCta: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: sizing.radiusChip,
-    marginTop: spacing.xs,
-  },
-  directionalCtaText: {
-    color: '#FFFFFF',
+  headerSubtitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
+    lineHeight: 16,
   },
-  sharedExpenseRow: {
-    borderRadius: sizing.radiusCard,
-    padding: spacing.md,
+  scroll: {
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xxxl,
+  },
+  settledWrap: { marginTop: spacing.lg },
+  footnote: {
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 16,
+    paddingHorizontal: spacing.xs + 2,
+    paddingTop: spacing.xs,
+  },
+  emptyLedger: {
+    ...typography.body,
+    paddingVertical: spacing.lg,
+    textAlign: 'center',
+  },
+  ledgerRow: {
+    borderRadius: sizing.radiusInput,
+    borderWidth: borderWidth.hairline,
+    padding: spacing.md + 2,
     gap: spacing.xs,
   },
-  sharedExpenseHeader: {
+  ledgerHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: spacing.sm,
   },
-  sharedExpenseTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  sharedExpenseTotal: {
+  ledgerTitle: { flex: 1, fontSize: 14, fontWeight: '700' },
+  ledgerTotal: {
     fontSize: 14,
     fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
-  sharedExpenseMeta: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  sharedExpenseBody: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  historyHint: {
-    ...typography.micro,
-    fontStyle: 'italic',
-  },
-  emptyHistory: { ...typography.body, fontStyle: 'italic' },
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderWidth: borderWidth.hairline,
-    borderRadius: sizing.radiusInput,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  historyLeft: { flex: 1, gap: 2 },
-  historyDate: { fontSize: 11, fontWeight: '600' },
-  historyFlow: { fontSize: 14, fontWeight: '700' },
-  historyNote: { fontSize: 12, fontWeight: '500' },
-  historyAmount: { ...typography.amountSmall },
+  ledgerMeta: { fontSize: 11, fontWeight: '500' },
+  ledgerBody: { fontSize: 12, fontWeight: '500', lineHeight: 17 },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.base },
   linkButton: {
     borderRadius: sizing.radiusButton,
     paddingHorizontal: spacing.xl,
-    paddingVertical: 12,
+    paddingVertical: spacing.md + 2,
   },
   linkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

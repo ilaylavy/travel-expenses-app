@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -22,16 +23,20 @@ export function AccountSection({
       <Card>
         <Pressable
           onPress={onSignOut}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.account.signOut')}
           style={({ pressed }) => [pressed && { opacity: 0.7 }]}
         >
           <Row
             label={t('settings.account.signOut')}
-            right={<Text style={[styles.chevron, { color: theme.textMuted }]}>›</Text>}
+            right={<Icon name="chevron-right" size={14} color={theme.textMuted} stroke={2} />}
           />
         </Pressable>
         <Divider />
         <Pressable
           onPress={onDeleteAccount}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.account.deleteAccount')}
           style={({ pressed }) => [pressed && { opacity: 0.7 }]}
         >
           <Row
@@ -40,7 +45,7 @@ export function AccountSection({
                 {t('settings.account.deleteAccount')}
               </Text>
             }
-            right={<Text style={[styles.chevron, { color: theme.red }]}>›</Text>}
+            right={<Icon name="chevron-right" size={14} color={theme.red} stroke={2} />}
           />
         </Pressable>
       </Card>
@@ -49,6 +54,5 @@ export function AccountSection({
 }
 
 const styles = StyleSheet.create({
-  chevron: { fontSize: 20, fontWeight: '600' },
   labelText: { ...typography.body, fontWeight: '600' },
 });

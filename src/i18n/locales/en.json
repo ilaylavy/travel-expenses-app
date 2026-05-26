@@ -13,6 +13,14 @@
     "edit": "Edit",
     "share": "Share"
   },
+  "splash": {
+    "tagline": "Spend less. See more."
+  },
+  "formErrors": {
+    "required": "This field is required",
+    "emailInvalid": "Enter a valid email",
+    "passwordTooShort": "Use at least 6 characters"
+  },
   "calendar": {
     "selectDate": "Select date",
     "selectRange": "Select date range",
@@ -170,14 +178,21 @@
     "emoji": "Emoji",
     "name": "Name",
     "namePlaceholder": "Tokyo 2026",
+    "monogramHint": "Auto-coloured monogram from your trip name",
     "startDate": "Start date",
     "endDate": "End date",
+    "dates": "Dates",
     "datePlaceholder": "YYYY-MM-DD",
     "ongoingToggle": "Ongoing (no end date)",
     "tripCurrency": "Trip currency",
     "homeCurrency": "Home currency",
     "budget": "Budget ({{currency}}, optional)",
     "budgetPlaceholder": "0",
+    "presetWeekend": "This weekend",
+    "preset7d": "Next 7 days",
+    "preset2w": "2 weeks",
+    "budgetDailyHint_one": "≈ {{amount}} / day · {{count}} day",
+    "budgetDailyHint_other": "≈ {{amount}} / day · {{count}} days",
     "errors": {
       "nameRequired": "Trip name is required",
       "startDateInvalid": "Start date must be YYYY-MM-DD",
@@ -198,7 +213,14 @@
     "emptyExpensesBody": "Tap Add expense to log your first one.",
     "mapAllCategories": "All",
     "mapEmptyTitle": "No pinned expenses yet",
-    "mapEmptyBody": "Log an expense with location to see it on the map."
+    "mapEmptyBody": "Log an expense with location to see it on the map.",
+    "askCardTitle": "Ask anything about this trip",
+    "askCardSubtitle": "“How much did we spend on coffee?” · “Who paid for the hotel?”",
+    "balanceCardTitle": "Balance",
+    "balanceCardSettled": "All settled · nothing to do",
+    "balanceCardOwesYou": "{{name}} owes you",
+    "balanceCardYouOwe": "You owe {{name}}",
+    "balanceCardMoreSuffix": " · +{{count}} more"
   },
   "map": {
     "myLocation": "My location",
@@ -246,6 +268,12 @@
     "save": "Save",
     "saving": "Saving…",
     "numpadDone": "Done",
+    "numpadEqualsAriaLabel": "Equals",
+    "numpadBackspaceAriaLabel": "Backspace",
+    "numpadOpAddAriaLabel": "Plus",
+    "numpadOpSubAriaLabel": "Minus",
+    "numpadOpMulAriaLabel": "Times",
+    "numpadOpDivAriaLabel": "Divide",
     "amountLabel": "Amount",
     "convertedLabel": "≈ {{amount}} in {{currency}}",
     "currencySection": "Currency",
@@ -389,6 +417,16 @@
     "you": "you",
     "noExpensesTitle": "No stats yet",
     "noExpensesBody": "Log your first expense to see this trip in numbers.",
+    "periodLast7": "Last 7d",
+    "periodLast30": "Last 30d",
+    "periodTrip": "Whole trip",
+    "heroLabelLast7": "Total spent · last 7 days",
+    "heroLabelLast30": "Total spent · last 30 days",
+    "heroLabelTrip": "Total spent · this trip",
+    "heroSubDailyAvg": "{{amount}} / day",
+    "heroSubBudget": "{{percent}} of budget",
+    "heroSubDaysLeft_one": "{{count}} day left",
+    "heroSubDaysLeft_other": "{{count}} days left",
     "paymentCash": "Cash",
     "paymentCredit": "Credit",
     "paymentDebit": "Debit",
@@ -539,7 +577,23 @@
     "rowYouPaid": "You paid",
     "rowPaidBy": "{{name}} paid",
     "rowYouOweAmount": "you owe {{amount}}",
-    "rowOwesYouAmount": "{{name}} owes you {{amount}}"
+    "rowOwesYouAmount": "{{name}} owes you {{amount}}",
+    "heroLabel": "Your net balance",
+    "heroSentencePositive": "You'll receive when everyone settles.",
+    "heroSentenceNegative": "You'll send when everyone settles.",
+    "heroSentenceSettled": "Everyone's even — nothing outstanding.",
+    "settledEmptyTitle": "You're all even",
+    "settledEmptyBody": "Across {{count}} shared expenses, everything balances out.",
+    "owesYouLabel": "Owes you",
+    "youOweLabel": "You owe",
+    "markPaidCta": "Mark paid",
+    "youOweSubtitle": "{{name}} will mark it received once you pay",
+    "youOweFootnote": "Pay them however you like — once they receive it they'll mark it on their side and your balance updates automatically.",
+    "historyReverseFootnote": "Recorded by mistake? Tap the reverse icon — the balance comes back exactly as it was.",
+    "reverseAriaLabel": "Reverse this settlement",
+    "memberFrontedMost": "{{name}} fronted the most this trip — settles even out when everyone pays in.",
+    "tripSubtitle_one": "{{tripName}} · {{count}} member",
+    "tripSubtitle_other": "{{tripName}} · {{count}} members"
   },
   "settleUp": {
     "title": "Record payment",
@@ -557,6 +611,8 @@
     "amountInvalid": "Enter a positive amount.",
     "rateUnavailable": "Couldn't fetch the exchange rate. Try again later.",
     "saveFailedTitle": "Couldn't record payment",
-    "saveFailedFallback": "Something went wrong."
+    "saveFailedFallback": "Something went wrong.",
+    "toastSaved": "Settlement recorded",
+    "toastReversed": "Settlement reversed"
   }
 }
