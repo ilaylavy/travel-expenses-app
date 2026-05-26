@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import * as journalMoments from '@/db/queries/journalMoments';
 import type { JournalMoment } from '@/types/journal';
@@ -33,5 +33,14 @@ export function useDayMoments(tripId: string, dayDate: string): DayMomentsState 
     void reload();
   }, [reload]);
 
-  return { moments, isLoading, reload };
+  // Stable return object. Without useMemo, every render produces a fresh
+  // `{ moments, isLoading, reload }` object even when the underlying state
+  // didn't change. Consumers that include the whole hook result in a
+  // useFocusEffect / useEffect dep list (e.g. DayScreen) would then re-fire
+  // on every render → infinite loop. Memoize so the object identity tracks
+  // the actual state.
+  return useMemo(
+    () => ({ moments, isLoading, reload }),
+    [moments, isLoading, reload],
+  );
 }

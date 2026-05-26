@@ -4,7 +4,7 @@
 // pinned cover (via coverPhotoEntryId) if set, otherwise fall back to the
 // first-uploaded photo as the cover.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import * as journalDays from '@/db/queries/journalDays';
 import * as journalPhotoEntries from '@/db/queries/journalPhotoEntries';
@@ -42,7 +42,11 @@ export function useDaySummary(
   const me = useAuthStore((s) => s.session?.user.id ?? '');
   const [data, setData] = useState<DaySummaryData>(EMPTY);
 
-  const reload = async (): Promise<void> => {
+  // useCallback so the function identity is stable across renders for the
+  // same (tripId, dayDateISO, me). Consumers (e.g. DayScreen's
+  // useFocusEffect) depend on `reload` identity; a fresh function each
+  // render would re-fire those effects continuously.
+  const reload = useCallback(async (): Promise<void> => {
     if (!tripId || !me) return;
     try {
       const [photoCount, voiceCount, meta, fallbackCoverPath, expenseTotals] = await Promise.all([
@@ -75,12 +79,15 @@ export function useDaySummary(
       console.warn('useDaySummary reload failed:', error);
       setData((prev) => ({ ...prev, isLoading: false }));
     }
-  };
+  }, [tripId, dayDateISO, me]);
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripId, dayDateISO, me]);
+  }, [reload]);
 
-  return { ...data, reload };
+  // Stable return object. Without useMemo, every render produces a fresh
+  // `{ ...data, reload }` even when neither input changed. Consumers that
+  // include the whole hook result in a useFocusEffect / useEffect dep list
+  // (e.g. DayScreen) would then re-fire on every render → infinite loop.
+  return useMemo(() => ({ ...data, reload }), [data, reload]);
 }

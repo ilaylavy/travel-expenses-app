@@ -278,15 +278,25 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
   // Re-fetch this day's lists + summary + moments whenever the screen comes
   // back into focus. Covers the case where a sibling screen (or a sync
   // event) mutated data while the user was elsewhere.
+  // CRITICAL: depend on the .reload FUNCTIONS, not the whole `summary` /
+  // `moments` objects. The hook results are memoized but their inner state
+  // (data / moments array) gets a fresh reference on every reload — which
+  // ripples up through the memo and would flip the callback identity on
+  // every render → useFocusEffect re-fires → reload → setState → repeat.
+  // The reload functions themselves are useCallback'd with stable deps
+  // ([tripId, dayDateISO, me]), so depending on them keeps the callback
+  // identity stable across data changes.
+  const summaryReload = summary.reload;
+  const momentsReload = moments.reload;
   useFocusEffect(
     useCallback(() => {
       void reloadDayLists();
-      void summary.reload();
-      void moments.reload();
+      void summaryReload();
+      void momentsReload();
       if (tripId && activeExpenseTripId !== tripId) {
         void loadExpensesForTrip(tripId);
       }
-    }, [reloadDayLists, summary, moments, tripId, activeExpenseTripId, loadExpensesForTrip]),
+    }, [reloadDayLists, summaryReload, momentsReload, tripId, activeExpenseTripId, loadExpensesForTrip]),
   );
 
   const tripCategories = useMemo(
