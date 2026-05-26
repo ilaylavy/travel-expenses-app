@@ -1,4 +1,5 @@
 import {
+  combineDateWithTimeOfDay,
   countDaysInRange,
   formatDateRange,
   formatDay,
@@ -99,5 +100,68 @@ describe('countDaysInRange', () => {
 describe('todayIsoDate', () => {
   it('matches the YYYY-MM-DD pattern', () => {
     expect(todayIsoDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('combineDateWithTimeOfDay', () => {
+  it('anchors the date prefix to dayDate regardless of TZ or time-of-day', () => {
+    // Contract: substring(0, 10) === dayDate, always.
+    expect(combineDateWithTimeOfDay('2026-05-15', null).slice(0, 10)).toBe('2026-05-15');
+    expect(combineDateWithTimeOfDay('2026-05-15', undefined).slice(0, 10)).toBe('2026-05-15');
+    expect(
+      combineDateWithTimeOfDay('2026-05-15', '2024-06-14T22:00:00.000Z').slice(0, 10),
+    ).toBe('2026-05-15');
+    expect(
+      combineDateWithTimeOfDay('2026-05-15', '2024-06-15T05:00:00.000Z').slice(0, 10),
+    ).toBe('2026-05-15');
+    expect(
+      combineDateWithTimeOfDay('2026-12-31', '2024-06-15T23:59:59.999Z').slice(0, 10),
+    ).toBe('2026-12-31');
+  });
+
+  it('returns a well-formed ISO-8601 string with TZ offset', () => {
+    const result = combineDateWithTimeOfDay('2026-05-15', '2024-06-14T22:00:00.000Z');
+    expect(result).toMatch(/^2026-05-15T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$/);
+  });
+
+  it('uses midnight (00:00:00.000) when no reference is provided', () => {
+    expect(combineDateWithTimeOfDay('2026-05-15', null)).toMatch(
+      /^2026-05-15T00:00:00\.000[+-]\d{2}:\d{2}$/,
+    );
+    expect(combineDateWithTimeOfDay('2026-05-15', undefined)).toMatch(
+      /^2026-05-15T00:00:00\.000[+-]\d{2}:\d{2}$/,
+    );
+  });
+
+  it('uses midnight when the reference is unparseable', () => {
+    expect(combineDateWithTimeOfDay('2026-05-15', 'garbage')).toMatch(
+      /^2026-05-15T00:00:00\.000[+-]\d{2}:\d{2}$/,
+    );
+  });
+
+  it('falls back to now() when dayDate is invalid', () => {
+    const result = combineDateWithTimeOfDay('not-a-date', '2024-06-14T22:00:00.000Z');
+    // Should be a valid ISO string (default toISOString format).
+    expect(() => new Date(result).toISOString()).not.toThrow();
+  });
+
+  it('preserves the time-of-day from the reference (local wall-clock)', () => {
+    // The reference timestamp maps to some local hour. The result should
+    // carry the SAME local hour/minute. We can't assert absolute hours
+    // without controlling the test machine's TZ — but we can assert that
+    // parsing the result back and reading getHours/getMinutes matches the
+    // reference's getHours/getMinutes.
+    const ref = '2024-06-14T22:00:00.000Z';
+    const refDate = new Date(ref);
+    const result = combineDateWithTimeOfDay('2026-05-15', ref);
+    const resultDate = new Date(result);
+    expect(resultDate.getHours()).toBe(refDate.getHours());
+    expect(resultDate.getMinutes()).toBe(refDate.getMinutes());
+    expect(resultDate.getSeconds()).toBe(refDate.getSeconds());
+    expect(resultDate.getMilliseconds()).toBe(refDate.getMilliseconds());
+    // And the calendar date in local time should be the dayDate.
+    expect(resultDate.getFullYear()).toBe(2026);
+    expect(resultDate.getMonth()).toBe(4); // May (0-indexed)
+    expect(resultDate.getDate()).toBe(15);
   });
 });
