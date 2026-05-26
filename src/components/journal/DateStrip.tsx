@@ -6,8 +6,9 @@
 // the active pill stays visible as the user pages through days.
 
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 
+import { useIsRTL } from '@/hooks/useIsRTL';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { todayIsoDate } from '@/utils/date';
@@ -43,8 +45,14 @@ export function DateStrip({
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const isRTL = useIsRTL();
   const scrollRef = useRef<ScrollView>(null);
-  const viewportRef = useRef<number>(0);
+  // viewport + contentWidth as state (not refs) so the centering effect
+  // re-runs once layout is known. Without this, the first paint computes
+  // against a 0/320-fallback viewport and the active pill lands off-center
+  // on wider screens.
+  const [viewport, setViewport] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
 
   const days = useMemo(() => expandDays(startDate, endDate), [startDate, endDate]);
   const today = todayIsoDate();
@@ -53,21 +61,30 @@ export function DateStrip({
   // navigate to the same place and stacking both reads as duplicate chrome.
   const showAllDaysButton = !showBackButton;
 
-  // Center the active pill horizontally inside the viewport as it changes.
-  // We don't know the viewport width until first layout, so the math runs
-  // any time either changes.
+  // Center the active pill horizontally inside the viewport. Defers until
+  // both viewport and contentWidth are measured, so the first scroll lands
+  // accurately rather than against a fallback.
+  //
+  // RTL note: on Android, ScrollView.scrollTo({x: N}) measures `x` from the
+  // right edge of content in RTL. Without the mirror below, the LTR math
+  // (which assumes x grows leftward) lands at the opposite end of the
+  // strip — visible as "the day pills jump to the wrong side on every tap".
+  // iOS RTL handles the axis transparently and doesn't need the mirror.
   useEffect(() => {
+    if (viewport === 0 || contentWidth === 0 || !scrollRef.current) return;
     const idx = days.findIndex((d) => d === currentDate);
-    if (idx < 0 || !scrollRef.current) return;
+    if (idx < 0) return;
     const stride = PILL_W + PILL_GAP;
     const pillCenter = idx * stride + PILL_W / 2;
-    const viewport = viewportRef.current || 320;
-    const x = Math.max(0, pillCenter - viewport / 2);
+    let x = Math.max(0, pillCenter - viewport / 2);
+    if (isRTL && Platform.OS === 'android') {
+      x = Math.max(0, contentWidth - viewport - x);
+    }
     scrollRef.current.scrollTo({ x, animated: true });
-  }, [currentDate, days.length]);
+  }, [currentDate, days.length, viewport, contentWidth, isRTL]);
 
   const onScrollLayout = (e: LayoutChangeEvent): void => {
-    viewportRef.current = e.nativeEvent.layout.width;
+    setViewport(e.nativeEvent.layout.width);
   };
 
   return (
@@ -99,6 +116,7 @@ export function DateStrip({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.strip}
         onLayout={onScrollLayout}
+        onContentSizeChange={(w) => setContentWidth(w)}
       >
         {days.map((date, idx) => (
           <DatePill
