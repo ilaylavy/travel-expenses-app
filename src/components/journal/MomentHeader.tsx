@@ -13,7 +13,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { JournalMoment } from '@/types/journal';
 
-import { NODE_COLUMN_WIDTH } from './SpineNode';
+import { NODE_COLUMN_WIDTH } from './spineGeometry';
 import { SpineBranch, SpineSlice } from './SpineSlice';
 
 // Vertical anchor inside the pill row, used to align the horizontal

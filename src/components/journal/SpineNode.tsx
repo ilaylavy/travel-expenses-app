@@ -14,12 +14,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
 import { SpineSlice } from './SpineSlice';
+import { NODE_COLUMN_WIDTH } from './spineGeometry';
 
-export const NODE_COLUMN_WIDTH = 64;
-// Y-offset (from row top) of the dot's visual center. Composed of the
-// root's paddingTop (8) plus half the dotWrap (18/2 = 9). Exported so
-// SpineSlice can default its capTop/capBottom anchor to the same y.
-export const DOT_CENTER_Y = 17;
 const DOT_FILLED = 9;
 const DOT_HOLLOW = 8;
 

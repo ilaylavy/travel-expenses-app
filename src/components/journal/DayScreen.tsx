@@ -49,7 +49,7 @@ import { MomentNameSheet } from './MomentNameSheet';
 import { MomentOptionsSheet } from './MomentOptionsSheet';
 import { MomentSelectionBanner } from './MomentSelectionBanner';
 import { MomentTintBand } from './MomentTintBand';
-import { NODE_COLUMN_WIDTH } from './SpineNode';
+import { NODE_COLUMN_WIDTH } from './spineGeometry';
 import { TimelineItemActions } from './TimelineItemActions';
 import { TimestampEditor } from './TimestampEditor';
 import { TranscriptEditor } from './TranscriptEditor';

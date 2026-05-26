@@ -4,19 +4,17 @@
 // the <MomentTintBand /> bracket with a single, row-owned line that the
 // caller composes per row.
 //
-// Geometry rationale: NODE_COLUMN_WIDTH = 64 from SpineNode. The spine's
-// center stays at SPINE_CENTER = 32 regardless of thickness, so the inset
-// is computed as SPINE_CENTER - floor(width/2). This keeps the line
-// centered on the dots when thickness changes between rows (solo → moment
-// member). RTL is handled by `insetInlineStart` (logical edge).
+// Geometry rationale: see spineGeometry.ts. The spine's center stays at
+// SPINE_CENTER regardless of thickness, so the inset is computed as
+// SPINE_CENTER - floor(width/2). This keeps the line centered on the dots
+// when thickness changes between rows (solo → moment member). RTL is
+// handled by `insetInlineStart` (logical edge).
 
 import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 
-import { DOT_CENTER_Y, NODE_COLUMN_WIDTH } from './SpineNode';
-
-export const SPINE_CENTER = Math.round(NODE_COLUMN_WIDTH / 2); // 32
+import { DOT_CENTER_Y, SPINE_CENTER } from './spineGeometry';
 
 const THIN_WIDTH = 2;
 const THICK_WIDTH = 4;
