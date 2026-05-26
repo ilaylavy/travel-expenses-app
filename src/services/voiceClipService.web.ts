@@ -1,8 +1,8 @@
 // Web variant — thin playback/upload shim. The native variant owns recording
-// via expo-av; on web the journal capture flow is out of scope (no record
-// button), but we still need uploadVoiceClipToStorage / getSignedVoiceClipUrl /
-// deleteVoiceClipFromStorage so future web playback works against the same
-// API.
+// via expo-audio; on web the recorder runs in the browser (MediaRecorder via
+// expo-audio's web shim) and produces a blob: URL we can upload directly.
+// We still need uploadVoiceClipToStorage / getSignedVoiceClipUrl /
+// deleteVoiceClipFromStorage so web playback works against the same API.
 
 import { supabase } from './supabase';
 
@@ -84,4 +84,17 @@ export async function deleteLocalVoiceClip(_localUri: string | null): Promise<vo
 // capture screen won't call this on web.
 export async function requestMicPermission(): Promise<boolean> {
   return false;
+}
+
+// Native persists a recorder's temporary file into a permanent local URI so
+// the file survives long enough to be uploaded. On web there is no
+// filesystem to persist to — the blob: URL the MediaRecorder produces is
+// already addressable for uploadVoiceClipToStorage (which does
+// `fetch(blobUri).blob()`). The identity shim keeps VoiceRecordSheet's
+// flow uniform across platforms.
+export async function persistVoiceClipFile(
+  sourceUri: string,
+  _clipId: string,
+): Promise<string> {
+  return sourceUri;
 }

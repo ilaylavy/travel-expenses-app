@@ -2,6 +2,7 @@
 // functions issue a Supabase query; mutations go through the same client
 // (sync_queue is native-only).
 
+import { uploadPhotoToStorage } from '@/services/photoService';
 import { supabase } from '@/services/supabase';
 import { newId } from '@/utils/id';
 import type {
@@ -95,6 +96,8 @@ export async function createEntry(input: {
 }): Promise<JournalPhotoEntryWithPhotos> {
   const entryId = newId();
   const now = new Date().toISOString();
+
+  // 1. Insert the parent entry row.
   const { data: entry, error } = await supabase
     .from('journal_photo_entries')
     .insert({
@@ -110,10 +113,50 @@ export async function createEntry(input: {
     .select()
     .single();
   if (error) throw error;
-  // On web we have no local file to upload; if the caller passed photo refs
-  // they must already be uploadable URLs — but realistically the journal
-  // capture flow on web is out of scope today. Return an empty photos list.
-  return { ...rowToEntry(entry), photos: [] };
+
+  if (input.photos.length === 0) {
+    return { ...rowToEntry(entry), photos: [] };
+  }
+
+  // 2. Upload each photo to R2 and collect the resulting storage paths.
+  //    uploadPhotoToStorage on web looks up the in-memory Blob by blob URL,
+  //    PUTs it to R2 via a presigned URL, then cleans up the Blob Map entry.
+  const uploadedPhotos: JournalPhoto[] = await Promise.all(
+    input.photos.map(async (p) => {
+      const photoId = newId();
+      const storagePath = await uploadPhotoToStorage({
+        kind: 'journal-photo',
+        tripId: input.tripId,
+        photoId,
+        localUri: p.localUri,
+      });
+      return {
+        id: photoId,
+        entryId,
+        storagePath,
+        localUri: null,   // blob URLs are ephemeral; canonical path is storagePath
+        sortOrder: p.sortOrder,
+        exifTakenAt: p.exifTakenAt,
+        createdAt: now,
+      } satisfies JournalPhoto;
+    }),
+  );
+
+  // 3. Batch-insert the journal_photos rows.
+  const { error: photosError } = await supabase.from('journal_photos').insert(
+    uploadedPhotos.map((p) => ({
+      id: p.id,
+      entry_id: p.entryId,
+      storage_path: p.storagePath,
+      local_uri: null,
+      sort_order: p.sortOrder,
+      exif_taken_at: p.exifTakenAt,
+      created_at: p.createdAt,
+    })),
+  );
+  if (photosError) throw photosError;
+
+  return { ...rowToEntry(entry), photos: uploadedPhotos };
 }
 
 export async function updateEntryCaption(
