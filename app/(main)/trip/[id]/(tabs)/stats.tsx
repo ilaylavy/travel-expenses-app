@@ -3,12 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { CategoryBreakdownCard } from '@/components/stats/CategoryBreakdownCard';
 import { DailySpendingChart } from '@/components/stats/DailySpendingChart';
 import { PaymentBreakdownCard } from '@/components/stats/PaymentBreakdownCard';
+import { PeriodSelector, type StatsPeriod } from '@/components/stats/PeriodSelector';
 import { SplitBalanceCard } from '@/components/stats/SplitBalanceCard';
-import { SummaryPills } from '@/components/stats/SummaryPills';
+import { StatsHero } from '@/components/stats/StatsHero';
 import { TopExpensesCard } from '@/components/stats/TopExpensesCard';
+import { Avatar } from '@/components/ui/Avatar';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { listTripMembers } from '@/db/queries/trips';
 import { getProfileName } from '@/db/queries/profiles';
@@ -25,8 +28,28 @@ import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
 import type { Category } from '@/types/category';
 import { todayIsoDate } from '@/utils/date';
+import { initials } from '@/utils/initials';
 import { href } from '@/utils/nav';
 import { aggregate } from '@/utils/statsAggregations';
+import { getTripTint } from '@/utils/tripTint';
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Compute the period window in ISO dates. "trip" returns undefined so
+// aggregate() falls back to the trip's natural range.
+function resolvePeriodWindow(
+  period: StatsPeriod,
+  today: string,
+): { from?: string; to?: string } {
+  if (period === 'trip') return {};
+  const days = period === '7d' ? 7 : 30;
+  const [y, m, d] = today.split('-').map(Number);
+  const past = new Date(Date.UTC(y, m - 1, d - (days - 1)));
+  const yy = past.getUTCFullYear();
+  const mm = String(past.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(past.getUTCDate()).padStart(2, '0');
+  return { from: `${yy}-${mm}-${dd}`, to: today };
+}
 
 export default function TripStatsScreen() {
   const theme = useTheme();
@@ -51,6 +74,7 @@ export default function TripStatsScreen() {
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [period, setPeriod] = useState<StatsPeriod>('trip');
 
   useEffect(() => {
     if (tripId && activeTripId !== tripId) void loadForTrip(tripId);
@@ -60,9 +84,7 @@ export default function TripStatsScreen() {
     if (tripId && activeSettlementTripId !== tripId) void loadSettlements(tripId);
   }, [tripId, activeSettlementTripId, loadSettlements]);
 
-  // Pull-to-refresh + focus-sync, same rationale as the balance screen: stats
-  // are derived from the same expenses/splits store, so a missed realtime
-  // event would leave the chart and split-balance card stale.
+  // Pull-to-refresh + focus-sync, same rationale as the balance screen.
   useFocusEffect(
     useCallback(() => {
       void syncEngine.triggerSync();
@@ -111,6 +133,8 @@ export default function TripStatsScreen() {
   }, [tripCategories]);
 
   const today = todayIsoDate();
+  const window = useMemo(() => resolvePeriodWindow(period, today), [period, today]);
+
   const stats = useMemo(() => {
     if (!trip) return null;
     return aggregate({
@@ -120,7 +144,24 @@ export default function TripStatsScreen() {
       today,
       currentUserId,
       settlementPayments: settlements,
+      periodFrom: window.from,
+      periodTo: window.to,
     });
+  }, [expenses, splits, trip, today, currentUserId, settlements, window.from, window.to]);
+
+  // tripSpendShare is the caller's TRIP-WIDE share (not period-filtered) —
+  // the hero's budget bar should always reflect the user's progress vs
+  // their full-trip budget, regardless of the selected period.
+  const tripSpendShare = useMemo(() => {
+    if (!trip) return 0;
+    return aggregate({
+      expenses,
+      splits,
+      trip,
+      today,
+      currentUserId,
+      settlementPayments: settlements,
+    }).totalSpent;
   }, [expenses, splits, trip, today, currentUserId, settlements]);
 
   if (!trip || !tripId) {
@@ -142,7 +183,6 @@ export default function TripStatsScreen() {
   if (!stats) return null;
 
   const hasExpenses = expenses.length > 0;
-  const isOngoing = trip.endDate === null;
   const currency = trip.homeCurrency;
 
   return (
@@ -156,10 +196,15 @@ export default function TripStatsScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerEmoji}>{trip.emoji}</Text>
+          <Avatar
+            label={initials(trip.name)}
+            tint={getTripTint(trip.id, theme)}
+            size={32}
+            radius={10}
+          />
           <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
             {trip.name}
           </Text>
@@ -170,7 +215,7 @@ export default function TripStatsScreen() {
       {!hasExpenses ? (
         <View style={styles.empty}>
           <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
-            <Text style={styles.emptyEmoji}>📊</Text>
+            <Icon name="bar-chart" size={40} color={theme.accent} stroke={2} />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
             {t('stats.noExpensesTitle')}
@@ -192,12 +237,18 @@ export default function TripStatsScreen() {
             />
           }
         >
-          <SummaryPills
-            stats={stats}
+          <PeriodSelector value={period} onChange={setPeriod} />
+
+          <StatsHero
+            period={period}
+            totalSpent={stats.totalSpent}
+            dailyAverage={stats.dailyAverage}
+            tripBudget={stats.budgetHome}
+            tripSpendShare={tripSpendShare}
+            daysRemaining={stats.daysRemaining}
             currency={currency}
-            hasBudget={trip.budget !== null && trip.budget > 0}
-            isOngoing={isOngoing}
           />
+
           <CategoryBreakdownCard
             byCategory={stats.byCategory}
             categoriesById={categoriesById}
@@ -206,6 +257,12 @@ export default function TripStatsScreen() {
           <DailySpendingChart
             byDay={stats.byDay}
             average={stats.dailyAverage}
+            currency={currency}
+          />
+          <TopExpensesCard
+            expenses={stats.topExpenses}
+            categoriesById={categoriesById}
+            tripId={tripId}
             currency={currency}
           />
           {memberIds.length > 1 ? (
@@ -220,12 +277,6 @@ export default function TripStatsScreen() {
           ) : null}
           <PaymentBreakdownCard
             byPaymentMethod={stats.byPaymentMethod}
-            currency={currency}
-          />
-          <TopExpensesCard
-            expenses={stats.topExpenses}
-            categoriesById={categoriesById}
-            tripId={tripId}
             currency={currency}
           />
         </ScrollView>
@@ -252,14 +303,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
   headerTitleWrap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  headerEmoji: { fontSize: 24 },
   headerTitle: { ...typography.itemTitle, flex: 1 },
   scroll: {
     padding: spacing.base,
@@ -281,7 +330,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.xs,
   },
-  emptyEmoji: { fontSize: 48 },
   emptyTitle: { ...typography.itemTitle },
   emptyBody: { ...typography.body, textAlign: 'center' },
   missing: {
@@ -293,7 +341,7 @@ const styles = StyleSheet.create({
   linkButton: {
     borderRadius: sizing.radiusButton,
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md + 2, // 12 — taller button
+    paddingVertical: spacing.md + 2,
   },
   linkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

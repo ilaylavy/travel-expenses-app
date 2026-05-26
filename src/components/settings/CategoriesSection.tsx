@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -21,12 +22,14 @@ export function CategoriesSection({
       <Card>
         <Pressable
           onPress={onPress}
-          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.categories.manageDefaults')}
+          style={({ pressed }) => [styles.pressable, pressed && { opacity: 0.7 }]}
         >
           <Row
             label={t('settings.categories.manageDefaults')}
             subtitle={t('settings.categories.count', { count: defaultCategoryCount })}
-            right={<Text style={[styles.chevron, { color: theme.textMuted }]}>›</Text>}
+            right={<Icon name="chevron-right" size={14} color={theme.textMuted} stroke={2} />}
           />
         </Pressable>
       </Card>
@@ -35,5 +38,5 @@ export function CategoriesSection({
 }
 
 const styles = StyleSheet.create({
-  chevron: { fontSize: 20, fontWeight: '600' },
+  pressable: {},
 });

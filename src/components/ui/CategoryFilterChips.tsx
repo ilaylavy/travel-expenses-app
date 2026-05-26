@@ -1,9 +1,17 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { sizing, spacing } from '@/constants/theme';
+import { Icon } from '@/components/Icon';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
-import { getCategoryColor, getCategorySoftColor } from '@/utils/category';
+import {
+  getCategoryColor,
+  getCategoryDisplayName,
+  getCategoryIconName,
+  getCategorySoftColor,
+} from '@/utils/category';
 
 interface CategoryFilterChipsProps {
   categories: Category[];
@@ -24,6 +32,7 @@ export function CategoryFilterChips({
   elevated = false,
 }: CategoryFilterChipsProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const allActive = selectedIds.size === 0;
   const chipBase = [styles.chip, elevated && styles.chipElevated];
 
@@ -36,10 +45,12 @@ export function CategoryFilterChips({
     >
       <Pressable
         onPress={onClear}
+        accessibilityRole="button"
+        accessibilityState={{ selected: allActive }}
         style={[
           ...chipBase,
           {
-            backgroundColor: allActive ? theme.accent : theme.surface,
+            backgroundColor: allActive ? theme.accent : 'transparent',
             borderColor: allActive ? theme.accent : theme.border,
           },
         ]}
@@ -57,19 +68,29 @@ export function CategoryFilterChips({
         const active = selectedIds.has(c.id);
         const color = getCategoryColor(c.color, theme);
         const soft = getCategorySoftColor(c.color, theme);
+        const iconName = getCategoryIconName(c);
         return (
           <Pressable
             key={c.id}
             onPress={() => onToggle(c.id)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
             style={[
               ...chipBase,
               {
-                backgroundColor: active ? soft : theme.surface,
+                backgroundColor: active ? soft : 'transparent',
                 borderColor: active ? color : theme.border,
               },
             ]}
           >
-            <Text style={styles.emoji}>{c.emoji}</Text>
+            {iconName ? (
+              <Icon name={iconName} size={13} color={active ? color : theme.textSecondary} stroke={1.8} />
+            ) : (
+              // User-custom category — preserve the emoji it was saved with.
+              <View style={styles.glyphWrap}>
+                <CategoryIcon category={c} size={16} withContainer={false} />
+              </View>
+            )}
             <Text
               style={[
                 styles.text,
@@ -77,7 +98,7 @@ export function CategoryFilterChips({
               ]}
               numberOfLines={1}
             >
-              {c.name}
+              {getCategoryDisplayName(c, t)}
             </Text>
           </Pressable>
         );
@@ -96,11 +117,11 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: sizing.radiusChip,
-    borderWidth: 1.5,
+    gap: spacing.xs + 1,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: 7,
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
   },
   chipElevated: {
     shadowColor: '#000',
@@ -109,6 +130,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 2,
   },
-  emoji: { fontSize: 14 },
-  text: { fontSize: 13, fontWeight: '700', maxWidth: 120 },
+  glyphWrap: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
+  text: { fontSize: 12, fontWeight: '600', maxWidth: 120 },
 });

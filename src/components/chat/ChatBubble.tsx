@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderWidth, sizing, spacing } from '@/constants/theme';
@@ -24,38 +23,45 @@ export function ChatBubble({ role, content, onTryAgain }: ChatBubbleProps) {
   if (isUser) {
     return (
       <View style={[styles.row, styles.rowUser]}>
-        <LinearGradient
-          colors={theme.gradient1}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.bubble, { [trailingFlat]: 4 }]}
+        <View
+          style={[
+            styles.bubble,
+            { backgroundColor: theme.accent, [trailingFlat]: 4 },
+          ]}
         >
           <Text style={[styles.text, { color: '#FFFFFF' }]}>{content}</Text>
-        </LinearGradient>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={[styles.row, styles.rowAi]}>
-      <LinearGradient
-        colors={theme.cardGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={[
           styles.bubble,
-          { borderColor: theme.border, borderWidth: borderWidth.hairline, [leadingFlat]: 4 },
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            borderWidth: borderWidth.hairline,
+            [leadingFlat]: 4,
+          },
         ]}
       >
         <Text style={[styles.text, { color: theme.text }]}>{content}</Text>
         {onTryAgain ? (
-          <Pressable onPress={onTryAgain} hitSlop={6} style={styles.tryAgainWrap}>
+          <Pressable
+            onPress={onTryAgain}
+            hitSlop={6}
+            accessibilityRole="button"
+            style={styles.tryAgainWrap}
+          >
             <Text style={[styles.tryAgain, { color: theme.accent }]}>
               {t('ask.tryAgain')}
             </Text>
           </Pressable>
         ) : null}
-      </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -66,8 +72,8 @@ const styles = StyleSheet.create({
   rowAi: { alignItems: 'flex-start' },
   bubble: {
     maxWidth: '85%',
-    paddingVertical: spacing.md + 2, // 12 — bubble interior
-    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md - 1, // 11
+    paddingHorizontal: spacing.base - 1, // 15
     borderRadius: sizing.radiusCardInner, // 18
   },
   text: { fontSize: 14, fontWeight: '500', lineHeight: 20 },

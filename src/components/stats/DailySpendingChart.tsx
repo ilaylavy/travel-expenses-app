@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -143,7 +144,7 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
               },
             ]}
           >
-            <Text style={styles.tooltipCloseText}>✕</Text>
+            <Icon name="x" size={11} color="#FFFFFF" stroke={2.4} />
           </Pressable>
         </View>
       ) : (
@@ -230,5 +231,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tooltipCloseText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', lineHeight: 12 },
+  // (formerly tooltipCloseText — replaced by SVG x icon.)
 });

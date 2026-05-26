@@ -1,54 +1,39 @@
-import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Skeleton } from '@/components/ui/Skeleton';
 import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 
-// Placeholder that mirrors TripCard's layout (emoji box + name/dates + amount
-// + budget bar) while the trips store is hydrating from SQLite. Gentle opacity
-// pulse so the user sees forward motion instead of a static block.
+// Placeholder that mirrors TripCard's layout (monogram tile + name/dates +
+// amount + budget bar) while the trips store is hydrating from SQLite. Uses
+// the shared `Skeleton` shimmer primitive — same keyframe across every
+// loading surface in the app.
 export function TripCardSkeleton() {
   const theme = useTheme();
-  const pulse = useRef(new Animated.Value(0.5)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.8, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.5, duration: 800, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const blockColor = theme.bgSoft;
 
   return (
-    <Animated.View
+    <View
       style={[
         styles.card,
-        {
-          backgroundColor: theme.surface,
-          borderColor: theme.borderLight,
-          opacity: pulse,
-        },
+        { backgroundColor: theme.surface, borderColor: theme.borderLight },
       ]}
     >
       <View style={styles.headerRow}>
-        <View style={[styles.emojiBox, { backgroundColor: blockColor }]} />
+        <Skeleton
+          width={sizing.categoryIconLarge}
+          height={sizing.categoryIconLarge}
+          radius={sizing.radiusCardInner}
+        />
         <View style={styles.headerText}>
-          <View style={[styles.line, { width: '70%', backgroundColor: blockColor }]} />
-          <View
-            style={[styles.line, styles.lineSub, { width: '45%', backgroundColor: blockColor }]}
-          />
+          <Skeleton width="70%" height={14} />
+          <Skeleton width="45%" height={11} />
         </View>
       </View>
       <View style={styles.amountRow}>
-        <View style={[styles.lineLarge, { width: '50%', backgroundColor: blockColor }]} />
+        <Skeleton width="50%" height={22} />
       </View>
-      <View style={[styles.bar, { backgroundColor: blockColor }]} />
-    </Animated.View>
+      <Skeleton width="100%" height={8} radius={sizing.radiusPill} />
+    </View>
   );
 }
 
@@ -61,15 +46,6 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  emojiBox: {
-    width: sizing.categoryIconLarge,
-    height: sizing.categoryIconLarge,
-    borderRadius: sizing.radiusCardInner,
-  },
   headerText: { flex: 1, gap: spacing.sm },
-  line: { height: 14, borderRadius: sizing.radiusPill },
-  lineSub: { height: 11 },
   amountRow: { marginTop: spacing.xs },
-  lineLarge: { height: 22, borderRadius: sizing.radiusPill },
-  bar: { height: 8, borderRadius: sizing.radiusPill, width: '100%' },
 });

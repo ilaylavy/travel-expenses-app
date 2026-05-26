@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { TripForm, type TripFormValues } from '@/components/trip/TripForm';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
@@ -49,7 +50,7 @@ export default function NewTripScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.backButtonText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('newTrip.title')}</Text>
         <View style={styles.spacer} />
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backButtonText: { fontSize: 24, fontWeight: '600', lineHeight: 24 },
+  // (formerly backButtonText — replaced by SVG chevron-left.)
   title: { ...typography.screenTitle, flex: 1 },
   spacer: { width: sizing.headerButton },
 });

@@ -1,16 +1,14 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
-import {
-  getCategoryColor,
-  getCategoryDisplayName,
-  getCategorySoftColor,
-} from '@/utils/category';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 
 interface ExpenseCardProps {
@@ -40,8 +38,6 @@ function ExpenseCardInner({
 }: ExpenseCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const color = category ? getCategoryColor(category.color, theme) : theme.accent;
-  const softColor = category ? getCategorySoftColor(category.color, theme) : theme.accentSoft;
 
   const showConverted = expense.currency !== homeCurrency;
   const displayAmount = userShareAmount ?? expense.amount;
@@ -55,26 +51,24 @@ function ExpenseCardInner({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       style={({ pressed }) => [
         styles.card,
         {
           backgroundColor: theme.surface,
-          borderColor: theme.borderLight,
+          borderColor: theme.border,
           transform: [{ scale: pressed ? 0.985 : 1 }],
         },
       ]}
     >
-      <View
-        style={[
-          styles.icon,
-          {
-            backgroundColor: softColor,
-            borderColor: color,
-          },
-        ]}
-      >
-        <Text style={styles.emoji}>{category?.emoji ?? '•'}</Text>
-      </View>
+      {category ? (
+        <CategoryIcon category={category} size={40} radius={sizing.radiusIcon} />
+      ) : (
+        // Defensive — shouldn't happen since rows always have a category
+        <View style={[styles.iconFallback, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+          <Icon name="other" size={20} color={theme.accent} stroke={1.8} />
+        </View>
+      )}
 
       <View style={styles.middle}>
         <Text
@@ -94,16 +88,23 @@ function ExpenseCardInner({
             </Text>
           ) : null}
           {expense.paymentMethod ? (
-            <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
+              <Icon
+                name={expense.paymentMethod === 'cash' ? 'cash' : 'card'}
+                size={11}
+                color={theme.textSecondary}
+                stroke={1.8}
+              />
               <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
-                {paymentLabel(expense.paymentMethod)}
+                {paymentLabel(expense.paymentMethod, t)}
               </Text>
             </View>
           ) : null}
           {expense.photos.length > 0 ? (
-            <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
+              <Icon name="photo" size={11} color={theme.textSecondary} stroke={1.8} />
               <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
-                📷 {expense.photos.length}
+                {expense.photos.length}
               </Text>
             </View>
           ) : null}
@@ -122,16 +123,18 @@ function ExpenseCardInner({
             </View>
           ) : null}
           {expense.isExcludedFromDailyMetrics ? (
-            <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
+              <Icon name="exclude" size={10} color={theme.textMuted} stroke={2} />
               <Text style={[styles.badgeText, { color: theme.textMuted }]}>
                 {t('expenseDetail.badgeExcluded')}
               </Text>
             </View>
           ) : null}
           {expense.isPrivate ? (
-            <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
+              <Icon name="lock" size={10} color={theme.textMuted} stroke={2} />
               <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-                🔒 {t('expense.privateBadge')}
+                {t('expense.privateBadge')}
               </Text>
             </View>
           ) : null}
@@ -173,10 +176,12 @@ function ExpenseCardInner({
   );
 }
 
-function paymentLabel(method: string): string {
-  if (method === 'cash') return '💵 Cash';
-  if (method === 'credit') return '💳 Credit';
-  if (method === 'debit') return '💳 Debit';
+function paymentLabel(method: string, t: (key: string) => string): string {
+  // stats.* keys exist in en.json/he.json with the plain "Cash" / "Credit"
+  // labels (no emoji prefix). The icon is rendered separately by the badge.
+  if (method === 'cash') return t('stats.paymentCash');
+  if (method === 'credit') return t('stats.paymentCredit');
+  if (method === 'debit') return t('stats.paymentDebit');
   return method;
 }
 
@@ -191,7 +196,7 @@ const styles = StyleSheet.create({
     borderRadius: sizing.radiusCardInner,
     borderWidth: borderWidth.hairline,
   },
-  icon: {
+  iconFallback: {
     width: sizing.categoryIconMedium,
     height: sizing.categoryIconMedium,
     borderRadius: sizing.radiusIcon,
@@ -199,19 +204,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 20 },
   middle: { flex: 1, minWidth: 0, gap: spacing.xs },
-  title: { ...typography.itemTitle },
+  title: { ...typography.itemTitle, fontSize: 15 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, alignItems: 'center' },
-  meta: { ...typography.secondary },
+  meta: { ...typography.secondary, fontSize: 12 },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: sizing.radiusChip,
+    borderRadius: sizing.radiusPill,
   },
-  badgeText: { ...typography.micro },
-  right: { alignItems: 'flex-end', gap: 2 },
-  amount: { ...typography.amountSmall },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  badgeText: { ...typography.micro, fontSize: 10 },
+  right: { alignItems: 'flex-end', gap: 3 },
+  amount: { ...typography.amountSmall, fontSize: 15 },
   // caption is shared with non-numeric copy elsewhere; tabular is intent-specific here.
   amountSecondary: { ...typography.caption, fontVariant: ['tabular-nums'] },
 });

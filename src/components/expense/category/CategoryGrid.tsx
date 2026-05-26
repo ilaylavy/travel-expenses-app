@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -44,17 +46,19 @@ export function CategoryGrid({
             <View key="add" style={cellStyle}>
               <Pressable
                 onPress={onAddPress}
+                accessibilityRole="button"
+                accessibilityLabel={addLabel}
                 style={({ pressed }) => [
                   styles.inner,
                   styles.add,
                   {
                     backgroundColor: theme.surface,
-                    borderColor: theme.border,
+                    borderColor: theme.accent,
                     transform: [{ scale: pressed ? 0.96 : 1 }],
                   },
                 ]}
               >
-                <Text style={[styles.addIcon, { color: theme.accent }]}>＋</Text>
+                <Icon name="plus" size={22} color={theme.accent} stroke={2.2} />
                 {addLabel && (
                   <Text
                     style={[styles.addLabel, { color: theme.textSecondary }]}
@@ -75,6 +79,9 @@ export function CategoryGrid({
           <View key={category.id} style={cellStyle}>
             <Pressable
               onPress={() => onSelect(category.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={getCategoryDisplayName(category, t)}
               style={({ pressed }) => [
                 styles.inner,
                 {
@@ -84,7 +91,7 @@ export function CategoryGrid({
                 },
               ]}
             >
-              <Text style={styles.emoji}>{category.emoji}</Text>
+              <CategoryIcon category={category} size={30} withContainer={false} />
               <Text
                 style={[styles.name, { color: selected ? color : theme.text }]}
                 numberOfLines={1}
@@ -104,17 +111,15 @@ const styles = StyleSheet.create({
   cell: { padding: spacing.xs / 2 },
   inner: {
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.heavy,
-    paddingVertical: spacing.md,
+    borderWidth: borderWidth.hairline,
+    paddingVertical: spacing.md + 2,
     paddingHorizontal: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    minHeight: 64, // grid cell geometry; tuned for 4-column layout
+    gap: spacing.xs + 2,
+    minHeight: 70, // grid cell geometry; tuned for 4-column layout
   },
-  emoji: { fontSize: 24, lineHeight: 28 },
   name: { ...typography.micro, letterSpacing: 0.2 },
   add: { borderStyle: 'dashed' },
-  addIcon: { fontSize: 22, fontWeight: '700', lineHeight: 24 },
   addLabel: { ...typography.micro, letterSpacing: 0.2 },
 });

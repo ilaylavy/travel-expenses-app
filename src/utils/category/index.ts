@@ -4,4 +4,5 @@ export {
   getCategoryColor,
   getCategorySoftColor,
 } from './color';
+export { getCategoryIconName } from './icon';
 export { getCategoryDisplayName } from './name';

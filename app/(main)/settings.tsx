@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyPickerModal } from '@/components/currency/CurrencyPickerModal';
+import { Icon } from '@/components/Icon';
 import { AboutSection } from '@/components/settings/AboutSection';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { CategoriesSection } from '@/components/settings/CategoriesSection';
@@ -264,7 +265,7 @@ export default function SettingsScreen() {
           ]}
           hitSlop={8}
         >
-          <Text style={[styles.headerBtnText, { color: theme.text }]}>‹</Text>
+          <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>{t('settings.title')}</Text>
         <View style={styles.headerBtn} />
@@ -353,7 +354,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerBtnText: { fontSize: 22, fontWeight: '600', lineHeight: 24 },
+  // (formerly headerBtnText — replaced by SVG chevron-left.)
   title: { ...typography.screenTitle, flex: 1 },
   content: { padding: spacing.base, paddingBottom: spacing.xxl, gap: spacing.md },
   footer: {

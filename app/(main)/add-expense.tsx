@@ -22,7 +22,9 @@ import { PaymentMethodRow } from '@/components/expense/entry/PaymentMethodRow';
 import { PhotoSection } from '@/components/expense/entry/PhotoSection';
 import { Section } from '@/components/expense/entry/Section';
 import { SplitParticipantsList } from '@/components/expense/entry/SplitParticipantsList';
-import { NumPad, appendNumPadKey, type NumPadKey } from '@/components/expense/numpad/NumPad';
+import { appendKey, evaluate, trailingOperator, type NumpadInput } from '@/components/expense/numpad/calculator';
+import { CALC_PAD_HEIGHT, NumPad } from '@/components/expense/numpad/NumPad';
+import { Icon } from '@/components/Icon';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useExpenseEntryForm } from '@/hooks/useExpenseEntryForm';
@@ -31,9 +33,11 @@ import { usePhotoCapture } from '@/hooks/usePhotoCapture';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 
-// Approx height of the numpad bar: 4 rows × 50px keys + 3 × spacing.sm gaps
-// + numpadBar paddings (top spacing.sm + bottom spacing.base).
-const NUMPAD_BAR_HEIGHT = 4 * 50 + 3 * spacing.sm + spacing.sm + spacing.base;
+// Total height of the numpad bar (calculator-mode grid + action row + the
+// vertical paddings the wrapping bar contributes). Used to size the
+// scroll-content bottom inset so the form stays accessible while the
+// numpad is mounted.
+const NUMPAD_BAR_HEIGHT = CALC_PAD_HEIGHT + spacing.sm + spacing.base;
 
 export default function AddExpenseScreen() {
   const theme = useTheme();
@@ -55,14 +59,25 @@ export default function AddExpenseScreen() {
   const photos = usePhotoCapture();
 
   const handleKey = useCallback(
-    (key: NumPadKey) => {
-      form.setAmountText(appendNumPadKey(form.amountText, key));
+    (key: NumpadInput) => {
+      form.setAmountText(appendKey(form.amountText, key));
     },
     [form],
   );
   const handleLongBackspace = useCallback(() => {
     form.setAmountText('');
   }, [form]);
+  // Equals collapses the expression to its resolved value. If
+  // unresolvable, leave amountText alone so the user can fix it.
+  const handleEquals = useCallback(() => {
+    const result = evaluate(form.amountText);
+    if (result === null) return;
+    form.setAmountText(String(result));
+  }, [form]);
+  const activeOperator = useMemo(
+    () => trailingOperator(form.amountText),
+    [form.amountText],
+  );
 
   const handleSave = useCallback(async () => {
     const persistedPhotos = form.isEditing ? undefined : await photos.persistAll();
@@ -105,9 +120,11 @@ export default function AddExpenseScreen() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.cancel')}
           style={[styles.headerButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
         >
-          <Text style={[styles.headerButtonText, { color: theme.text }]}>✕</Text>
+          <Icon name="x" size={16} color={theme.text} stroke={2.2} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>
           {form.isEditing ? t('expense.editTitle') : t('expense.title')}
@@ -250,9 +267,12 @@ export default function AddExpenseScreen() {
             ]}
           >
             <NumPad
+              mode="calculator"
               onKeyPress={handleKey}
               onLongBackspace={handleLongBackspace}
               onDone={form.handleNumpadDone}
+              onEquals={handleEquals}
+              activeOperator={activeOperator}
               disabled={form.saving}
             />
           </View>
@@ -278,7 +298,11 @@ export default function AddExpenseScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.fabInner}
           >
-            <Text style={styles.fabIcon}>{form.saving ? '…' : '✓'}</Text>
+            {form.saving ? (
+              <Icon name="more" size={22} color="#FFFFFF" stroke={2.4} />
+            ) : (
+              <Icon name="check" size={26} color="#FFFFFF" stroke={2.4} />
+            )}
           </LinearGradient>
         </Pressable>
       </KeyboardAwareWrapper>
@@ -305,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 18, fontWeight: '600' },
+  // (formerly headerButtonText — replaced by SVG <Icon name="x" />.)
   title: { ...typography.screenTitle, flex: 1, textAlign: 'center' },
   content: {
     padding: spacing.base,
@@ -314,7 +338,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderRadius: sizing.radiusInput,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingHorizontal: spacing.lg,
     paddingVertical: 12, // form-field height tuning
     fontSize: 15,

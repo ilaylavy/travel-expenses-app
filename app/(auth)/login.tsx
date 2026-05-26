@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -65,7 +66,7 @@ export default function LoginScreen() {
               end={{ x: 1, y: 1 }}
               style={[styles.heroBadge, { shadowColor: theme.accentGlow }]}
             >
-              <Text style={styles.heroEmoji}>✈️</Text>
+              <Icon name="flight" size={42} color="#FFFFFF" stroke={1.6} />
             </LinearGradient>
             <Text style={[styles.title, { color: theme.text }]}>{t('auth.login.heroTitle')}</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -108,9 +109,9 @@ export default function LoginScreen() {
               ]}
             >
               <LinearGradient
-                colors={theme.gradient1}
+                colors={theme.fabGradient}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.submitGradient}
               >
                 {busy ? (
@@ -148,7 +149,7 @@ interface FieldProps extends React.ComponentProps<typeof TextInput> {
 function Field({ label, theme, style, ...props }: FieldProps) {
   return (
     <View style={styles.field}>
-      <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
+      <Text style={[styles.label, { color: theme.textMuted }]}>{label.toUpperCase()}</Text>
       <TextInput
         placeholderTextColor={theme.textMuted}
         {...props}
@@ -182,17 +183,18 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
-  heroEmoji: { fontSize: 44 },
+  // (formerly heroEmoji — replaced by SVG <Icon name="flight" />.)
   title: { ...typography.title, textAlign: 'center' },
   subtitle: { ...typography.body, textAlign: 'center', marginTop: spacing.sm },
   form: { gap: spacing.lg },
   field: { gap: spacing.sm },
-  label: { ...typography.subtitle },
+  label: { ...typography.micro, letterSpacing: 0.5 },
   input: {
     ...typography.body,
+    fontSize: 15,
     height: 52, // form field tall geometry
     borderRadius: sizing.radiusInput,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingHorizontal: spacing.lg,
   },
   submit: { marginTop: spacing.md, borderRadius: sizing.radiusButton, overflow: 'hidden' },

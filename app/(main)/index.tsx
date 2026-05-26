@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CurrencyConverterCard } from '@/components/currency/CurrencyConverterCard';
+import { Icon } from '@/components/Icon';
 import { PendingInviteCard } from '@/components/trip/PendingInviteCard';
 import { TripCard } from '@/components/trip/TripCard';
 import { TripCardSkeleton } from '@/components/trip/TripCardSkeleton';
@@ -105,23 +106,27 @@ export default function TripListScreen() {
           </Pressable>
           <Pressable
             onPress={toggleTheme}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             style={[
               styles.headerButton,
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
             hitSlop={8}
           >
-            <Text style={styles.headerButtonText}>{isDark ? '🌙' : '☀️'}</Text>
+            <Icon name={isDark ? 'moon' : 'sun'} size={16} color={theme.textSecondary} stroke={1.8} />
           </Pressable>
           <Pressable
             onPress={() => router.push(href('/settings'))}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
             style={[
               styles.headerButton,
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
             hitSlop={8}
           >
-            <Text style={styles.headerButtonText}>⚙️</Text>
+            <Icon name="settings" size={16} color={theme.textSecondary} stroke={1.8} />
           </Pressable>
         </View>
       </View>
@@ -168,9 +173,9 @@ export default function TripListScreen() {
           ) : null}
 
           {trips.length === 0 && pendingInvites.length === 0 ? (
-            <View style={[styles.empty, { borderColor: theme.borderLight }]}>
+            <View style={[styles.empty, { borderColor: theme.border }]}>
               <View style={[styles.emptyGlow, { backgroundColor: theme.accentSoft }]}>
-                <Text style={styles.emptyEmoji}>🗺️</Text>
+                <Icon name="map-pin" size={32} color={theme.accent} stroke={1.8} />
               </View>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {t('trips.emptyTitle')}
@@ -180,6 +185,7 @@ export default function TripListScreen() {
               </Text>
               <Pressable
                 onPress={() => router.push(href('/new-trip'))}
+                accessibilityRole="button"
                 style={({ pressed }) => [
                   styles.emptyCta,
                   {
@@ -189,8 +195,9 @@ export default function TripListScreen() {
                   },
                 ]}
               >
+                <Icon name="plus" size={14} color={theme.accent} stroke={2.2} />
                 <Text style={[styles.emptyCtaText, { color: theme.accent }]}>
-                  ＋ {t('trips.newTripCardTitle')}
+                  {t('trips.newTripCardTitle')}
                 </Text>
               </Pressable>
             </View>
@@ -225,7 +232,7 @@ export default function TripListScreen() {
                   end={{ x: 1, y: 1 }}
                   style={styles.newCardIcon}
                 >
-                  <Text style={styles.newCardPlus}>＋</Text>
+                  <Icon name="plus" size={26} color="#FFFFFF" stroke={2.4} />
                 </LinearGradient>
                 <View style={styles.newCardText}>
                   <Text style={[styles.newCardTitle, { color: theme.text }]}>
@@ -263,7 +270,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 16 },
+  // (formerly headerButtonText — replaced by SVG icons.)
   headerActions: { flexDirection: 'row', gap: spacing.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingHorizontal: spacing.base, paddingBottom: spacing.xxl },
@@ -277,7 +284,7 @@ const styles = StyleSheet.create({
   },
   empty: {
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderStyle: 'dashed',
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.lg,
@@ -293,11 +300,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 2, // optical
   },
-  emptyEmoji: { fontSize: 36 },
   emptyTitle: { ...typography.itemTitle, marginBottom: 0 },
   emptyBody: { ...typography.secondary, textAlign: 'center' },
   emptyCta: {
     marginTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: sizing.radiusPill,
@@ -310,7 +319,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.lg,
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     borderStyle: 'dashed',
     padding: spacing.xl,
   },
@@ -321,7 +330,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  newCardPlus: { fontSize: 28, fontWeight: '700', color: '#FFFFFF' },
   newCardText: { flex: 1 },
   newCardTitle: { ...typography.itemTitle, marginBottom: 2 },
   newCardSubtitle: typography.secondary,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard } from 'react-native';
 
+import { evaluate } from '@/components/expense/numpad/calculator';
 import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
 import {
   categoryUsageForTrip,
@@ -347,10 +348,13 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   );
   const hasMoreCategories = orderedCategories.length > 8;
 
+  // The numpad now operates in calculator mode — amountText is an
+  // expression (e.g. "1200+350*2"), not a plain number string. evaluate()
+  // collapses it to a single value, returning null for unresolvable
+  // inputs (empty, trailing operator, divide by zero) which we coerce to
+  // 0 so the rest of the form continues to treat the value as numeric.
   const amountValue = useMemo(() => {
-    if (!amountText) return 0;
-    const n = Number(amountText);
-    return Number.isFinite(n) ? n : 0;
+    return evaluate(amountText) ?? 0;
   }, [amountText]);
 
   const { rate: fetchedRate, status: rateStatus } = useExchangeRate(

@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -79,6 +80,7 @@ export function SyncSection({
             },
           ]}
         >
+          <Icon name="sync" size={15} color={theme.accent} stroke={2} />
           <Text style={[styles.syncButtonText, { color: theme.accent }]}>
             {t('sync.syncNow')}
           </Text>
@@ -95,9 +97,12 @@ const styles = StyleSheet.create({
   syncButton: {
     marginVertical: spacing.md,
     borderRadius: sizing.radiusButton,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingVertical: spacing.md + 2, // 12 — button tall geometry
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   syncButtonText: { fontSize: 14, fontWeight: '700' },
 });

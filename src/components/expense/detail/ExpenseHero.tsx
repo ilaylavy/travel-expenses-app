@@ -1,16 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
 import type { Trip } from '@/types/trip';
-import {
-  getCategoryColor,
-  getCategoryDisplayName,
-  getCategorySoftColor,
-} from '@/utils/category';
+import { getCategoryColor, getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 
 export function ExpenseHero({
@@ -28,9 +26,6 @@ export function ExpenseHero({
   const { t } = useTranslation();
 
   const color = category ? getCategoryColor(category.color, theme) : theme.accent;
-  const softColor = category
-    ? getCategorySoftColor(category.color, theme)
-    : theme.accentSoft;
 
   const showConverted = expense.currency !== trip.homeCurrency;
   // For split expenses where the user has a share row, the hero shows the
@@ -52,12 +47,16 @@ export function ExpenseHero({
     <View
       style={[
         styles.hero,
-        { backgroundColor: theme.surface, borderColor: theme.borderLight },
+        { backgroundColor: theme.surface, borderColor: theme.border },
       ]}
     >
-      <View style={[styles.categoryIcon, { backgroundColor: softColor }]}>
-        <Text style={styles.categoryEmoji}>{category?.emoji ?? '•'}</Text>
-      </View>
+      {category ? (
+        <CategoryIcon category={category} size={72} radius={22} />
+      ) : (
+        <View style={[styles.fallbackIcon, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+          <Icon name="other" size={32} color={theme.accent} stroke={1.8} />
+        </View>
+      )}
       {category ? (
         <Text style={[styles.categoryName, { color }]}>
           {getCategoryDisplayName(category, t)}
@@ -86,7 +85,8 @@ export function ExpenseHero({
           </View>
         ) : null}
         {expense.isExcludedFromDailyMetrics ? (
-          <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+          <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
+            <Icon name="exclude" size={11} color={theme.textMuted} stroke={2} />
             <Text style={[styles.badgeText, { color: theme.textMuted }]}>
               {t('expenseDetail.badgeExcluded')}
             </Text>
@@ -100,9 +100,10 @@ export function ExpenseHero({
           </View>
         ) : null}
         {expense.isPrivate ? (
-          <View style={[styles.badge, { backgroundColor: theme.bgSoft }]}>
+          <View style={[styles.badge, styles.badgeRowInline, { backgroundColor: theme.bgSoft }]}>
+            <Icon name="lock" size={11} color={theme.textMuted} stroke={2} />
             <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-              🔒 {t('expense.privateBadge')}
+              {t('expense.privateBadge')}
             </Text>
           </View>
         ) : null}
@@ -120,15 +121,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  categoryIcon: {
-    width: sizing.categoryIconLarge,
-    height: sizing.categoryIconLarge,
-    borderRadius: sizing.radiusPill,
+  fallbackIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: borderWidth.hairline,
   },
-  categoryEmoji: { fontSize: 28 },
-  categoryName: { ...typography.subtitle, letterSpacing: 0.3 },
+  categoryName: { ...typography.subtitle, letterSpacing: 0.3, marginTop: spacing.xs + 2 },
   amount: { ...typography.amountLarge, marginTop: spacing.xs },
   amountConverted: { ...typography.subtitle },
   badgeRow: {
@@ -138,6 +139,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: spacing.xs,
   },
+  badgeRowInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badge: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,

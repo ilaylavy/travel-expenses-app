@@ -1,6 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -42,22 +42,18 @@ export function MessageInput({ value, onChange, onSend, disabled }: MessageInput
         onPress={onSend}
         disabled={!canSend}
         hitSlop={4}
+        accessibilityRole="button"
+        accessibilityLabel={t('ask.placeholder')}
         style={({ pressed }) => [
-          styles.sendWrap,
+          styles.sendButton,
           {
+            backgroundColor: theme.accent,
             opacity: canSend ? 1 : 0.4,
             transform: [{ scale: pressed && canSend ? 0.94 : 1 }],
           },
         ]}
       >
-        <LinearGradient
-          colors={theme.gradient1}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.sendButton}
-        >
-          <Text style={styles.sendIcon}>✈️</Text>
-        </LinearGradient>
+        <Icon name="arrow-up" size={18} color="#FFFFFF" stroke={2.4} />
       </Pressable>
     </View>
   );
@@ -75,18 +71,16 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     borderWidth: borderWidth.hairline,
-    borderRadius: sizing.radiusInput,
-    paddingVertical: spacing.md,
+    borderRadius: sizing.radiusPill,
+    paddingVertical: spacing.md - 1,
     paddingHorizontal: spacing.lg,
     fontSize: 14,
   },
-  sendWrap: { width: 40, height: 40 },
   sendButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: sizing.radiusPill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendIcon: { fontSize: 18 },
 });

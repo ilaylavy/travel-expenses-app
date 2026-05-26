@@ -1,7 +1,6 @@
 import { useGlobalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
   Keyboard,
   Pressable,
   ScrollView,
@@ -15,7 +14,9 @@ import { ChatBubble } from '@/components/chat/ChatBubble';
 import { EmptyState } from '@/components/chat/EmptyState';
 import { FollowUpChips } from '@/components/chat/FollowUpChips';
 import { MessageInput } from '@/components/chat/MessageInput';
+import { Icon } from '@/components/Icon';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
+import { TypingBubble } from '@/components/ui/TypingBubble';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -53,19 +54,6 @@ export default function AskScreen() {
   const [loading, setLoading] = useState(false);
   const [thinkingIdx, setThinkingIdx] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!loading) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.4, duration: 600, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [loading, pulse]);
 
   // Rotate the "thinking..." copy every 3s while waiting on the AI so the
   // user sees forward motion instead of a frozen "Thinking..." for the full
@@ -191,7 +179,7 @@ export default function AskScreen() {
             ]}
             hitSlop={8}
           >
-            <Text style={[styles.headerButtonText, { color: theme.text }]}>‹</Text>
+            <Icon name="chevron-left" size={18} color={theme.text} stroke={2} />
           </Pressable>
           <View style={styles.headerTitleWrap}>
             <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
@@ -212,7 +200,7 @@ export default function AskScreen() {
               hitSlop={8}
               accessibilityLabel={t('ask.refreshA11yLabel')}
             >
-              <Text style={[styles.headerButtonText, { color: theme.text }]}>↻</Text>
+              <Icon name="sync" size={15} color={theme.text} stroke={2} />
             </Pressable>
           ) : (
             <View style={[styles.headerButton, styles.headerButtonGhost]} />
@@ -259,9 +247,7 @@ export default function AskScreen() {
 
           {loading ? (
             <View style={styles.messageBlock}>
-              <Animated.View style={{ opacity: pulse }}>
-                <ChatBubble role="assistant" content={t(THINKING_KEYS[thinkingIdx])} />
-              </Animated.View>
+              <TypingBubble label={t(THINKING_KEYS[thinkingIdx])} />
             </View>
           ) : null}
         </ScrollView>
@@ -297,7 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerButtonGhost: { borderColor: 'transparent', opacity: 0 },
-  headerButtonText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
+  // (formerly headerButtonText — replaced by SVG icons.)
   headerTitleWrap: { flex: 1, alignItems: 'center' },
   headerTitle: { ...typography.itemTitle },
   scrollContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md + 2, gap: spacing.xs },

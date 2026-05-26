@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -112,9 +113,12 @@ export function SplitBalanceCard({
           {settlementText}
         </Text>
         {onOpenBalances ? (
-          <Text style={[styles.settlementHint, { color: textColor }]}>
-            {t('balance.tapToSettle')} ›
-          </Text>
+          <View style={styles.settlementHintRow}>
+            <Text style={[styles.settlementHint, { color: textColor }]}>
+              {t('balance.tapToSettle')}
+            </Text>
+            <Icon name="chevron-right" size={12} color={textColor} stroke={2.2} />
+          </View>
         ) : null}
       </Pressable>
     </StatsSectionCard>
@@ -141,12 +145,13 @@ const styles = StyleSheet.create({
   netLabel: { ...typography.micro, marginTop: spacing.sm },
   settlement: {
     marginTop: spacing.xs,
-    borderRadius: sizing.radiusChip,
-    paddingVertical: spacing.sm,
+    borderRadius: sizing.radiusCardInner,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   settlementText: { ...typography.subtitle },
+  settlementHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   settlementHint: { fontSize: 11, fontWeight: '600', opacity: 0.8 },
 });

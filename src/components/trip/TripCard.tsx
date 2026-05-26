@@ -1,12 +1,16 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from '@/components/Icon';
+import { Avatar } from '@/components/ui/Avatar';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Trip, TripWithStats } from '@/types/trip';
 import { formatAmount } from '@/utils/currency';
 import { countDaysInRange, formatDateRange, todayIsoDate } from '@/utils/date';
+import { initials } from '@/utils/initials';
+import { getTripTint } from '@/utils/tripTint';
 
 interface TripCardProps {
   trip: TripWithStats;
@@ -56,7 +60,10 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   const isShared = stats.memberCount > 1;
   const status = getStatus(trip, t);
 
-  const barGradient = pct > 0.9 ? null : pct > 0.7 ? theme.gradient2 : theme.gradient1;
+  // Budget bar uses an indigo monochrome gradient under 90% and switches
+  // to the red fill once over budget — that's the one approved
+  // budget-warning gradient surface in the design system.
+  const barGradient = pct > 0.9 ? null : theme.fabGradient;
 
   const statusBg =
     status.phase === 'ongoing'
@@ -72,40 +79,36 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
         : theme.textMuted;
 
   const isOngoing = status.phase === 'ongoing';
+  const tint = getTripTint(trip.id, theme);
 
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       style={({ pressed }) => [styles.wrapper, { transform: [{ scale: pressed ? 0.99 : 1 }] }]}
     >
-      <LinearGradient
-        colors={theme.cardGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={[
           styles.card,
           {
+            backgroundColor: theme.surface,
             borderColor: isOngoing ? theme.accent : theme.border,
-            borderWidth: isOngoing ? borderWidth.base : borderWidth.hairline,
+            borderWidth: borderWidth.hairline,
             shadowColor: isOngoing ? theme.accent : 'transparent',
-            shadowOpacity: isOngoing ? 0.35 : 0,
-            shadowRadius: isOngoing ? 20 : 0,
-            elevation: isOngoing ? 6 : 2,
+            shadowOpacity: isOngoing ? 0.18 : 0,
+            shadowRadius: isOngoing ? 16 : 0,
+            elevation: isOngoing ? 4 : 0,
           },
         ]}
       >
         <View style={styles.headerRow}>
-          <View
-            style={[
-              styles.emojiBox,
-              {
-                backgroundColor: theme.accentSoft,
-                borderColor: isOngoing ? theme.accent : theme.borderLight,
-              },
-            ]}
-          >
-            <Text style={styles.emoji}>{trip.emoji}</Text>
-          </View>
+          <Avatar
+            label={initials(trip.name)}
+            tint={tint}
+            size={sizing.categoryIconLarge}
+            radius={sizing.radiusCardInner}
+            accessibilityLabel={trip.name}
+          />
           <View style={styles.headerText}>
             <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
               {trip.name}
@@ -148,17 +151,18 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
             <Pressable
               onPress={onEdit}
               hitSlop={8}
+              accessibilityRole="button"
               accessibilityLabel={t('tripSettings.title')}
               style={({ pressed }) => [
                 styles.editButton,
                 {
-                  backgroundColor: theme.accentSoft,
-                  borderColor: theme.accent,
+                  backgroundColor: 'transparent',
+                  borderColor: theme.border,
                   transform: [{ scale: pressed ? 0.94 : 1 }],
                 },
               ]}
             >
-              <Text style={[styles.editIcon, { color: theme.accent }]}>✎</Text>
+              <Icon name="edit" size={15} color={theme.textSecondary} stroke={1.8} />
             </Pressable>
           )}
         </View>
@@ -196,28 +200,19 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
             </View>
           </View>
         )}
-      </LinearGradient>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { marginBottom: spacing.lg },
+  wrapper: { marginBottom: spacing.md },
   card: {
     borderRadius: sizing.radiusCard,
     padding: spacing.xl,
     shadowOffset: { width: 0, height: 6 },
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  emojiBox: {
-    width: sizing.categoryIconLarge,
-    height: sizing.categoryIconLarge,
-    borderRadius: sizing.radiusCardInner,
-    borderWidth: borderWidth.hairline,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: { fontSize: 28 },
   headerText: { flex: 1 },
   name: { ...typography.itemTitle, marginBottom: 2 }, // optical
   dates: typography.secondary,
@@ -247,9 +242,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editIcon: { fontSize: 18, fontWeight: '700' },
   budgetBlock: { marginTop: spacing.lg, gap: spacing.sm },
-  track: { height: 8, borderRadius: sizing.radiusPill, overflow: 'hidden' },
+  track: { height: 6, borderRadius: sizing.radiusPill, overflow: 'hidden' },
   trackFill: { height: '100%', borderRadius: sizing.radiusPill },
   budgetMeta: {
     flexDirection: 'row',

@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: sizing.radiusCard,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     paddingHorizontal: spacing.lg,
   },
   row: {
@@ -124,15 +124,15 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth },
   segment: {
     flexDirection: 'row',
-    borderRadius: sizing.radiusButton,
+    borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
-    padding: 2,
+    padding: 3,
     gap: 2,
   },
   segmentBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
-    borderRadius: sizing.radiusButton - 2,
+    borderRadius: sizing.radiusPill,
   },
   segmentText: { fontSize: 12, fontWeight: '700' },
 });

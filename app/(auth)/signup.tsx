@@ -8,11 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
+import { Input } from '@/components/ui/Input';
 import { KeyboardAwareWrapper } from '@/components/ui/KeyboardAwareWrapper';
 import { CURRENCIES, DEFAULT_CURRENCY } from '@/constants/currencies';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
@@ -21,6 +22,14 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { href } from '@/utils/nav';
+
+interface FieldErrors {
+  name?: string;
+  email?: string;
+  password?: string;
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignupScreen() {
   const theme = useTheme();
@@ -35,16 +44,23 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+
+  const validate = (): FieldErrors => {
+    const next: FieldErrors = {};
+    if (!name.trim()) next.name = t('formErrors.required');
+    if (!email.trim()) next.email = t('formErrors.required');
+    else if (!EMAIL_PATTERN.test(email.trim())) next.email = t('formErrors.emailInvalid');
+    if (!password) next.password = t('formErrors.required');
+    else if (password.length < 6) next.password = t('formErrors.passwordTooShort');
+    return next;
+  };
 
   const handleSignup = async () => {
-    if (!name.trim() || !email.trim() || !password) {
-      Alert.alert(t('auth.signup.missingInfoTitle'), t('auth.signup.missingInfoBody'));
-      return;
-    }
-    if (password.length < 6) {
-      Alert.alert(t('auth.signup.weakPasswordTitle'), t('auth.signup.weakPasswordBody'));
-      return;
-    }
+    const fieldErrors = validate();
+    setErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) return;
+
     setSubmitting(true);
     try {
       await signUp({
@@ -80,7 +96,7 @@ export default function SignupScreen() {
               end={{ x: 1, y: 1 }}
               style={[styles.heroBadge, { shadowColor: theme.accentGlow }]}
             >
-              <Text style={styles.heroEmoji}>🧳</Text>
+              <Icon name="flight" size={42} color="#FFFFFF" stroke={1.6} />
             </LinearGradient>
             <Text style={[styles.title, { color: theme.text }]}>{t('auth.signup.heroTitle')}</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -89,41 +105,53 @@ export default function SignupScreen() {
           </View>
 
           <View style={styles.form}>
-            <Field
+            <Input
               label={t('auth.signup.name')}
               value={name}
-              onChangeText={setName}
+              onChangeText={(v) => {
+                setName(v);
+                if (errors.name) setErrors((e) => ({ ...e, name: undefined }));
+              }}
               placeholder={t('auth.signup.namePlaceholder')}
               autoCapitalize="words"
               autoComplete="name"
               textContentType="name"
-              theme={theme}
+              error={Boolean(errors.name)}
+              helper={errors.name}
             />
-            <Field
+            <Input
               label={t('auth.signup.email')}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(v) => {
+                setEmail(v);
+                if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+              }}
               placeholder={t('auth.signup.emailPlaceholder')}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
               textContentType="emailAddress"
-              theme={theme}
+              error={Boolean(errors.email)}
+              helper={errors.email}
             />
-            <Field
+            <Input
               label={t('auth.signup.password')}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(v) => {
+                setPassword(v);
+                if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
+              }}
               placeholder={t('auth.signup.passwordPlaceholder')}
               secureTextEntry
               autoComplete="password-new"
               textContentType="newPassword"
-              theme={theme}
+              error={Boolean(errors.password)}
+              helper={errors.password}
             />
 
             <View style={styles.field}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>
-                {t('auth.signup.defaultCurrency')}
+              <Text style={[styles.label, { color: theme.textMuted }]}>
+                {t('auth.signup.defaultCurrency').toUpperCase()}
               </Text>
               <ScrollView
                 horizontal
@@ -171,9 +199,9 @@ export default function SignupScreen() {
               ]}
             >
               <LinearGradient
-                colors={theme.gradient1}
+                colors={theme.fabGradient}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.submitGradient}
               >
                 {busy ? (
@@ -203,32 +231,6 @@ export default function SignupScreen() {
   );
 }
 
-interface FieldProps extends React.ComponentProps<typeof TextInput> {
-  label: string;
-  theme: ReturnType<typeof useTheme>;
-}
-
-function Field({ label, theme, style, ...props }: FieldProps) {
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
-      <TextInput
-        placeholderTextColor={theme.textMuted}
-        {...props}
-        style={[
-          styles.input,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            color: theme.text,
-          },
-          style,
-        ]}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flexGrow: 1, padding: spacing.xxl, justifyContent: 'center' },
@@ -236,7 +238,7 @@ const styles = StyleSheet.create({
   heroBadge: {
     width: 88,
     height: 88,
-    borderRadius: sizing.radiusCard + 6, // 28
+    borderRadius: sizing.radiusCard + 6,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
@@ -245,25 +247,17 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
-  heroEmoji: { fontSize: 44 },
   title: { ...typography.title, textAlign: 'center' },
   subtitle: { ...typography.body, textAlign: 'center', marginTop: spacing.sm },
   form: { gap: spacing.lg },
   field: { gap: spacing.sm },
-  label: { ...typography.subtitle },
-  input: {
-    ...typography.body,
-    height: 52, // form field tall geometry
-    borderRadius: sizing.radiusInput,
-    borderWidth: borderWidth.base,
-    paddingHorizontal: spacing.lg,
-  },
+  label: { ...typography.micro, letterSpacing: 0.5 },
   currencyRow: { gap: spacing.sm, paddingVertical: spacing.xs },
   chip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: sizing.radiusChip,
-    borderWidth: borderWidth.base,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: 7,
+    borderRadius: sizing.radiusPill,
+    borderWidth: borderWidth.hairline,
   },
   chipText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
   submit: { marginTop: spacing.md, borderRadius: sizing.radiusButton, overflow: 'hidden' },

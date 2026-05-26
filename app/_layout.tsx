@@ -2,10 +2,12 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { SplashScreen } from '@/components/ui/SplashScreen';
+import { ToastContainer } from '@/components/ui/ToastContainer';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
 import { useCategoryStore } from '@/stores/categoryStore';
@@ -89,11 +91,10 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(main)" />
             </Stack>
+            <ToastContainer />
           </AuthGate>
         ) : (
-          <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator color={theme.accent} />
-          </View>
+          <SplashScreen />
         )}
       </SafeAreaProvider>
     </GestureHandlerRootView>

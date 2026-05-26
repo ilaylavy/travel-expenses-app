@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getSignedPhotoUrl } from '@/services/photoService';
@@ -106,7 +107,7 @@ export function PhotoGalleryModal({
                 { transform: [{ scale: pressed ? 0.94 : 1 }] },
               ]}
             >
-              <Text style={styles.closeIcon}>✕</Text>
+              <Icon name="x" size={20} color="#FFFFFF" stroke={2.4} />
             </Pressable>
             <Text style={styles.counter}>
               {t('expenseDetail.photoCounter', {
@@ -272,11 +273,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeIcon: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
+  // (formerly closeIcon — replaced by SVG x icon.)
   counter: {
     flex: 1,
     textAlign: 'center',

@@ -1,15 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Icon } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
-import {
-  getCategoryColor,
-  getCategoryDisplayName,
-  getCategorySoftColor,
-} from '@/utils/category';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 
 interface ExpensePopupProps {
@@ -29,8 +27,6 @@ export function ExpensePopup({
 }: ExpensePopupProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const color = category ? getCategoryColor(category.color, theme) : theme.accent;
-  const soft = category ? getCategorySoftColor(category.color, theme) : theme.accentSoft;
   const showConverted = expense.currency !== homeCurrency;
   const primary = formatAmount(expense.amount, expense.currency);
   const secondary = showConverted
@@ -43,18 +39,23 @@ export function ExpensePopup({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       style={({ pressed }) => [
         styles.card,
         {
           backgroundColor: theme.surface,
-          borderColor: theme.borderLight,
+          borderColor: theme.border,
           transform: [{ scale: pressed ? 0.99 : 1 }],
         },
       ]}
     >
-      <View style={[styles.icon, { backgroundColor: soft, borderColor: color }]}>
-        <Text style={styles.emoji}>{category?.emoji ?? '•'}</Text>
-      </View>
+      {category ? (
+        <CategoryIcon category={category} size={sizing.categoryIconMedium} radius={sizing.radiusIcon} />
+      ) : (
+        <View style={[styles.iconFallback, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+          <Icon name="other" size={18} color={theme.accent} stroke={1.8} />
+        </View>
+      )}
       <View style={styles.middle}>
         <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
           {title}
@@ -65,9 +66,12 @@ export function ExpensePopup({
           </Text>
         ) : null}
         {expense.placeName ? (
-          <Text style={[styles.place, { color: theme.textMuted }]} numberOfLines={1}>
-            📍 {expense.placeName}
-          </Text>
+          <View style={styles.placeRow}>
+            <Icon name="map-pin" size={10} color={theme.textMuted} stroke={1.8} />
+            <Text style={[styles.place, { color: theme.textMuted }]} numberOfLines={1}>
+              {expense.placeName}
+            </Text>
+          </View>
         ) : null}
       </View>
       <View style={styles.right}>
@@ -90,6 +94,8 @@ export function ExpensePopup({
       <Pressable
         onPress={onClose}
         hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
         style={({ pressed }) => [
           styles.close,
           {
@@ -98,7 +104,7 @@ export function ExpensePopup({
           },
         ]}
       >
-        <Text style={[styles.closeText, { color: theme.textMuted }]}>✕</Text>
+        <Icon name="x" size={12} color={theme.textMuted} stroke={2.2} />
       </Pressable>
     </Pressable>
   );
@@ -118,19 +124,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 10,
   },
-  icon: {
+  iconFallback: {
     width: sizing.categoryIconMedium,
     height: sizing.categoryIconMedium,
     borderRadius: sizing.radiusIcon,
-    borderWidth: borderWidth.base,
+    borderWidth: borderWidth.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 20 },
   middle: { flex: 1, minWidth: 0, gap: 2 },
   title: { ...typography.itemTitle },
   meta: { ...typography.secondary },
   place: { ...typography.caption },
+  placeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   right: { alignItems: 'flex-end', gap: 2 },
   amount: { ...typography.amountSmall },
   secondary: { ...typography.caption },
@@ -141,5 +147,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeText: { fontSize: 12, fontWeight: '700' },
 });

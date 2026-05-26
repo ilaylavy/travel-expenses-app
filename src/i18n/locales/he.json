@@ -13,6 +13,14 @@
     "edit": "עריכה",
     "share": "שיתוף"
   },
+  "splash": {
+    "tagline": "להוציא פחות. לחוות יותר."
+  },
+  "formErrors": {
+    "required": "שדה זה נדרש",
+    "emailInvalid": "הזן כתובת אימייל תקינה",
+    "passwordTooShort": "השתמש לפחות ב-6 תווים"
+  },
   "auth": {
     "login": {
       "heroTitle": "ברוך שובך",
@@ -154,14 +162,21 @@
     "emoji": "אימוג׳י",
     "name": "שם",
     "namePlaceholder": "טוקיו 2026",
+    "monogramHint": "מונוגרם בצבע אוטומטי מתוך שם הטיול",
     "startDate": "תאריך התחלה",
     "endDate": "תאריך סיום",
+    "dates": "תאריכים",
     "datePlaceholder": "YYYY-MM-DD",
     "ongoingToggle": "פעיל (ללא תאריך סיום)",
     "tripCurrency": "מטבע הטיול",
     "homeCurrency": "מטבע הבית",
     "budget": "תקציב ({{currency}}, אופציונלי)",
     "budgetPlaceholder": "0",
+    "presetWeekend": "סוף השבוע",
+    "preset7d": "7 ימים",
+    "preset2w": "שבועיים",
+    "budgetDailyHint_one": "≈ {{amount}} / יום · {{count}} יום",
+    "budgetDailyHint_other": "≈ {{amount}} / יום · {{count}} ימים",
     "errors": {
       "nameRequired": "שם הטיול הוא שדה חובה",
       "startDateInvalid": "תאריך התחלה חייב להיות בפורמט YYYY-MM-DD",
@@ -182,7 +197,14 @@
     "emptyExpensesBody": "לחץ על הוספת הוצאה כדי לרשום את הראשונה.",
     "mapAllCategories": "הכל",
     "mapEmptyTitle": "אין הוצאות מסומנות עדיין",
-    "mapEmptyBody": "רשום הוצאה עם מיקום כדי לראות אותה על המפה."
+    "mapEmptyBody": "רשום הוצאה עם מיקום כדי לראות אותה על המפה.",
+    "askCardTitle": "שאל הכל על הטיול הזה",
+    "askCardSubtitle": "״כמה הוצאנו על קפה?״ · ״מי שילם על המלון?״",
+    "balanceCardTitle": "מאזן",
+    "balanceCardSettled": "הכל סגור · אין מה לעשות",
+    "balanceCardOwesYou": "{{name}} חייב/ת לך",
+    "balanceCardYouOwe": "אתה חייב/ת ל-{{name}}",
+    "balanceCardMoreSuffix": " · ועוד {{count}}"
   },
   "map": {
     "myLocation": "המיקום שלי",
@@ -230,6 +252,12 @@
     "save": "שמירה",
     "saving": "שומר…",
     "numpadDone": "סיום",
+    "numpadEqualsAriaLabel": "שווה",
+    "numpadBackspaceAriaLabel": "מחק",
+    "numpadOpAddAriaLabel": "ועוד",
+    "numpadOpSubAriaLabel": "פחות",
+    "numpadOpMulAriaLabel": "כפול",
+    "numpadOpDivAriaLabel": "חלקי",
     "amountLabel": "סכום",
     "convertedLabel": "≈ {{amount}} ב-{{currency}}",
     "currencySection": "מטבע",
@@ -389,6 +417,16 @@
     "you": "את/ה",
     "noExpensesTitle": "אין סטטיסטיקות עדיין",
     "noExpensesBody": "רשום את ההוצאה הראשונה כדי לראות את הטיול במספרים.",
+    "periodLast7": "7 ימים",
+    "periodLast30": "30 ימים",
+    "periodTrip": "כל הטיול",
+    "heroLabelLast7": "סה״כ הוצאות · 7 ימים אחרונים",
+    "heroLabelLast30": "סה״כ הוצאות · 30 ימים אחרונים",
+    "heroLabelTrip": "סה״כ הוצאות · כל הטיול",
+    "heroSubDailyAvg": "{{amount}} / יום",
+    "heroSubBudget": "{{percent}} מהתקציב",
+    "heroSubDaysLeft_one": "{{count}} יום נותר",
+    "heroSubDaysLeft_other": "{{count}} ימים נותרו",
     "paymentCash": "מזומן",
     "paymentCredit": "אשראי",
     "paymentDebit": "חיוב",
@@ -539,7 +577,23 @@
     "rowYouPaid": "שילמת",
     "rowPaidBy": "{{name}} שילם",
     "rowYouOweAmount": "אתה חייב {{amount}}",
-    "rowOwesYouAmount": "{{name}} חייב לך {{amount}}"
+    "rowOwesYouAmount": "{{name}} חייב לך {{amount}}",
+    "heroLabel": "המאזן שלך",
+    "heroSentencePositive": "תקבל את הכסף כשכולם יסגרו.",
+    "heroSentenceNegative": "תעביר את הכסף כשכולם יסגרו.",
+    "heroSentenceSettled": "כולם תיקו — אין חובות פתוחים.",
+    "settledEmptyTitle": "אתה במאזן מלא",
+    "settledEmptyBody": "מתוך {{count}} הוצאות משותפות, הכל מתאזן.",
+    "owesYouLabel": "חייבים לך",
+    "youOweLabel": "אתה חייב",
+    "markPaidCta": "סמן ששולם",
+    "youOweSubtitle": "{{name}} יסמן שקיבל ברגע שתשלם",
+    "youOweFootnote": "שלם להם איך שאתה רוצה — ברגע שהם יקבלו את הכסף הם יסמנו את זה אצלם והמאזן יתעדכן אוטומטית.",
+    "historyReverseFootnote": "נרשם בטעות? לחץ על אייקון הביטול — המאזן יחזור בדיוק כמו שהיה.",
+    "reverseAriaLabel": "בטל את התשלום",
+    "memberFrontedMost": "{{name}} שילם הכי הרבה בטיול הזה — הכל מתאזן כשכולם משלמים את חלקם.",
+    "tripSubtitle_one": "{{tripName}} · {{count}} חבר",
+    "tripSubtitle_other": "{{tripName}} · {{count}} חברים"
   },
   "settleUp": {
     "title": "רישום תשלום",
@@ -557,6 +611,8 @@
     "amountInvalid": "הזן סכום חיובי.",
     "rateUnavailable": "לא הצלחתי לקבל את שער החליפין. נסה שוב מאוחר יותר.",
     "saveFailedTitle": "לא הצלחתי לרשום את התשלום",
-    "saveFailedFallback": "משהו השתבש."
+    "saveFailedFallback": "משהו השתבש.",
+    "toastSaved": "התשלום נרשם",
+    "toastReversed": "התשלום בוטל"
   }
 }

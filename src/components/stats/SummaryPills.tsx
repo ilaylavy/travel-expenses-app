@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon, type IconName } from '@/components/Icon';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -14,7 +15,8 @@ interface Props {
 }
 
 interface PillDef {
-  emoji: string;
+  icon: IconName;
+  iconColor: string;
   label: string;
   value: string;
   tone?: 'default' | 'positive' | 'negative';
@@ -26,17 +28,20 @@ export function SummaryPills({ stats, currency, hasBudget, isOngoing }: Props) {
 
   const pills: PillDef[] = [
     {
-      emoji: '💰',
+      icon: 'bill',
+      iconColor: theme.green,
       label: t('stats.totalSpent'),
       value: formatAmount(stats.totalSpent, currency),
     },
     {
-      emoji: '📅',
+      icon: 'calendar',
+      iconColor: theme.orange,
       label: t('stats.dailyAverage'),
       value: formatAmount(stats.dailyAverage, currency),
     },
     {
-      emoji: '⏳',
+      icon: 'clock',
+      iconColor: theme.accent,
       label: isOngoing || stats.daysRemaining === null
         ? t('stats.daysElapsed')
         : t('stats.daysRemaining'),
@@ -50,14 +55,16 @@ export function SummaryPills({ stats, currency, hasBudget, isOngoing }: Props) {
   if (hasBudget) {
     const remaining = stats.budgetRemaining;
     pills.push({
-      emoji: '🎯',
+      icon: 'wallet',
+      iconColor: theme.blue,
       label: t('stats.budgetRemaining'),
       value: remaining === null ? '—' : formatAmount(remaining, currency),
       tone: remaining !== null && remaining < 0 ? 'negative' : 'default',
     });
     const safe = stats.safeDailySpend;
     pills.push({
-      emoji: '🛟',
+      icon: 'check',
+      iconColor: theme.teal,
       label: t('stats.safeDailySpend'),
       value: safe === null ? '—' : formatAmount(safe, currency),
       tone: safe === null ? 'default' : safe < 0 ? 'negative' : 'positive',
@@ -81,7 +88,7 @@ export function SummaryPills({ stats, currency, hasBudget, isOngoing }: Props) {
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
           >
-            <Text style={styles.emoji}>{p.emoji}</Text>
+            <Icon name={p.icon} size={18} color={p.iconColor} stroke={1.8} style={styles.pillIcon} />
             <Text
               style={[styles.value, { color: valueColor }]}
               numberOfLines={1}
@@ -113,17 +120,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: 100,
     borderRadius: sizing.radiusCardInner,
-    borderWidth: borderWidth.base,
-    paddingVertical: spacing.lg,
+    borderWidth: borderWidth.hairline,
+    paddingVertical: spacing.lg - 2,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
-    gap: 2, // optical between emoji/value/label
+    gap: 4, // optical between icon/value/label
   },
-  emoji: { fontSize: 20, marginBottom: 2 },
-  value: { ...typography.amountMedium, textAlign: 'center' },
+  pillIcon: { marginBottom: 2 },
+  value: { ...typography.amountSmall, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   label: {
     ...typography.micro,
-    textTransform: 'uppercase',
     textAlign: 'center',
   },
 });

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { CURRENCIES, type Currency } from '@/constants/currencies';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -76,7 +77,7 @@ export function CurrencyPickerModal({
               },
             ]}
           >
-            <Text style={[styles.headerButtonText, { color: theme.text }]}>✕</Text>
+            <Icon name="x" size={16} color={theme.text} stroke={2.2} />
           </Pressable>
         </View>
 
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerButtonText: { fontSize: 16 },
+  // (formerly headerButtonText — replaced by SVG icons.)
   searchWrapper: { paddingHorizontal: spacing.base, paddingBottom: spacing.md },
   search: {
     ...typography.body,

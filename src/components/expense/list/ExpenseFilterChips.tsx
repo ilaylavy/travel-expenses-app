@@ -1,5 +1,6 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { FilterModal, type FilterOption } from '@/components/ui/FilterModal';
 import { FilterPill } from '@/components/ui/FilterPill';
 import { spacing } from '@/constants/theme';
@@ -169,10 +170,11 @@ export function ExpenseFilterChips(props: ExpenseFilterChipsProps) {
               styles.clearButton,
               { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
+            accessibilityRole="button"
             accessibilityLabel={t('expenses.filterClearAll')}
             hitSlop={6}
           >
-            <Text style={[styles.clearButtonText, { color: theme.textSecondary }]}>✕</Text>
+            <Icon name="x" size={13} color={theme.textSecondary} stroke={2.2} />
           </Pressable>
         ) : null}
       </ScrollView>
@@ -247,5 +249,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  clearButtonText: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
+  // (formerly clearButtonText — replaced by SVG x icon.)
 });

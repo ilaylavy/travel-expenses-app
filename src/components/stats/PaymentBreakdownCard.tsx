@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon, type IconName } from '@/components/Icon';
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -12,16 +13,15 @@ interface Props {
   currency: string;
 }
 
-function emojiFor(method: PaymentMethodBucket): string {
+function iconFor(method: PaymentMethodBucket): IconName {
   switch (method) {
     case 'cash':
-      return '💵';
+      return 'cash';
     case 'credit':
-      return '💳';
     case 'debit':
-      return '🏧';
+      return 'card';
     default:
-      return '💰';
+      return 'wallet';
   }
 }
 
@@ -71,7 +71,9 @@ export function PaymentBreakdownCard({ byPaymentMethod, currency }: Props) {
       <View style={styles.list}>
         {byPaymentMethod.map((p) => (
           <View key={p.method} style={styles.row}>
-            <Text style={styles.emoji}>{emojiFor(p.method)}</Text>
+            <View style={styles.iconSlot}>
+              <Icon name={iconFor(p.method)} size={16} color={colorFor(p.method)} stroke={1.8} />
+            </View>
             <Text style={[styles.label, { color: theme.text }]} numberOfLines={1}>
               {t(labelKey(p.method))}
             </Text>
@@ -101,7 +103,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  emoji: { fontSize: 18, width: 24, textAlign: 'center' },
+  iconSlot: { width: 24, alignItems: 'center' },
   label: { ...typography.body, flex: 1 },
   amount: { ...typography.amountSmall },
   percent: { ...typography.micro, minWidth: 42, textAlign: 'right' },

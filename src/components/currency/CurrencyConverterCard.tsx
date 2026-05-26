@@ -1,8 +1,8 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useNumericPadModal } from '@/components/expense/numpad/NumericPadField';
+import { Icon } from '@/components/Icon';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
@@ -69,11 +69,8 @@ export function CurrencyConverterCard() {
 
   return (
     <>
-      <LinearGradient
-        colors={theme.cardGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.card, { borderColor: theme.border }]}
+      <View
+        style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
       >
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: theme.text }]}>
@@ -106,7 +103,7 @@ export function CurrencyConverterCard() {
               },
             ]}
           >
-            <Text style={[styles.swapText, { color: theme.accent }]}>⇅</Text>
+            <Icon name="currency-swap" size={16} color={theme.accent} stroke={2} />
           </Pressable>
 
           <ConverterField
@@ -142,7 +139,7 @@ export function CurrencyConverterCard() {
             </Text>
           ) : null}
         </View>
-      </LinearGradient>
+      </View>
 
       <CurrencyPickerModal
         visible={pickerOpen !== null}
@@ -268,7 +265,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: sizing.radiusChip,
+    borderRadius: sizing.radiusPill,
     borderWidth: borderWidth.hairline,
   },
   currencyButtonSymbol: { ...typography.sectionTitle },
@@ -287,7 +284,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  swapText: { fontSize: 20, fontWeight: '700' },
+  // (formerly swapText — replaced by SVG currency-swap.)
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { StatsSectionCard } from '@/components/stats/StatsSectionCard';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Category } from '@/types/category';
-import { getCategoryDisplayName, getCategorySoftColor } from '@/utils/category';
+import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount } from '@/utils/currency';
 import { formatDay } from '@/utils/date';
 import { href } from '@/utils/nav';
@@ -31,8 +32,6 @@ export function TopExpensesCard({ expenses, categoriesById, tripId, currency }: 
       <View style={styles.list}>
         {expenses.map(({ expense: e, userShareConverted }) => {
           const cat = categoriesById[e.categoryId];
-          const emoji = cat?.emoji ?? '•';
-          const soft = cat ? getCategorySoftColor(cat.color, theme) : theme.accentSoft;
           const title =
             e.note?.trim() ||
             e.placeName ||
@@ -44,14 +43,17 @@ export function TopExpensesCard({ expenses, categoriesById, tripId, currency }: 
               onPress={() =>
                 router.push(href(`/trip/${tripId}/expense/${e.id}`))
               }
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.row,
                 { transform: [{ scale: pressed ? 0.99 : 1 }] },
               ]}
             >
-              <View style={[styles.icon, { backgroundColor: soft }]}>
-                <Text style={styles.emoji}>{emoji}</Text>
-              </View>
+              {cat ? (
+                <CategoryIcon category={cat} size={sizing.categoryIconSmall} />
+              ) : (
+                <View style={[styles.iconFallback, { backgroundColor: theme.bgSoft }]} />
+              )}
               <View style={styles.middle}>
                 <Text
                   style={[styles.title, { color: theme.text }]}
@@ -81,14 +83,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  icon: {
+  iconFallback: {
     width: sizing.categoryIconSmall,
     height: sizing.categoryIconSmall,
     borderRadius: sizing.radiusIcon,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  emoji: { fontSize: 18 },
   middle: { flex: 1, gap: 2 },
   title: { ...typography.body, fontWeight: '600' },
   date: { ...typography.caption },

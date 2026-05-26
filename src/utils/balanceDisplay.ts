@@ -23,6 +23,55 @@ export function selectOutstandingForUser(
   };
 }
 
+// Compact summary for the dashboard BalanceCard. Surfaces the user's net
+// position plus the single most actionable obligation (a creditor row,
+// when present, otherwise the largest debt the user owes).
+export interface BalanceCardSummary {
+  // Positive = current user is owed money on net; negative = owes on net.
+  net: number;
+  // Top obligation involving the current user. Null when fully settled.
+  top: {
+    otherUserId: string;
+    direction: 'owesYou' | 'youOwe';
+    amount: number;
+  } | null;
+  // Other obligations beyond the top one — used for "+N more" copy.
+  extraCount: number;
+}
+
+export function selectBalanceCardSummary(
+  debts: PairwiseSettlement[],
+  currentUserId: string,
+): BalanceCardSummary {
+  const involving = debts.filter(
+    (d) => d.fromUserId === currentUserId || d.toUserId === currentUserId,
+  );
+  if (involving.length === 0) {
+    return { net: 0, top: null, extraCount: 0 };
+  }
+  const net = involving.reduce((sum, d) => {
+    return d.toUserId === currentUserId ? sum + d.amount : sum - d.amount;
+  }, 0);
+  // Surface "they owe you" rows first — those are the actionable ones — and
+  // break ties by descending absolute amount.
+  const sorted = [...involving].sort((a, b) => {
+    const aOwed = a.toUserId === currentUserId ? 1 : 0;
+    const bOwed = b.toUserId === currentUserId ? 1 : 0;
+    if (aOwed !== bOwed) return bOwed - aOwed;
+    return b.amount - a.amount;
+  });
+  const top = sorted[0];
+  return {
+    net: roundAmount(net),
+    top: {
+      otherUserId: top.toUserId === currentUserId ? top.fromUserId : top.toUserId,
+      direction: top.toUserId === currentUserId ? 'owesYou' : 'youOwe',
+      amount: top.amount,
+    },
+    extraCount: sorted.length - 1,
+  };
+}
+
 // One row in the read-only SHARED EXPENSES section.
 export interface SharedExpenseRow {
   expense: ExpenseWithPhotos;
