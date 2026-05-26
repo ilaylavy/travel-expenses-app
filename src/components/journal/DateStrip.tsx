@@ -132,7 +132,7 @@ export function DateStrip({
       </ScrollView>
       {showAllDaysButton ? (
         <Pressable
-          onPress={() => router.push(`/trip/${tripId}/(tabs)/journal` as never)}
+          onPress={() => router.push(`/trip/${tripId}/journal/all` as never)}
           hitSlop={10}
           accessibilityLabel={t('journal.allDays')}
           style={({ pressed }) => [
