@@ -102,12 +102,42 @@ export function PhotoEntryRow({
           // Long-press still bubbles to open the actions sheet.
           style={styles.bodyInner}
         >
-          <PhotoGrid
-            photos={entry.photos}
-            onOpen={onOpenPhoto}
-            onLongPress={onLongPress}
-            onPhotoLongPress={onPhotoLongPress}
-          />
+          {entry.photos.length === 0 ? (
+            // Empty-state placeholder. Photo entries with zero photos exist
+            // either because of an upload failure (pre-rollback bug) or some
+            // future "draft" state. Without a visible photo, there's nothing
+            // to long-press, so we render a tappable card that opens the
+            // entry actions sheet (where Delete lives).
+            <Pressable
+              onPress={onLongPress}
+              accessibilityLabel={t('journal.photoMissingTapToDelete')}
+              style={({ pressed }) => [
+                styles.emptyCard,
+                {
+                  backgroundColor: theme.bgSoft,
+                  borderColor: theme.border,
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.emptyEmoji}>📷</Text>
+              <View style={styles.emptyTextCol}>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  {t('journal.photoMissingTitle')}
+                </Text>
+                <Text style={[styles.emptyHint, { color: theme.textMuted }]}>
+                  {t('journal.photoMissingHint')}
+                </Text>
+              </View>
+            </Pressable>
+          ) : (
+            <PhotoGrid
+              photos={entry.photos}
+              onOpen={onOpenPhoto}
+              onLongPress={onLongPress}
+              onPhotoLongPress={onPhotoLongPress}
+            />
+          )}
           {editing ? (
             <TextInput
               autoFocus
@@ -184,5 +214,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 4,
     minHeight: 32,
+  },
+  emptyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+  },
+  emptyEmoji: { fontSize: 24, opacity: 0.7 },
+  emptyTextCol: { flex: 1, minWidth: 0 },
+  emptyTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+  },
+  emptyHint: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+    letterSpacing: 0.1,
   },
 });
