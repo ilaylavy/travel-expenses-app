@@ -13,6 +13,8 @@
 // rather than through the sync queue, because the web build has no local
 // SQLite and no background sync engine.
 
+import { Alert } from 'react-native';
+
 import * as journalPhotoEntries from '@/db/queries/journalPhotoEntries';
 import { pickPhotosFromLibrary, processAndPersistPhoto } from '@/services/photoService';
 import { useAuthStore } from '@/stores/authStore';
@@ -64,6 +66,17 @@ export async function runJournalPhotoPick(args: Args): Promise<void> {
       photos: photoRefs,
     });
   } catch (error) {
+    // Log the full error for devtools inspection. createEntry rolls back
+    // the parent entry on failure (see journalPhotoEntries.web.ts) so the
+    // user doesn't end up with an empty zombie entry in the timeline.
     console.warn('runJournalPhotoPick (web) failed:', error);
+    // Surface a user-visible message so the failure doesn't look like a
+    // mysterious "I uploaded but nothing showed up". RN's Alert renders
+    // on web via window.alert.
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Could not upload photo. Please try again.';
+    Alert.alert('Photo upload failed', message);
   }
 }

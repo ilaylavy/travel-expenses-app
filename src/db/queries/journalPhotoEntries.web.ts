@@ -118,45 +118,78 @@ export async function createEntry(input: {
     return { ...rowToEntry(entry), photos: [] };
   }
 
-  // 2. Upload each photo to R2 and collect the resulting storage paths.
-  //    uploadPhotoToStorage on web looks up the in-memory Blob by blob URL,
-  //    PUTs it to R2 via a presigned URL, then cleans up the Blob Map entry.
-  const uploadedPhotos: JournalPhoto[] = await Promise.all(
-    input.photos.map(async (p) => {
-      const photoId = newId();
-      const storagePath = await uploadPhotoToStorage({
-        kind: 'journal-photo',
-        tripId: input.tripId,
-        photoId,
-        localUri: p.localUri,
-      });
-      return {
-        id: photoId,
-        entryId,
-        storagePath,
-        localUri: null,   // blob URLs are ephemeral; canonical path is storagePath
-        sortOrder: p.sortOrder,
-        exifTakenAt: p.exifTakenAt,
-        createdAt: now,
-      } satisfies JournalPhoto;
-    }),
-  );
+  // 2 + 3 with rollback on failure. Without this, an upload or insert error
+  // leaves an orphan empty entry in the timeline that the user can't
+  // delete (long-press needs photo content to target). On any failure we
+  // soft-delete the parent entry so the timeline stays clean, then
+  // re-throw the original error with a step-specific message so the caller
+  // can surface it to the user.
+  try {
+    // 2. Upload each photo to R2 and collect the resulting storage paths.
+    //    uploadPhotoToStorage on web looks up the in-memory Blob by blob URL,
+    //    PUTs it to R2 via a presigned URL, then cleans up the Blob Map entry.
+    let uploadedPhotos: JournalPhoto[];
+    try {
+      uploadedPhotos = await Promise.all(
+        input.photos.map(async (p) => {
+          const photoId = newId();
+          const storagePath = await uploadPhotoToStorage({
+            kind: 'journal-photo',
+            tripId: input.tripId,
+            photoId,
+            localUri: p.localUri,
+          });
+          return {
+            id: photoId,
+            entryId,
+            storagePath,
+            localUri: null,   // blob URLs are ephemeral; canonical path is storagePath
+            sortOrder: p.sortOrder,
+            exifTakenAt: p.exifTakenAt,
+            createdAt: now,
+          } satisfies JournalPhoto;
+        }),
+      );
+    } catch (uploadErr) {
+      const reason = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+      throw new Error(`Uploading photo to storage failed: ${reason}`);
+    }
 
-  // 3. Batch-insert the journal_photos rows.
-  const { error: photosError } = await supabase.from('journal_photos').insert(
-    uploadedPhotos.map((p) => ({
-      id: p.id,
-      entry_id: p.entryId,
-      storage_path: p.storagePath,
-      local_uri: null,
-      sort_order: p.sortOrder,
-      exif_taken_at: p.exifTakenAt,
-      created_at: p.createdAt,
-    })),
-  );
-  if (photosError) throw photosError;
+    // 3. Batch-insert the journal_photos rows.
+    const { error: photosError } = await supabase.from('journal_photos').insert(
+      uploadedPhotos.map((p) => ({
+        id: p.id,
+        entry_id: p.entryId,
+        storage_path: p.storagePath,
+        local_uri: null,
+        sort_order: p.sortOrder,
+        exif_taken_at: p.exifTakenAt,
+        created_at: p.createdAt,
+      })),
+    );
+    if (photosError) {
+      throw new Error(`Saving photo metadata failed: ${photosError.message}`);
+    }
 
-  return { ...rowToEntry(entry), photos: uploadedPhotos };
+    return { ...rowToEntry(entry), photos: uploadedPhotos };
+  } catch (err) {
+    // Roll back the parent entry row so the timeline doesn't show a
+    // zombie entry with no photos. Best-effort — if the rollback itself
+    // fails (network blip, RLS), we still want to re-throw the original
+    // error so the user gets a meaningful message.
+    try {
+      await supabase
+        .from('journal_photo_entries')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', entryId);
+    } catch (rollbackErr) {
+      console.warn(
+        'createEntry rollback (soft-delete parent) failed:',
+        rollbackErr,
+      );
+    }
+    throw err;
+  }
 }
 
 export async function updateEntryCaption(
