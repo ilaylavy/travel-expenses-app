@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGlobalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -44,13 +45,18 @@ import { useExpenseStore } from '@/stores/expenseStore';
 import { useSettlementStore } from '@/stores/settlementStore';
 import { useTripStore } from '@/stores/tripStore';
 import { syncEngine } from '@/sync/syncEngine';
+import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { computeBalance } from '@/utils/balance';
 import { selectBalanceCardSummary } from '@/utils/balanceDisplay';
 import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount, todayDateString } from '@/utils/currency';
 import { formatDayWithYear } from '@/utils/date';
-import { groupExpensesByDate, type ExpenseDateGroup } from '@/utils/expenseGrouping';
+import {
+  groupExpensesByDate,
+  type ExpenseDateGroup,
+  type ExpenseListItem,
+} from '@/utils/expenseGrouping';
 import { initials } from '@/utils/initials';
 import { href } from '@/utils/nav';
 import { aggregate } from '@/utils/statsAggregations';
@@ -67,6 +73,70 @@ function formatYearMonth(ym: string): string {
   if (m < 0 || m > 11) return ym;
   return `${MONTH_SHORT[m]} ${yStr}`;
 }
+
+// Memoized expense row. Pulled out so re-renders of the parent screen
+// (search input, scroll-threshold toggle, etc.) don't cascade into every
+// row re-rendering — that's what was triggering the VirtualizedList
+// "slow to update" warning. Per-item closures for press/delete are bound
+// internally with `item` as a stable dep.
+interface ExpenseRowProps {
+  item: ExpenseListItem;
+  category: Category | null;
+  homeCurrency: string;
+  loggedByName: string | null;
+  isSelfLogged: boolean;
+  userParticipatesInSplit: boolean;
+  onPress: (expense: ExpenseWithPhotos) => void;
+  onDelete: (expense: ExpenseWithPhotos) => void;
+  confirmTitle: string;
+  confirmBody: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  deleteLabel: string;
+}
+
+function ExpenseRowImpl({
+  item,
+  category,
+  homeCurrency,
+  loggedByName,
+  isSelfLogged,
+  userParticipatesInSplit,
+  onPress,
+  onDelete,
+  confirmTitle,
+  confirmBody,
+  confirmLabel,
+  cancelLabel,
+  deleteLabel,
+}: ExpenseRowProps) {
+  const handlePress = useCallback(() => onPress(item.expense), [onPress, item.expense]);
+  const handleDelete = useCallback(() => onDelete(item.expense), [onDelete, item.expense]);
+  // Split + non-participant: don't override the displayed amount —
+  // user sees the full amount with the SPLIT badge (they owe nothing).
+  const skipShareOverride = item.expense.isSplit && !userParticipatesInSplit;
+  return (
+    <SwipeableExpenseCard
+      expense={item.displayExpense}
+      category={category}
+      homeCurrency={homeCurrency}
+      onPress={handlePress}
+      onDelete={handleDelete}
+      confirmTitle={confirmTitle}
+      confirmBody={confirmBody}
+      confirmLabel={confirmLabel}
+      cancelLabel={cancelLabel}
+      deleteLabel={deleteLabel}
+      loggedByName={loggedByName}
+      isSelfLogged={isSelfLogged}
+      canDelete={isSelfLogged}
+      userShareAmount={skipShareOverride ? undefined : item.userShareAmount}
+      userShareConverted={skipShareOverride ? undefined : item.userShareConverted}
+    />
+  );
+}
+
+const ExpenseRow = memo(ExpenseRowImpl);
 
 function extractCity(placeName: string | null): string | null {
   if (!placeName) return null;
@@ -103,6 +173,14 @@ export default function TripExpensesScreen() {
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // SectionList ref — used by the floating scroll-to-top button.
+  const listRef = useRef<SectionList<ExpenseListItem, ExpenseDateGroup>>(null);
+
+  const scrollToTop = useCallback((animated: boolean) => {
+    listRef.current?.getScrollResponder()?.scrollTo({ y: 0, animated });
+  }, []);
 
   // Scroll-driven header animation. Native-driver-friendly props only
   // (opacity + transform) so scrolling stays smooth on Android.
@@ -125,6 +203,17 @@ export default function TripExpensesScreen() {
       ),
     [scrollY],
   );
+
+  // Toggle the scroll-to-top button when the user is past ~300px. A simple
+  // threshold listener — cheaper than animating the button's opacity since
+  // it only re-renders on threshold crossings.
+  useEffect(() => {
+    const id = scrollY.addListener(({ value }) => {
+      const next = value > 300;
+      setShowScrollTop((prev) => (prev === next ? prev : next));
+    });
+    return () => scrollY.removeListener(id);
+  }, [scrollY]);
 
   const handleRefresh = useCallback(async (): Promise<void> => {
     if (!tripId) return;
@@ -322,6 +411,21 @@ export default function TripExpensesScreen() {
     [filteredExpenses, getShareForExpense],
   );
 
+  // Precomputed: which expenses the current user has an active split row in.
+  // Used to decide whether to show their per-row share (participant) vs the
+  // full amount with a SPLIT badge (non-participant). Lifted out of the row
+  // closure so the row component can stay memoized across parent re-renders.
+  const userSplitsByExpense = useMemo<Set<string>>(() => {
+    const set = new Set<string>();
+    if (!currentUserId) return set;
+    for (const s of splits) {
+      if (s.userId !== currentUserId || s.deletedAt !== null) continue;
+      set.add(s.expenseId);
+    }
+    return set;
+  }, [splits, currentUserId]);
+
+
   const handleClearAll = useCallback(() => {
     setSelectedCategoryIds(new Set());
     setSelectedPayments(new Set());
@@ -374,6 +478,14 @@ export default function TripExpensesScreen() {
 
   const hasExpenses = expenses.length > 0;
   const filteredAway = hasExpenses && sections.length === 0;
+
+  // Hoist row-level i18n strings out of renderItem so the memoized row
+  // doesn't re-evaluate t() per row per render.
+  const confirmTitleLabel = t('expensesList.deleteConfirmTitle');
+  const confirmBodyLabel = t('expensesList.deleteConfirmBody');
+  const confirmActionLabel = t('common.delete');
+  const cancelActionLabel = t('common.cancel');
+  const deleteActionLabel = t('expensesList.deleteAction');
 
   const listHeader = (
     <View>
@@ -511,6 +623,7 @@ export default function TripExpensesScreen() {
 
       <KeyboardAwareWrapper hasBottomTab style={styles.flex}>
         <Animated.SectionList
+          ref={listRef as React.Ref<SectionList<ExpenseListItem, ExpenseDateGroup>>}
           onScroll={onScroll}
           scrollEventThrottle={16}
           sections={sections}
@@ -546,36 +659,21 @@ export default function TripExpensesScreen() {
             const loggedById = item.expense.userId;
             const isSelfLogged = loggedById === currentUserId;
             const loggedByName = isSharedTrip ? memberNames[loggedById] ?? null : null;
-            // Split + non-participant: don't override the displayed amount —
-            // user sees the full amount with the SPLIT badge (they owe nothing).
-            const userSplitExists = splits.some(
-              (s) =>
-                s.expenseId === item.expense.id &&
-                s.userId === currentUserId &&
-                s.deletedAt === null,
-            );
-            const skipShareOverride = item.expense.isSplit && !userSplitExists;
             return (
-              <SwipeableExpenseCard
-                expense={item.displayExpense}
+              <ExpenseRow
+                item={item}
                 category={categoryById.get(item.expense.categoryId) ?? null}
                 homeCurrency={trip.homeCurrency}
-                onPress={() => handlePressRow(item.expense)}
-                onDelete={() => handleDelete(item.expense)}
-                confirmTitle={t('expensesList.deleteConfirmTitle')}
-                confirmBody={t('expensesList.deleteConfirmBody')}
-                confirmLabel={t('common.delete')}
-                cancelLabel={t('common.cancel')}
-                deleteLabel={t('expensesList.deleteAction')}
                 loggedByName={loggedByName}
                 isSelfLogged={isSelfLogged}
-                canDelete={isSelfLogged}
-                userShareAmount={
-                  skipShareOverride ? undefined : item.userShareAmount
-                }
-                userShareConverted={
-                  skipShareOverride ? undefined : item.userShareConverted
-                }
+                userParticipatesInSplit={userSplitsByExpense.has(item.expense.id)}
+                onPress={handlePressRow}
+                onDelete={handleDelete}
+                confirmTitle={confirmTitleLabel}
+                confirmBody={confirmBodyLabel}
+                confirmLabel={confirmActionLabel}
+                cancelLabel={cancelActionLabel}
+                deleteLabel={deleteActionLabel}
               />
             );
           }}
@@ -642,6 +740,28 @@ export default function TripExpensesScreen() {
           }
         />
       </KeyboardAwareWrapper>
+
+      {showScrollTop ? (
+        <Pressable
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            scrollToTop(true);
+          }}
+          style={({ pressed }) => [
+            styles.scrollTop,
+            isRTL ? styles.scrollTopLeft : styles.scrollTopRight,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
+          ]}
+          accessibilityLabel={t('expensesList.scrollToTop')}
+          accessibilityRole="button"
+        >
+          <Icon name="chevron-up" size={18} color={theme.accent} stroke={2.4} />
+        </Pressable>
+      ) : null}
 
       <Pressable
         onPress={() => {
@@ -785,4 +905,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scrollTop: {
+    position: 'absolute',
+    bottom: 160, // stacks just above the + FAB (FAB at bottom: 90, height: 62)
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    borderWidth: borderWidth.hairline,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  scrollTopRight: { right: 28 },
+  scrollTopLeft: { left: 28 },
 });

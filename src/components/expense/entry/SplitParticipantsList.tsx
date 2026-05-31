@@ -1,12 +1,15 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Icon } from '@/components/Icon';
+import { Avatar } from '@/components/ui/Avatar';
 import { sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { SplitMode } from '@/hooks/useExpenseEntryForm';
 import type { TripMember } from '@/types/trip';
 import { formatAmount, roundAmount } from '@/utils/currency';
+import { initials } from '@/utils/initials';
+import { getMemberTint } from '@/utils/memberTint';
 
 import { Section } from './Section';
 
@@ -27,6 +30,8 @@ export function SplitParticipantsList({
   memberNames,
   currentUserId,
   onSplitRest,
+  payerId,
+  onPayerChange,
 }: {
   splitMode: SplitMode;
   onModeChange: (mode: SplitMode) => void;
@@ -44,6 +49,8 @@ export function SplitParticipantsList({
   memberNames: Record<string, string>;
   currentUserId: string | null;
   onSplitRest: () => void;
+  payerId: string | null;
+  onPayerChange: (userId: string) => void;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -53,6 +60,55 @@ export function SplitParticipantsList({
 
   return (
     <Section title={t('split.toggle')}>
+      <View style={styles.payerBlock}>
+        <Text style={[styles.subLabel, { color: theme.textMuted }]}>
+          {t('split.paidBy')}
+        </Text>
+        <View style={styles.payerRow}>
+          {members.map((m) => {
+            const active = payerId === m.userId;
+            const name =
+              currentUserId === m.userId
+                ? t('split.you')
+                : memberNames[m.userId] || m.userId.slice(0, 6);
+            const tint = getMemberTint(m.userId, theme);
+            const fg = active ? theme.accent : theme.text;
+            return (
+              <Pressable
+                key={m.userId}
+                onPress={() => onPayerChange(m.userId)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={({ pressed }) => [
+                  styles.payerChip,
+                  {
+                    backgroundColor: active ? theme.accentSoft : theme.surface,
+                    borderColor: active ? theme.accent : theme.border,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  },
+                ]}
+              >
+                <Avatar
+                  label={initials(name)}
+                  tint={tint}
+                  size={22}
+                  radius={999}
+                />
+                <Text
+                  style={[styles.payerChipText, { color: fg }]}
+                  numberOfLines={1}
+                >
+                  {name}
+                </Text>
+                {active ? (
+                  <Icon name="check" size={12} color={theme.accent} stroke={3} />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
       <View style={styles.modeRow}>
         {(['equal', 'custom'] as const).map((mode) => {
           const active = splitMode === mode;
@@ -85,7 +141,6 @@ export function SplitParticipantsList({
         <View style={{ gap: spacing.xs }}>
           {members.map((m) => {
             const checked = participants.has(m.userId);
-            const isPayer = currentUserId === m.userId;
             const share = checked ? equalShares[m.userId] ?? 0 : 0;
             return (
               <Pressable
@@ -116,13 +171,6 @@ export function SplitParticipantsList({
                 >
                   {memberNames[m.userId] || m.userId.slice(0, 6)}
                 </Text>
-                {isPayer ? (
-                  <View style={[styles.paidBadge, { backgroundColor: theme.accentSoft }]}>
-                    <Text style={[styles.paidBadgeText, { color: theme.accent }]}>
-                      {t('split.paid')}
-                    </Text>
-                  </View>
-                ) : null}
                 <Text style={{ color: theme.text, fontWeight: '700' }}>
                   {checked && currency ? formatAmount(share, currency) : '—'}
                 </Text>
@@ -138,7 +186,6 @@ export function SplitParticipantsList({
       ) : (
         <View style={{ gap: spacing.xs }}>
           {members.map((m) => {
-            const isPayer = currentUserId === m.userId;
             const value = customAmounts[m.userId] ?? '';
             return (
               <View key={m.userId} style={styles.customRow}>
@@ -148,13 +195,6 @@ export function SplitParticipantsList({
                 >
                   {memberNames[m.userId] || m.userId.slice(0, 6)}
                 </Text>
-                {isPayer ? (
-                  <View style={[styles.paidBadge, { backgroundColor: theme.accentSoft }]}>
-                    <Text style={[styles.paidBadgeText, { color: theme.accent }]}>
-                      {t('split.paid')}
-                    </Text>
-                  </View>
-                ) : null}
                 <TextInput
                   value={value}
                   onChangeText={(text) => onCustomAmountChange(m.userId, text)}
@@ -224,6 +264,24 @@ export function SplitParticipantsList({
 }
 
 const styles = StyleSheet.create({
+  payerBlock: { gap: 6 },
+  subLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  payerRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  payerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: sizing.radiusChip,
+    borderWidth: 1.5,
+  },
+  payerChipText: { fontSize: 13, fontWeight: '700' },
   modeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   modeChip: {
     paddingHorizontal: 14,
@@ -250,12 +308,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // (formerly checkmark — replaced by SVG check icon.)
-  paidBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: sizing.radiusChip,
-  },
-  paidBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
   customRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -27,6 +27,7 @@ import {
 } from '@/stores/categoryStore';
 import { useExpenseStore } from '@/stores/expenseStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettlementStore } from '@/stores/settlementStore';
 import type { Category } from '@/types/category';
 import type { PaymentMethod } from '@/types/expense';
 import type { Trip, TripMember } from '@/types/trip';
@@ -101,6 +102,8 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   const updateExpenseInStore = useExpenseStore((s) => s.updateExpense);
   const favoriteCurrencies = useSettingsStore((s) => s.favoriteCurrencies);
   const toggleFavoriteCurrency = useSettingsStore((s) => s.toggleFavoriteCurrency);
+  const createSettlement = useSettlementStore((s) => s.createSettlement);
+  const deleteSettlement = useSettlementStore((s) => s.deleteSettlement);
 
   // Trip context
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -154,6 +157,13 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [splitParticipants, setSplitParticipants] = useState<Set<string>>(new Set());
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  const [payerId, setPayerId] = useState<string | null>(null);
+  // "Already settled" — when on, save creates one attributed settlement
+  // payment per non-payer split so the resulting balance impact is zero.
+  // On reload, derived from "every non-payer split has an attributed
+  // settlement". Mutually exclusive with refund/private the same way split
+  // is, because it requires `splitEnabled`.
+  const [isSettled, setIsSettled] = useState(false);
 
   // UI/save state
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +207,9 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
         const joined = members.filter((m) => m.joinedAt !== null);
         setTripMembers(joined);
         setIsSharedTrip(joined.length > 1);
+        if (!isEditing) {
+          setPayerId((prev) => prev ?? userId);
+        }
         const nameEntries = await Promise.all(
           joined.map(async (m) => [m.userId, (await getProfileName(m.userId)) ?? ''] as const),
         );
@@ -248,6 +261,8 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
           setSplitEnabled(true);
           const participants = new Set<string>(splits.map((s) => s.userId));
           setSplitParticipants(participants);
+          const paidBy = splits.find((s) => s.isPayer);
+          if (paidBy) setPayerId(paidBy.userId);
           // Detect equal vs custom: equal if every share is within 1 cent of total/N.
           const total = Math.abs(existing.amount);
           const equalShare = total / splits.length;
@@ -260,6 +275,22 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
             amounts[s.userId] = s.amount.toFixed(2);
           }
           setCustomAmounts(amounts);
+
+          // Detect "already settled": every non-payer split with a non-zero
+          // amount must have an active attributed settlement payment.
+          const nonPayer = splits.filter(
+            (s) => !s.isPayer && Math.abs(s.amount) > 0.0001,
+          );
+          if (nonPayer.length > 0) {
+            const allSettlements = useSettlementStore.getState().settlements;
+            const attributed = new Set(
+              allSettlements
+                .filter((p) => p.deletedAt === null && p.expenseSplitId !== null)
+                .map((p) => p.expenseSplitId as string),
+            );
+            const fullySettled = nonPayer.every((s) => attributed.has(s.id));
+            setIsSettled(fullySettled);
+          }
         }
       }
     })();
@@ -321,8 +352,14 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       setSplitParticipants(new Set());
       setCustomAmounts({});
       setSplitMode('equal');
+      setIsSettled(false);
     }
   }, [isRefund, isPrivate, splitEnabled]);
+
+  // "Already settled" only makes sense while a split is active.
+  useEffect(() => {
+    if (!splitEnabled && isSettled) setIsSettled(false);
+  }, [splitEnabled, isSettled]);
 
   // Default participants to "everyone" the first time the split toggle goes on.
   useEffect(() => {
@@ -416,15 +453,15 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     const distributed = roundAmount(per * ids.length);
     const remainder = roundAmount(total - distributed);
     if (Math.abs(remainder) > 0 && user) {
-      const payerId = user.id;
-      if (result[payerId] !== undefined) {
-        result[payerId] = roundAmount(result[payerId] + remainder);
+      const holderId = payerId ?? user.id;
+      if (result[holderId] !== undefined) {
+        result[holderId] = roundAmount(result[holderId] + remainder);
       } else {
         result[ids[0]] = roundAmount(result[ids[0]] + remainder);
       }
     }
     return result;
-  }, [splitEnabled, splitMode, splitParticipants, amountValue, user]);
+  }, [splitEnabled, splitMode, splitParticipants, amountValue, user, payerId]);
 
   const customAssigned = useMemo(() => {
     if (!splitEnabled || splitMode !== 'custom') return 0;
@@ -512,6 +549,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       setSplitParticipants(new Set());
       setCustomAmounts({});
       setSplitMode('equal');
+      setIsSettled(false);
     }
   }, []);
 
@@ -559,26 +597,38 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
 
   const buildSplitsForSave = useCallback((): CreateSplitInput[] | null => {
     if (!splitEnabled || !user) return null;
+    const effectivePayer = payerId ?? user.id;
+
+    let baseSplits: CreateSplitInput[];
     if (splitMode === 'equal') {
       const ids = Array.from(splitParticipants);
       if (ids.length < 2) return null;
-      return ids.map((userId) => ({
+      baseSplits = ids.map((userId) => ({
         userId,
         amount: equalShares[userId] ?? 0,
-        isPayer: userId === user.id,
+        isPayer: userId === effectivePayer,
       }));
+    } else {
+      // custom mode: save every listed member with their assigned amount.
+      // Zero is a valid share — including the row tells partner devices "you're
+      // a participant whose share is 0", versus a missing row meaning "you're
+      // not part of this split".
+      baseSplits = tripMembers.map((m) => {
+        const raw = customAmounts[m.userId] ?? '';
+        const n = Number(raw);
+        const amount = Number.isFinite(n) ? roundAmount(n) : 0;
+        return { userId: m.userId, amount, isPayer: m.userId === effectivePayer };
+      });
     }
-    // custom mode: save every listed member with their assigned amount.
-    // Zero is a valid share — including the row tells partner devices "you're
-    // a participant whose share is 0", versus a missing row meaning "you're
-    // not part of this split".
-    return tripMembers.map((m) => {
-      const raw = customAmounts[m.userId] ?? '';
-      const n = Number(raw);
-      const amount = Number.isFinite(n) ? roundAmount(n) : 0;
-      return { userId: m.userId, amount, isPayer: m.userId === user.id };
-    });
-  }, [splitEnabled, splitMode, splitParticipants, equalShares, customAmounts, tripMembers, user]);
+
+    // If the chosen payer is not a participant, append a synthetic 0-share
+    // row so the DB always has an unambiguous is_payer=true row.
+    if (!baseSplits.some((s) => s.isPayer)) {
+      baseSplits.push({ userId: effectivePayer, amount: 0, isPayer: true });
+    }
+
+    return baseSplits;
+  }, [splitEnabled, splitMode, splitParticipants, equalShares, customAmounts, tripMembers, user, payerId]);
 
   const validate = useCallback((): string | null => {
     if (!amountText) return t('expense.errors.amountRequired');
@@ -638,6 +688,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
           : convertedAmount;
 
         const splitsForSave = buildSplitsForSave();
+        let savedExpenseId: string;
 
         if (isEditing && expenseId) {
           await updateExpenseInStore(
@@ -664,6 +715,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
             },
             splitEnabled ? splitsForSave : null,
           );
+          savedExpenseId = expenseId;
         } else {
           const created = await createExpense(
             {
@@ -700,6 +752,53 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
               homeCurrency: trip.homeCurrency,
             });
           }
+          savedExpenseId = created.id;
+        }
+
+        // Reconcile "already settled" attributed settlement payments. We
+        // always tear down + recreate to keep the logic simple and correct
+        // across split edits (payer change, participants added/removed,
+        // amount changes). Sync churn is acceptable for the use case.
+        const splitsForExpense = useExpenseStore
+          .getState()
+          .splits.filter(
+            (s) => s.expenseId === savedExpenseId && s.deletedAt === null,
+          );
+        const existingAttributed = useSettlementStore
+          .getState()
+          .settlements.filter(
+            (p) =>
+              p.deletedAt === null &&
+              p.expenseSplitId !== null &&
+              splitsForExpense.some((s) => s.id === p.expenseSplitId),
+          );
+
+        for (const p of existingAttributed) {
+          // eslint-disable-next-line no-await-in-loop
+          await deleteSettlement(p.id);
+        }
+
+        if (isSettled && splitEnabled && splitsForExpense.length > 0) {
+          const payerSplit = splitsForExpense.find((s) => s.isPayer);
+          if (payerSplit) {
+            for (const split of splitsForExpense) {
+              if (split.isPayer) continue;
+              if (Math.abs(split.amount) < 0.0001) continue;
+              // eslint-disable-next-line no-await-in-loop
+              await createSettlement({
+                tripId,
+                fromUserId: split.userId,
+                toUserId: payerSplit.userId,
+                amount: split.amount,
+                currency,
+                exchangeRate,
+                convertedAmount: split.amount * exchangeRate,
+                settledDate: expenseDate,
+                note: null,
+                expenseSplitId: split.id,
+              });
+            }
+          }
         }
 
         onComplete();
@@ -720,6 +819,8 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       categoryId,
       convertedAmount,
       createExpense,
+      createSettlement,
+      deleteSettlement,
       updateExpenseInStore,
       currency,
       expenseDate,
@@ -730,6 +831,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       isExcluded,
       isPrivate,
       isRefund,
+      isSettled,
       isSpread,
       latitude,
       longitude,
@@ -838,6 +940,10 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     customAssigned,
     customMatchesTotal,
     splitRest,
+    payerId,
+    setPayerId,
+    isSettled,
+    setIsSettled,
 
     // Active input / numpad
     activeInput,
