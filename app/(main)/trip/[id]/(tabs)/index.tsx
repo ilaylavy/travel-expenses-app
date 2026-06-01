@@ -51,7 +51,7 @@ import { computeBalance } from '@/utils/balance';
 import { selectBalanceCardSummary } from '@/utils/balanceDisplay';
 import { getCategoryDisplayName } from '@/utils/category';
 import { formatAmount, todayDateString } from '@/utils/currency';
-import { formatDayWithYear } from '@/utils/date';
+import { formatDayWithYear, todayIsoDate } from '@/utils/date';
 import {
   groupExpensesByDate,
   type ExpenseDateGroup,
@@ -174,6 +174,9 @@ export default function TripExpensesScreen() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  // Future-dated expenses collapse under an "Upcoming" header by default so
+  // today sits at the top of the list. UI-only state.
+  const [showUpcoming, setShowUpcoming] = useState(false);
 
   // SectionList ref — used by the floating scroll-to-top button.
   const listRef = useRef<SectionList<ExpenseListItem, ExpenseDateGroup>>(null);
@@ -411,6 +414,19 @@ export default function TripExpensesScreen() {
     [filteredExpenses, getShareForExpense],
   );
 
+  // Split the (date-descending) groups into future vs. today-and-earlier.
+  // Future days form a contiguous prefix because the list is sorted desc.
+  const { presentSections, futureSections } = useMemo(() => {
+    const today = todayIsoDate();
+    const future: ExpenseDateGroup[] = [];
+    const present: ExpenseDateGroup[] = [];
+    for (const s of sections) {
+      if (s.date > today) future.push(s);
+      else present.push(s);
+    }
+    return { presentSections: present, futureSections: future };
+  }, [sections]);
+
   // Precomputed: which expenses the current user has an active split row in.
   // Used to decide whether to show their per-row share (participant) vs the
   // full amount with a SPLIT badge (non-participant). Lifted out of the row
@@ -476,8 +492,27 @@ export default function TripExpensesScreen() {
     );
   }
 
+  const filtersActive =
+    query.trim() !== '' ||
+    selectedCategoryIds.size > 0 ||
+    selectedPayments.size > 0 ||
+    selectedMembers.size > 0 ||
+    selectedPlaces.size > 0 ||
+    selectedMonths.size > 0;
+
+  // Collapse future days under the "Upcoming" header so today is at the top.
+  // Expand when the user opts in, when filtering/searching (so matches aren't
+  // hidden behind the collapse), or when there's nothing earlier to show.
+  const showUpcomingEffective =
+    showUpcoming || filtersActive || presentSections.length === 0;
+  const displayedSections = showUpcomingEffective ? sections : presentSections;
+  const showUpcomingToggle =
+    !filtersActive && futureSections.length > 0 && presentSections.length > 0;
+  const upcomingCount = futureSections.reduce((n, s) => n + s.data.length, 0);
+  const upcomingTotal = futureSections.reduce((sum, s) => sum + s.subtotal, 0);
+
   const hasExpenses = expenses.length > 0;
-  const filteredAway = hasExpenses && sections.length === 0;
+  const filteredAway = hasExpenses && displayedSections.length === 0;
 
   // Hoist row-level i18n strings out of renderItem so the memoized row
   // doesn't re-evaluate t() per row per render.
@@ -570,6 +605,48 @@ export default function TripExpensesScreen() {
         onSetMonths={setSelectedMonths}
         onClearAll={handleClearAll}
       />
+
+      {showUpcomingToggle ? (
+        <Pressable
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowUpcoming((v) => !v);
+          }}
+          style={({ pressed }) => [
+            styles.upcomingToggle,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showUpcoming }}
+          accessibilityLabel={t('expensesList.upcoming')}
+        >
+          <View style={styles.upcomingToggleLeft}>
+            <Icon
+              name={
+                showUpcoming ? 'chevron-down' : isRTL ? 'chevron-left' : 'chevron-right'
+              }
+              size={16}
+              color={theme.textSecondary}
+              stroke={2.2}
+            />
+            <Text style={[styles.upcomingToggleLabel, { color: theme.text }]}>
+              {t('expensesList.upcoming')}
+            </Text>
+            <View style={[styles.upcomingBadge, { backgroundColor: theme.accentSoft }]}>
+              <Text style={[styles.upcomingBadgeText, { color: theme.accent }]}>
+                {upcomingCount}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.upcomingTotal, { color: theme.textSecondary }]}>
+            {formatAmount(upcomingTotal, trip.homeCurrency)}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -626,7 +703,7 @@ export default function TripExpensesScreen() {
           ref={listRef as React.Ref<SectionList<ExpenseListItem, ExpenseDateGroup>>}
           onScroll={onScroll}
           scrollEventThrottle={16}
-          sections={sections}
+          sections={displayedSections}
           keyExtractor={(item) => item.key}
           stickySectionHeadersEnabled
           contentContainerStyle={styles.list}
@@ -921,4 +998,30 @@ const styles = StyleSheet.create({
   },
   scrollTopRight: { right: 28 },
   scrollTopLeft: { left: 28 },
+  upcomingToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.base,
+    borderRadius: sizing.radiusInput,
+    borderWidth: borderWidth.hairline,
+    marginTop: spacing.sm,
+  },
+  upcomingToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  upcomingToggleLabel: { ...typography.sectionTitle },
+  upcomingBadge: {
+    minWidth: 22,
+    paddingHorizontal: 7,
+    height: 20,
+    borderRadius: sizing.radiusPill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upcomingBadgeText: { fontSize: 12, fontWeight: '800' },
+  upcomingTotal: { ...typography.amountSmall },
 });
