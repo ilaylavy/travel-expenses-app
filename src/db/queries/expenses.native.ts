@@ -65,6 +65,7 @@ function rowToExpense(row: ExpenseRow): Expense {
     isSplit: row.is_split === 1,
     spreadStartDate: row.spread_start_date,
     spreadEndDate: row.spread_end_date,
+    momentId: row.moment_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -94,6 +95,7 @@ function expenseToPayload(e: Expense): Record<string, unknown> {
     is_split: e.isSplit,
     spread_start_date: e.spreadStartDate,
     spread_end_date: e.spreadEndDate,
+    moment_id: e.momentId,
     created_at: e.createdAt,
     updated_at: e.updatedAt,
     deleted_at: e.deletedAt,
@@ -166,6 +168,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ExpenseW
     isSplit: input.isSplit ?? false,
     spreadStartDate: input.spreadStartDate,
     spreadEndDate: input.spreadEndDate,
+    momentId: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -222,6 +225,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
       input.spreadStartDate === undefined ? existing.spreadStartDate : input.spreadStartDate,
     spreadEndDate:
       input.spreadEndDate === undefined ? existing.spreadEndDate : input.spreadEndDate,
+    momentId: input.momentId === undefined ? existing.momentId : input.momentId,
     updatedAt: new Date().toISOString(),
   };
 
@@ -232,7 +236,8 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
          category_id = ?, note = ?, payment_method = ?, latitude = ?,
          longitude = ?, place_name = ?, expense_date = ?, expense_time = ?,
          is_refund = ?, is_excluded_from_daily_metrics = ?, is_private = ?,
-         is_split = ?, spread_start_date = ?, spread_end_date = ?, updated_at = ?
+         is_split = ?, spread_start_date = ?, spread_end_date = ?, moment_id = ?,
+         updated_at = ?
        WHERE id = ?;`,
       [
         next.amount,
@@ -253,6 +258,7 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
         next.isSplit ? 1 : 0,
         next.spreadStartDate,
         next.spreadEndDate,
+        next.momentId,
         next.updatedAt,
         next.id,
       ],
@@ -308,9 +314,9 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
        (id, trip_id, user_id, amount, currency, converted_amount, exchange_rate,
         category_id, note, payment_method, latitude, longitude, place_name,
         expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
-        is_private, is_split, spread_start_date, spread_end_date,
+        is_private, is_split, spread_start_date, spread_end_date, moment_id,
         created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       e.id,
       e.tripId,
@@ -333,6 +339,7 @@ async function insertExpense(db: SQLiteDatabase, e: Expense): Promise<void> {
       e.isSplit ? 1 : 0,
       e.spreadStartDate,
       e.spreadEndDate,
+      e.momentId,
       e.createdAt,
       e.updatedAt,
       e.deletedAt,

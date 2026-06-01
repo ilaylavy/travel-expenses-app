@@ -13,6 +13,9 @@ export interface Trip {
   // haven't set one. NOT the legacy trips.budget column.
   budget: number | null;
   ownerId: string;
+  // Supabase Storage path for the trip's cover photo, used on the All Days
+  // hero. Null until the user selects one.
+  coverPhotoStoragePath: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -60,6 +63,7 @@ export interface TripRow {
   // schema, but new code never reads it.
   budget: number | null;
   owner_id: string;
+  cover_photo_storage_path: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -93,6 +97,7 @@ export interface PendingInviteRow extends TripMemberRow {
   trip_base_currency: string;
   trip_home_currency: string;
   trip_owner_id: string;
+  trip_cover_photo_storage_path: string | null;
   trip_created_at: string;
   trip_updated_at: string;
 }

@@ -20,9 +20,9 @@ async function getLocalUpdatedAt(
   table: PullTable,
   id: string,
 ): Promise<string | null> {
-  if (table === 'expense_photos') {
+  if (table === 'expense_photos' || table === 'journal_photos') {
     const row = await db.getFirstAsync<{ created_at: string }>(
-      'SELECT created_at FROM expense_photos WHERE id = ?;',
+      `SELECT created_at FROM ${table} WHERE id = ?;`,
       [id],
     );
     return row?.created_at ?? null;
@@ -70,8 +70,8 @@ async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
   await db.runAsync(
     `INSERT INTO trips
        (id, name, emoji, start_date, end_date, base_currency, home_currency,
-        budget, owner_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        budget, owner_id, cover_photo_storage_path, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name,
        emoji = excluded.emoji,
@@ -81,6 +81,7 @@ async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
        home_currency = excluded.home_currency,
        budget = excluded.budget,
        owner_id = excluded.owner_id,
+       cover_photo_storage_path = excluded.cover_photo_storage_path,
        created_at = excluded.created_at,
        updated_at = excluded.updated_at,
        deleted_at = excluded.deleted_at;`,
@@ -94,6 +95,7 @@ async function applyTrip(db: SQLiteDatabase, r: Remote): Promise<void> {
       asString(r.home_currency) ?? 'USD',
       asNumber(r.budget),
       asString(r.owner_id) ?? '',
+      asString(r.cover_photo_storage_path),
       asString(r.created_at) ?? new Date().toISOString(),
       asString(r.updated_at) ?? new Date().toISOString(),
       asString(r.deleted_at),
@@ -177,8 +179,8 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
         category_id, note, payment_method, latitude, longitude, place_name,
         expense_date, expense_time, is_refund, is_excluded_from_daily_metrics,
         is_private, is_split, spread_start_date, spread_end_date,
-        created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_at, updated_at, deleted_at, moment_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        trip_id = excluded.trip_id,
        user_id = excluded.user_id,
@@ -202,7 +204,8 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
        spread_end_date = excluded.spread_end_date,
        created_at = excluded.created_at,
        updated_at = excluded.updated_at,
-       deleted_at = excluded.deleted_at;`,
+       deleted_at = excluded.deleted_at,
+       moment_id = excluded.moment_id;`,
     [
       asString(r.id),
       asString(r.trip_id),
@@ -228,6 +231,7 @@ async function applyExpense(db: SQLiteDatabase, r: Remote): Promise<void> {
       asString(r.created_at) ?? new Date().toISOString(),
       asString(r.updated_at) ?? new Date().toISOString(),
       asString(r.deleted_at),
+      asString(r.moment_id),
     ],
   );
 }
@@ -319,6 +323,145 @@ async function applySettlementPayment(db: SQLiteDatabase, r: Remote): Promise<vo
   );
 }
 
+async function applyJournalPhotoEntry(db: SQLiteDatabase, r: Remote): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO journal_photo_entries
+       (id, trip_id, user_id, occurred_at, caption, is_private,
+        created_at, updated_at, deleted_at, moment_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       trip_id = excluded.trip_id,
+       user_id = excluded.user_id,
+       occurred_at = excluded.occurred_at,
+       caption = excluded.caption,
+       is_private = excluded.is_private,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at,
+       moment_id = excluded.moment_id;`,
+    [
+      asString(r.id),
+      asString(r.trip_id),
+      asString(r.user_id),
+      asString(r.occurred_at),
+      asString(r.caption),
+      asBoolInt(r.is_private),
+      asString(r.created_at) ?? new Date().toISOString(),
+      asString(r.updated_at) ?? new Date().toISOString(),
+      asString(r.deleted_at),
+      asString(r.moment_id),
+    ],
+  );
+}
+
+async function applyJournalPhoto(db: SQLiteDatabase, r: Remote): Promise<void> {
+  // No soft delete — file children cascade with parent entry. No updated_at
+  // and no children of its own, so INSERT OR REPLACE is safe.
+  await db.runAsync(
+    `INSERT OR REPLACE INTO journal_photos
+       (id, entry_id, storage_path, local_uri, sort_order, exif_taken_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?);`,
+    [
+      asString(r.id),
+      asString(r.entry_id),
+      asString(r.storage_path) ?? '',
+      asString(r.local_uri),
+      asNumber(r.sort_order) ?? 0,
+      asString(r.exif_taken_at),
+      asString(r.created_at) ?? new Date().toISOString(),
+    ],
+  );
+}
+
+async function applyVoiceClip(db: SQLiteDatabase, r: Remote): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO voice_clips
+       (id, trip_id, user_id, occurred_at, storage_path, local_uri, duration_sec,
+        transcript, transcript_status, transcript_error, is_private,
+        created_at, updated_at, deleted_at, moment_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       trip_id = excluded.trip_id,
+       user_id = excluded.user_id,
+       occurred_at = excluded.occurred_at,
+       storage_path = excluded.storage_path,
+       transcript = excluded.transcript,
+       transcript_status = excluded.transcript_status,
+       transcript_error = excluded.transcript_error,
+       is_private = excluded.is_private,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at,
+       moment_id = excluded.moment_id;`,
+    [
+      asString(r.id),
+      asString(r.trip_id),
+      asString(r.user_id),
+      asString(r.occurred_at),
+      asString(r.storage_path) ?? '',
+      asString(r.local_uri),
+      asNumber(r.duration_sec) ?? 1,
+      asString(r.transcript),
+      asString(r.transcript_status) ?? 'pending',
+      asString(r.transcript_error),
+      asBoolInt(r.is_private),
+      asString(r.created_at) ?? new Date().toISOString(),
+      asString(r.updated_at) ?? new Date().toISOString(),
+      asString(r.deleted_at),
+      asString(r.moment_id),
+    ],
+  );
+}
+
+async function applyJournalDay(db: SQLiteDatabase, r: Remote): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO journal_days
+       (id, trip_id, day_date, location, cover_photo_entry_id,
+        created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       location = excluded.location,
+       cover_photo_entry_id = excluded.cover_photo_entry_id,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at;`,
+    [
+      asString(r.id),
+      asString(r.trip_id),
+      asString(r.day_date),
+      asString(r.location),
+      asString(r.cover_photo_entry_id),
+      asString(r.created_at) ?? new Date().toISOString(),
+      asString(r.updated_at) ?? new Date().toISOString(),
+      asString(r.deleted_at),
+    ],
+  );
+}
+
+async function applyJournalMoment(db: SQLiteDatabase, r: Remote): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO journal_moments
+       (id, trip_id, day_date, title, cover_photo_entry_id, created_by,
+        created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       trip_id = excluded.trip_id,
+       day_date = excluded.day_date,
+       title = excluded.title,
+       cover_photo_entry_id = excluded.cover_photo_entry_id,
+       updated_at = excluded.updated_at,
+       deleted_at = excluded.deleted_at;`,
+    [
+      asString(r.id),
+      asString(r.trip_id),
+      asString(r.day_date),
+      asString(r.title),
+      asString(r.cover_photo_entry_id),
+      asString(r.created_by),
+      asString(r.created_at) ?? new Date().toISOString(),
+      asString(r.updated_at) ?? new Date().toISOString(),
+      asString(r.deleted_at),
+    ],
+  );
+}
+
 export async function applyRemote(
   db: SQLiteDatabase,
   table: PullTable,
@@ -328,7 +471,7 @@ export async function applyRemote(
   if (!id) return false;
 
   const remoteUpdatedAt = asString(
-    table === 'expense_photos'
+    table === 'expense_photos' || table === 'journal_photos'
       ? remote.created_at
       : table === 'trip_members'
         ? (remote.updated_at ?? remote.invited_at)
@@ -361,6 +504,21 @@ export async function applyRemote(
       return true;
     case 'settlement_payments':
       await applySettlementPayment(db, remote);
+      return true;
+    case 'journal_photo_entries':
+      await applyJournalPhotoEntry(db, remote);
+      return true;
+    case 'journal_photos':
+      await applyJournalPhoto(db, remote);
+      return true;
+    case 'voice_clips':
+      await applyVoiceClip(db, remote);
+      return true;
+    case 'journal_days':
+      await applyJournalDay(db, remote);
+      return true;
+    case 'journal_moments':
+      await applyJournalMoment(db, remote);
       return true;
   }
 }

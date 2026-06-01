@@ -33,4 +33,9 @@ export const BOOL_FIELDS_BY_TABLE: Record<SyncTable, readonly string[]> = {
   expense_splits: ['is_payer'],
   expense_photos: [],
   settlement_payments: [],
+  journal_photo_entries: ['is_private'],
+  journal_photos: [],
+  voice_clips: ['is_private'],
+  journal_days: [],
+  journal_moments: [],
 };

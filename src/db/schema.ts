@@ -215,6 +215,102 @@ export const V7_STATEMENTS: readonly string[] = [
      WHERE deleted_at IS NULL AND expense_split_id IS NOT NULL;`,
 ] as const;
 
+// V8: trip journal — photo entries with file children, voice clips with
+// transcript state, and per-day metadata. Mirrors the Postgres tables added
+// in migration 20260523180000_trip_journal.sql.
+export const V8_STATEMENTS: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS journal_photo_entries (
+    id TEXT PRIMARY KEY,
+    trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    caption TEXT,
+    is_private INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );`,
+  'CREATE INDEX IF NOT EXISTS idx_journal_photo_entries_trip_date ON journal_photo_entries(trip_id, occurred_at);',
+  'CREATE INDEX IF NOT EXISTS idx_journal_photo_entries_user ON journal_photo_entries(user_id);',
+
+  `CREATE TABLE IF NOT EXISTS journal_photos (
+    id TEXT PRIMARY KEY,
+    entry_id TEXT NOT NULL REFERENCES journal_photo_entries(id) ON DELETE CASCADE,
+    storage_path TEXT NOT NULL,
+    local_uri TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    exif_taken_at TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  'CREATE INDEX IF NOT EXISTS idx_journal_photos_entry ON journal_photos(entry_id);',
+
+  `CREATE TABLE IF NOT EXISTS voice_clips (
+    id TEXT PRIMARY KEY,
+    trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    storage_path TEXT NOT NULL DEFAULT '',
+    local_uri TEXT,
+    duration_sec INTEGER NOT NULL CHECK (duration_sec BETWEEN 1 AND 300),
+    transcript TEXT,
+    transcript_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (transcript_status IN ('pending','processing','done','failed')),
+    transcript_error TEXT,
+    is_private INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );`,
+  'CREATE INDEX IF NOT EXISTS idx_voice_clips_trip_date ON voice_clips(trip_id, occurred_at);',
+  'CREATE INDEX IF NOT EXISTS idx_voice_clips_user ON voice_clips(user_id);',
+
+  `CREATE TABLE IF NOT EXISTS journal_days (
+    id TEXT PRIMARY KEY,
+    trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    day_date TEXT NOT NULL,
+    location TEXT,
+    cover_photo_entry_id TEXT REFERENCES journal_photo_entries(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    UNIQUE (trip_id, day_date)
+  );`,
+  'CREATE INDEX IF NOT EXISTS idx_journal_days_trip_date ON journal_days(trip_id, day_date);',
+] as const;
+
+// V9: journal redesign — journal_moments grouping table, moment_id foreign
+// keys on journal_photo_entries / voice_clips / expenses, and a cover photo
+// storage path on trips. Mirrors 20260524000000_journal_redesign.sql.
+export const V9_STATEMENTS: readonly string[] = [
+  `CREATE TABLE IF NOT EXISTS journal_moments (
+    id TEXT PRIMARY KEY,
+    trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    day_date TEXT NOT NULL,
+    title TEXT,
+    cover_photo_entry_id TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );`,
+
+  `CREATE INDEX IF NOT EXISTS idx_journal_moments_trip_day
+    ON journal_moments (trip_id, day_date);`,
+
+  `ALTER TABLE journal_photo_entries ADD COLUMN moment_id TEXT;`,
+  `ALTER TABLE voice_clips ADD COLUMN moment_id TEXT;`,
+  `ALTER TABLE expenses ADD COLUMN moment_id TEXT;`,
+
+  `CREATE INDEX IF NOT EXISTS idx_journal_photo_entries_moment
+    ON journal_photo_entries (moment_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_voice_clips_moment
+    ON voice_clips (moment_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_expenses_moment
+    ON expenses (moment_id);`,
+
+  `ALTER TABLE trips ADD COLUMN cover_photo_storage_path TEXT;`,
+] as const;
+
 export const ALL_TABLES = [
   'profiles',
   'trips',
@@ -225,6 +321,10 @@ export const ALL_TABLES = [
   'expense_photos',
   'exchange_rates',
   'settlement_payments',
+  'journal_photo_entries',
+  'journal_photos',
+  'voice_clips',
+  'journal_days',
   'sync_queue',
   'sync_metadata',
 ] as const;

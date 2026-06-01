@@ -221,6 +221,8 @@ export default function AddExpenseScreen() {
             isSharedTrip={form.isSharedTrip}
             splitEnabled={form.splitEnabled}
             setSplitEnabled={form.toggleSplit}
+            isSettled={form.isSettled}
+            setIsSettled={form.setIsSettled}
           />
 
           {form.isSharedTrip && form.splitEnabled ? (
@@ -241,6 +243,8 @@ export default function AddExpenseScreen() {
               memberNames={form.memberNames}
               currentUserId={form.user?.id ?? null}
               onSplitRest={form.splitRest}
+              payerId={form.payerId}
+              onPayerChange={form.setPayerId}
             />
           ) : null}
 

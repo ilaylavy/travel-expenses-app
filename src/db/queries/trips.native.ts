@@ -27,6 +27,7 @@ function rowToTripBase(row: TripRow): Omit<Trip, 'budget'> {
     baseCurrency: row.base_currency,
     homeCurrency: row.home_currency,
     ownerId: row.owner_id,
+    coverPhotoStoragePath: row.cover_photo_storage_path,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -59,6 +60,7 @@ function tripToPayload(trip: Omit<Trip, 'budget'> & { deletedAt: string | null }
     home_currency: trip.homeCurrency,
     budget: null,
     owner_id: trip.ownerId,
+    cover_photo_storage_path: trip.coverPhotoStoragePath,
     created_at: trip.createdAt,
     updated_at: trip.updatedAt,
     deleted_at: trip.deletedAt,
@@ -263,6 +265,7 @@ export async function createTrip(input: CreateTripInput): Promise<Trip> {
     baseCurrency: input.baseCurrency,
     homeCurrency: input.homeCurrency,
     ownerId: input.ownerId,
+    coverPhotoStoragePath: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -372,8 +375,8 @@ async function insertTrip(db: SQLiteDatabase, trip: Omit<Trip, 'budget'>): Promi
   await db.runAsync(
     `INSERT INTO trips
        (id, name, emoji, start_date, end_date, base_currency, home_currency,
-        budget, owner_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        budget, owner_id, cover_photo_storage_path, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       trip.id,
       trip.name,
@@ -387,6 +390,7 @@ async function insertTrip(db: SQLiteDatabase, trip: Omit<Trip, 'budget'>): Promi
       // they upgrade and start reading trip_members.budget instead.
       null,
       trip.ownerId,
+      trip.coverPhotoStoragePath,
       trip.createdAt,
       trip.updatedAt,
       trip.deletedAt,
@@ -412,6 +416,25 @@ async function insertMember(db: SQLiteDatabase, member: TripMember): Promise<voi
   );
 }
 
+export async function setTripCoverPhoto(
+  tripId: string,
+  storagePath: string | null,
+): Promise<void> {
+  const db = await getDatabase();
+  const updatedAt = new Date().toISOString();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `UPDATE trips SET cover_photo_storage_path = ?, updated_at = ? WHERE id = ?;`,
+      [storagePath, updatedAt, tripId],
+    );
+    await enqueueSync(db, 'trips', tripId, 'update', {
+      id: tripId,
+      cover_photo_storage_path: storagePath,
+      updated_at: updatedAt,
+    });
+  });
+}
+
 const _check: TripQueries = {
   listTrips,
   listTripsWithStats,
@@ -421,5 +444,6 @@ const _check: TripQueries = {
   updateTrip,
   updateMemberBudget,
   softDeleteTrip,
+  setTripCoverPhoto,
 };
 void _check;

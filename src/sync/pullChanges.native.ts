@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import type { PullTable } from '@/types/sync';
 
 import { applyRemote, refreshStores } from './conflictResolver';
+import { formatError } from './errorUtils';
 import { reconcileVisibility } from './reconcileVisibility';
 import { getLastPulledAt, setLastPulledAt } from './syncQueue';
 
@@ -13,20 +14,25 @@ const PULL_ORDER: PullTable[] = [
   'trips',
   'trip_members',
   'categories',
+  'journal_moments',           // NEW — before any moment_id FK consumers
   'expenses',
   'expense_splits',
   'expense_photos',
   'settlement_payments',
+  'journal_photo_entries',
+  'journal_photos',
+  'voice_clips',
+  'journal_days',
 ];
 
 const PAGE_SIZE = 500;
 const EPOCH = '1970-01-01T00:00:00Z';
 
-// expense_photos has no updated_at; cursor on created_at. Every other table
-// (including trip_members since v5 — per-user budgets made it mutable) uses
-// updated_at as the cursor.
+// expense_photos and journal_photos have no updated_at; cursor on created_at.
+// Every other table (including trip_members since v5 — per-user budgets made
+// it mutable) uses updated_at as the cursor.
 function cursorColumn(table: PullTable): 'updated_at' | 'created_at' {
-  if (table === 'expense_photos') return 'created_at';
+  if (table === 'expense_photos' || table === 'journal_photos') return 'created_at';
   return 'updated_at';
 }
 
@@ -58,8 +64,24 @@ async function pullTable(
     if (rows.length === 0) break;
 
     for (const row of rows as Record<string, unknown>[]) {
-      const changed = await applyRemote(db, table, row);
-      if (changed) applied += 1;
+      try {
+        const changed = await applyRemote(db, table, row);
+        if (changed) applied += 1;
+      } catch (err) {
+        const msg = formatError(err);
+        // A row whose FK parent isn't visible to this user (an RLS asymmetry,
+        // e.g. a split for a private expense) would otherwise throw and abort
+        // the ENTIRE pull, leaving the cursor un-advanced so every future
+        // cycle re-hits it — i.e. sync permanently wedged. Skip the orphan and
+        // log its parent refs so the root cause is traceable. Non-constraint
+        // errors (network, real bugs) still propagate.
+        if (!msg.toLowerCase().includes('constraint')) throw err;
+        const refs: Record<string, unknown> = {};
+        for (const k of Object.keys(row)) {
+          if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
+        }
+        console.warn(`sync: skipped orphan ${table} row`, refs, '—', msg);
+      }
 
       const rowCursor = row[cursor];
       if (typeof rowCursor === 'string' && rowCursor > maxCursor) maxCursor = rowCursor;

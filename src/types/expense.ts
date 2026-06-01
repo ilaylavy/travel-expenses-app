@@ -25,6 +25,7 @@ export interface Expense {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  momentId: string | null;
 }
 
 export interface ExpenseSplit {
@@ -80,6 +81,7 @@ export interface ExpenseRow {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  moment_id: string | null;
 }
 
 export interface ExpensePhotoRow {
@@ -154,6 +156,7 @@ export interface UpdateExpenseInput {
   isSplit?: boolean;
   spreadStartDate?: string | null;
   spreadEndDate?: string | null;
+  momentId?: string | null;
 }
 
 export interface CreateSplitInput {

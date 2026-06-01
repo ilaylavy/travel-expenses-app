@@ -72,6 +72,61 @@ export function formatReadableDateRange(startIso: string, endIso: string): strin
   return `${formatReadableDate(startIso)} → ${formatReadableDate(endIso)}`;
 }
 
+// Local TZ offset suffix in ISO-8601 form (e.g. "+03:00", "-05:30", "+00:00").
+// Computed from the device's current offset — sufficient for live capture
+// (the user is here, now). Don't use this for historical/cross-TZ math.
+function localTzOffsetSuffix(): string {
+  // getTimezoneOffset returns minutes WEST of UTC (so IL = -180).
+  // Flip the sign so positive = east of UTC, matching ISO-8601 convention.
+  const offsetMin = -new Date().getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  return `${sign}${hh}:${mm}`;
+}
+
+// Combine a target day (YYYY-MM-DD) with the *time-of-day* portion of a
+// reference timestamp, returning an ISO string whose date prefix matches
+// dayDate. Used when uploading photos/voice clips while viewing a specific
+// day: the user expects the entry to land on the day they're looking at,
+// preserving the EXIF wall-clock time-of-day for chronological sort.
+//
+// Format: `${dayDate}T${HH}:${MM}:${SS}.${MS}${±HH:MM}` — ISO-8601 valid,
+// with an explicit local TZ offset so the prefix is stable across timezones.
+// This guarantees that consumers doing SUBSTR(occurred_at, 1, 10) get
+// dayDate back even when the user is east of UTC and the local time-of-day
+// is in the small hours (which is when the old local→UTC `toISOString()`
+// pattern would silently shift the prefix to the previous day).
+//
+// referenceTime null/undefined/invalid → midnight (00:00:00.000) of dayDate.
+export function combineDateWithTimeOfDay(
+  dayDate: string,
+  referenceTime: string | null | undefined,
+): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayDate)) {
+    return new Date().toISOString();
+  }
+
+  let hh = 0;
+  let mm = 0;
+  let ss = 0;
+  let ms = 0;
+  if (referenceTime) {
+    const ref = new Date(referenceTime);
+    if (!Number.isNaN(ref.getTime())) {
+      hh = ref.getHours();
+      mm = ref.getMinutes();
+      ss = ref.getSeconds();
+      ms = ref.getMilliseconds();
+    }
+  }
+
+  const pad2 = (n: number): string => String(n).padStart(2, '0');
+  const pad3 = (n: number): string => String(n).padStart(3, '0');
+  return `${dayDate}T${pad2(hh)}:${pad2(mm)}:${pad2(ss)}.${pad3(ms)}${localTzOffsetSuffix()}`;
+}
+
 export function countDaysInRange(startIso: string, endIso: string): number {
   const start = parseIsoDate(startIso);
   const end = parseIsoDate(endIso);

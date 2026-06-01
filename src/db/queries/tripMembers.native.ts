@@ -148,6 +148,7 @@ export async function listPendingInvitesForUser(userId: string): Promise<Pending
        t.start_date AS trip_start_date, t.end_date AS trip_end_date,
        t.base_currency AS trip_base_currency, t.home_currency AS trip_home_currency,
        t.owner_id AS trip_owner_id,
+       t.cover_photo_storage_path AS trip_cover_photo_storage_path,
        t.created_at AS trip_created_at, t.updated_at AS trip_updated_at
      FROM trip_members m
      JOIN trips t ON t.id = m.trip_id
@@ -172,6 +173,7 @@ export async function listPendingInvitesForUser(userId: string): Promise<Pending
       // default. (The legacy trips.budget column is no longer surfaced.)
       budget: null,
       ownerId: row.trip_owner_id,
+      coverPhotoStoragePath: row.trip_cover_photo_storage_path ?? null,
       createdAt: row.trip_created_at,
       updatedAt: row.trip_updated_at,
       deletedAt: null,

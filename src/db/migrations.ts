@@ -7,6 +7,8 @@ import {
   V5_STATEMENTS,
   V6_STATEMENTS,
   V7_STATEMENTS,
+  V8_STATEMENTS,
+  V9_STATEMENTS,
 } from './schema';
 
 // Migrations are append-only. Once a version has shipped, do NOT edit its SQL
@@ -76,6 +78,24 @@ export const MIGRATIONS: readonly Migration[] = [
     name: 'settlement_per_expense_attribution',
     run: async (db) => {
       for (const stmt of V7_STATEMENTS) {
+        await db.execAsync(stmt);
+      }
+    },
+  },
+  {
+    version: 8,
+    name: 'trip_journal',
+    run: async (db) => {
+      for (const stmt of V8_STATEMENTS) {
+        await db.execAsync(stmt);
+      }
+    },
+  },
+  {
+    version: 9,
+    name: 'journal_redesign',
+    run: async (db) => {
+      for (const stmt of V9_STATEMENTS) {
         await db.execAsync(stmt);
       }
     },

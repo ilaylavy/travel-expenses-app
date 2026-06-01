@@ -30,6 +30,7 @@ function expense(overrides: Partial<ExpenseWithPhotos>): ExpenseWithPhotos {
     isSplit: false,
     spreadStartDate: null,
     spreadEndDate: null,
+    momentId: null,
     createdAt: '2026-05-09T12:00:00Z',
     updatedAt: '2026-05-09T12:00:00Z',
     deletedAt: null,

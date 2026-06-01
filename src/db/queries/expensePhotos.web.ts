@@ -46,7 +46,7 @@ export async function listPhotosForExpense(
 // remove the R2 object via the Edge Function and the Postgres row directly.
 // Realtime will broadcast the DELETE event back to all clients.
 export async function deletePhoto(photo: ExpensePhoto): Promise<void> {
-  await deletePhotoFromStorage(photo.storagePath);
+  await deletePhotoFromStorage(photo.storagePath, 'expense-photo');
   const { error } = await supabase
     .from('expense_photos')
     .delete()

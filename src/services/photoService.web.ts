@@ -96,35 +96,35 @@ export async function processAndPersistPhoto(
   return pickerUri;
 }
 
-// Hit the r2-photo-url Edge Function for a presigned URL.
+// Hit the r2-media-url Edge Function for a presigned URL.
 interface PresignedResponse {
   url: string;
   expiresAt: string;
 }
 
 async function requestPresignedR2Url(
+  kind: 'expense-photo' | 'journal-photo' | 'voice-clip',
   path: string,
   op: 'PUT' | 'GET',
 ): Promise<PresignedResponse> {
   const { data, error } = await supabase.functions.invoke<PresignedResponse>(
-    'r2-photo-url',
-    { body: { path, op } },
+    'r2-media-url',
+    { body: { kind, path, op } },
   );
   if (error) throw error;
-  if (!data?.url) throw new Error('r2-photo-url: empty response');
+  if (!data?.url) throw new Error('r2-media-url: empty response');
   return data;
 }
+
+type UploadArgs =
+  | { kind: 'expense-photo'; tripId: string; expenseId: string; photoId: string; localUri: string }
+  | { kind: 'journal-photo'; tripId: string; photoId: string; localUri: string };
 
 // Looks up the staged File by blob URL and uploads its bytes to R2 via a
 // presigned PUT URL at the same trip/expense/photo key as the native
 // variant. The Map entry is purged on success so we don't hold the bytes
 // longer than needed.
-export async function uploadPhotoToStorage(args: {
-  tripId: string;
-  expenseId: string;
-  photoId: string;
-  localUri: string;
-}): Promise<string> {
+export async function uploadPhotoToStorage(args: UploadArgs): Promise<string> {
   const file = blobByUrl.get(args.localUri);
   if (!file) {
     throw new Error(
@@ -132,7 +132,10 @@ export async function uploadPhotoToStorage(args: {
         `The page may have been refreshed mid-upload.`,
     );
   }
-  const path = `${args.tripId}/${args.expenseId}/${args.photoId}.jpg`;
+  const path =
+    args.kind === 'expense-photo'
+      ? `${args.tripId}/${args.expenseId}/${args.photoId}.jpg`
+      : `${args.tripId}/journal/${args.photoId}.jpg`;
 
   // One-shot retry on 403 covers the rare URL-expired race; the sync queue
   // handles any other failure with its outer retry.
@@ -140,7 +143,7 @@ export async function uploadPhotoToStorage(args: {
   let lastStatus = 0;
   while (attempts < 2) {
     attempts += 1;
-    const { url } = await requestPresignedR2Url(path, 'PUT');
+    const { url } = await requestPresignedR2Url(args.kind, path, 'PUT');
     const res = await fetch(url, {
       method: 'PUT',
       body: file,
@@ -159,25 +162,38 @@ export async function uploadPhotoToStorage(args: {
 
 const SIGNED_TTL_MS = 50 * 60 * 1000;
 const signedCache = new Map<string, { url: string; expiresAt: number }>();
+// In-flight dedup: shares one network promise across concurrent callers
+// for the same (kind, path). Without this, a cold All Days mount can fire
+// 40+ parallel Edge Function calls for day-cover photos.
+const pendingFetches = new Map<string, Promise<string | null>>();
 
 export async function getSignedPhotoUrl(
   storagePath: string,
+  kind: 'expense-photo' | 'journal-photo' = 'expense-photo',
 ): Promise<string | null> {
   if (!storagePath) return null;
   const cached = signedCache.get(storagePath);
   const now = Date.now();
   if (cached && cached.expiresAt > now) return cached.url;
-  try {
-    const { url } = await requestPresignedR2Url(storagePath, 'GET');
-    signedCache.set(storagePath, {
-      url,
-      expiresAt: now + SIGNED_TTL_MS,
-    });
-    return url;
-  } catch (error) {
-    console.warn('r2-photo-url GET failed:', error);
-    return null;
-  }
+
+  const key = `${kind}:${storagePath}`;
+  const existing = pendingFetches.get(key);
+  if (existing) return existing;
+
+  const p = (async (): Promise<string | null> => {
+    try {
+      const { url } = await requestPresignedR2Url(kind, storagePath, 'GET');
+      signedCache.set(storagePath, { url, expiresAt: Date.now() + SIGNED_TTL_MS });
+      return url;
+    } catch (error) {
+      console.warn('r2-media-url GET failed:', error);
+      return null;
+    } finally {
+      pendingFetches.delete(key);
+    }
+  })();
+  pendingFetches.set(key, p);
+  return p;
 }
 
 export async function deleteLocalPhoto(localUri: string | null): Promise<void> {
@@ -190,11 +206,12 @@ export async function deleteLocalPhoto(localUri: string | null): Promise<void> {
 
 export async function deletePhotoFromStorage(
   storagePath: string | null | undefined,
+  kind: 'expense-photo' | 'journal-photo' = 'expense-photo',
 ): Promise<void> {
   if (!storagePath) return;
   signedCache.delete(storagePath);
-  const { error } = await supabase.functions.invoke('r2-photo-url', {
-    body: { path: storagePath, op: 'DELETE' },
+  const { error } = await supabase.functions.invoke('r2-media-url', {
+    body: { kind, path: storagePath, op: 'DELETE' },
   });
   if (error) throw error;
 }
