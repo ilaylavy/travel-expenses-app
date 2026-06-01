@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import type { PullTable } from '@/types/sync';
 
 import { applyRemote, refreshStores } from './conflictResolver';
+import { formatError } from './errorUtils';
 import { reconcileVisibility } from './reconcileVisibility';
 import { getLastPulledAt, setLastPulledAt } from './syncQueue';
 
@@ -63,8 +64,24 @@ async function pullTable(
     if (rows.length === 0) break;
 
     for (const row of rows as Record<string, unknown>[]) {
-      const changed = await applyRemote(db, table, row);
-      if (changed) applied += 1;
+      try {
+        const changed = await applyRemote(db, table, row);
+        if (changed) applied += 1;
+      } catch (err) {
+        const msg = formatError(err);
+        // A row whose FK parent isn't visible to this user (an RLS asymmetry,
+        // e.g. a split for a private expense) would otherwise throw and abort
+        // the ENTIRE pull, leaving the cursor un-advanced so every future
+        // cycle re-hits it — i.e. sync permanently wedged. Skip the orphan and
+        // log its parent refs so the root cause is traceable. Non-constraint
+        // errors (network, real bugs) still propagate.
+        if (!msg.toLowerCase().includes('constraint')) throw err;
+        const refs: Record<string, unknown> = {};
+        for (const k of Object.keys(row)) {
+          if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
+        }
+        console.warn(`sync: skipped orphan ${table} row`, refs, '—', msg);
+      }
 
       const rowCursor = row[cursor];
       if (typeof rowCursor === 'string' && rowCursor > maxCursor) maxCursor = rowCursor;
