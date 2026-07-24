@@ -53,3 +53,5 @@ play-store-key.json
 
 expo-env.d.ts
 # @end expo-cli
+
+.claude
