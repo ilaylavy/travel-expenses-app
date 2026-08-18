@@ -75,7 +75,7 @@ async function pullTable(
         // cycle re-hits it — i.e. sync permanently wedged. Skip the orphan and
         // log its parent refs so the root cause is traceable. Non-constraint
         // errors (network, real bugs) still propagate.
-        if (!msg.toLowerCase().includes('constraint')) throw err;
+        if (!msg.toLowerCase().includes('foreign key constraint')) throw err;
         const refs: Record<string, unknown> = {};
         for (const k of Object.keys(row)) {
           if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
