@@ -11,6 +11,8 @@ import {
 import { deleteLocalPhoto } from '@/services/photoService';
 import { useNotificationStore } from '@/stores/notificationStore';
 
+import { logger } from '@/utils/logger';
+
 import { applyRemote } from './conflictResolver';
 import { diffExpenseIds, diffLostMemberships } from './reconcileVisibilityDiff';
 
@@ -54,7 +56,7 @@ export async function reconcileVisibility(
     .not('joined_at', 'is', null);
 
   if (membersError) {
-    console.warn('reconcile: failed to fetch server memberships', membersError.message);
+    logger.warn('reconcile: failed to fetch server memberships', membersError.message);
     return result;
   }
 
@@ -79,11 +81,11 @@ export async function reconcileVisibility(
       // A failure here just leaves an orphan file in the cache directory —
       // recoverable, not a sync correctness issue.
       void Promise.all(photoUris.map((uri) => deleteLocalPhoto(uri))).catch((err) => {
-        console.warn('reconcile: photo cleanup failed', err);
+        logger.warn('reconcile: photo cleanup failed', err);
       });
       result.tripsLost += 1;
     } catch (err) {
-      console.warn(`reconcile: wipeLostTripLocal failed for ${lost.tripId}`, err);
+      logger.warn(`reconcile: wipeLostTripLocal failed for ${lost.tripId}`, err);
     }
   }
 
@@ -101,7 +103,7 @@ export async function reconcileVisibility(
       result.revoked += perTrip.revoked;
       result.granted += perTrip.granted;
     } catch (err) {
-      console.warn(`reconcile: expenses failed for ${tripId}`, err);
+      logger.warn(`reconcile: expenses failed for ${tripId}`, err);
     }
   }
 
@@ -147,11 +149,11 @@ async function reconcileExpensesForTrip(
     try {
       const photoUris = await softDeleteExpenseLocal(db, id);
       void Promise.all(photoUris.map((uri) => deleteLocalPhoto(uri))).catch((err) => {
-        console.warn('reconcile: photo cleanup failed', err);
+        logger.warn('reconcile: photo cleanup failed', err);
       });
       revoked += 1;
     } catch (err) {
-      console.warn(`reconcile: softDeleteExpenseLocal failed for ${id}`, err);
+      logger.warn(`reconcile: softDeleteExpenseLocal failed for ${id}`, err);
     }
   }
 
@@ -168,7 +170,7 @@ async function reconcileExpensesForTrip(
         .select('*')
         .in('id', chunk);
       if (error) {
-        console.warn(`reconcile: fetch granted chunk failed for ${tripId}`, error.message);
+        logger.warn(`reconcile: fetch granted chunk failed for ${tripId}`, error.message);
         continue;
       }
       for (const row of (data ?? []) as Record<string, unknown>[]) {
