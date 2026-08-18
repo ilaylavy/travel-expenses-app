@@ -2,7 +2,10 @@
   "rules": [
     {
       "allowed": {
-        "origins": ["*"],
+        "origins": [
+          "http://localhost:8081",
+          "https://travel-expenses-app.expo.app"
+        ],
         "methods": ["GET", "PUT", "HEAD"],
         "headers": ["Content-Type"]
       },
