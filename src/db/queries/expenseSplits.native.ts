@@ -202,18 +202,27 @@ export async function updateSplits(
 
     // Soft-delete rows whose user dropped out of the new set. Skip rows that
     // are already soft-deleted — no need to re-queue an idempotent delete.
+    const toDeleteIds: string[] = [];
     for (const existing of existingRows) {
       if (existing.deleted_at !== null) continue;
       if (incomingByUser.has(existing.user_id)) continue;
+      toDeleteIds.push(existing.id);
+    }
+
+    if (toDeleteIds.length > 0) {
+      const placeholders = toDeleteIds.map(() => '?').join(', ');
       await db.runAsync(
-        'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id = ?;',
-        [now, now, existing.id],
+        `UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id IN (${placeholders});`,
+        [now, now, ...toDeleteIds],
       );
-      await enqueueSync(db, 'expense_splits', existing.id, 'delete', {
-        id: existing.id,
-        deleted_at: now,
-        updated_at: now,
-      });
+
+      for (const id of toDeleteIds) {
+        await enqueueSync(db, 'expense_splits', id, 'delete', {
+          id,
+          deleted_at: now,
+          updated_at: now,
+        });
+      }
     }
   });
 
