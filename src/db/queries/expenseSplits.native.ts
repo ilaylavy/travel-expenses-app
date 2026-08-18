@@ -232,11 +232,16 @@ export async function deleteSplits(expenseId: string): Promise<void> {
       'SELECT id FROM expense_splits WHERE expense_id = ? AND deleted_at IS NULL;',
       [expenseId],
     );
+
+    if (existing.length === 0) return;
+
+    // Batch update all splits
+    await db.runAsync(
+      'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE expense_id = ? AND deleted_at IS NULL;',
+      [now, now, expenseId],
+    );
+
     for (const row of existing) {
-      await db.runAsync(
-        'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id = ?;',
-        [now, now, row.id],
-      );
       await enqueueSync(db, 'expense_splits', row.id, 'delete', {
         id: row.id,
         deleted_at: now,
