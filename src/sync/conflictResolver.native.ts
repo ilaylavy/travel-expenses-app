@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { formatError } from './errorUtils';
 import type { PullTable } from '@/types/sync';
 
 import { asBoolInt, asNumber, asString } from './typeCoercion';
@@ -530,27 +531,27 @@ async function doRefreshStores(): Promise<void> {
     const { useTripStore } = await import('@/stores/tripStore');
     await useTripStore.getState().refresh();
   } catch (e) {
-    console.warn('sync: failed to refresh tripStore', e);
+    console.warn(`sync: failed to refresh tripStore: ${formatError(e)}`);
   }
   try {
     const { useCategoryStore } = await import('@/stores/categoryStore');
     await useCategoryStore.getState().refresh();
   } catch (e) {
-    console.warn('sync: failed to refresh categoryStore', e);
+    console.warn(`sync: failed to refresh categoryStore: ${formatError(e)}`);
   }
   try {
     const { useExpenseStore } = await import('@/stores/expenseStore');
     const state = useExpenseStore.getState();
     if (state.activeTripId) await state.refresh();
   } catch (e) {
-    console.warn('sync: failed to refresh expenseStore', e);
+    console.warn(`sync: failed to refresh expenseStore: ${formatError(e)}`);
   }
   try {
     const { useSettlementStore } = await import('@/stores/settlementStore');
     const state = useSettlementStore.getState();
     if (state.activeTripId) await state.refresh();
   } catch (e) {
-    console.warn('sync: failed to refresh settlementStore', e);
+    console.warn(`sync: failed to refresh settlementStore: ${formatError(e)}`);
   }
 }
 
