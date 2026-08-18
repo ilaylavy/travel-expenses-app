@@ -187,12 +187,16 @@ export async function deleteMoment(momentId: string): Promise<void> {
     // Null out every member's moment_id and queue each as an update.
     for (const kind of ['photo', 'voice', 'expense'] as const) {
       const table = MEMBER_TABLES[kind];
-      const members = await db.getAllAsync<{ id: string }>(
-        `SELECT id FROM ${table} WHERE moment_id = ?;`,
-        [momentId],
+      const updatedMembers = await db.getAllAsync<{ id: string }>(
+        `UPDATE ${table} SET moment_id = NULL, updated_at = ? WHERE moment_id = ? RETURNING id;`,
+        [ts, momentId],
       );
-      for (const m of members) {
-        await assignMomentToEntryInTx(db, null, kind, m.id, ts);
+      for (const m of updatedMembers) {
+        await enqueueSync(db, table as never, m.id, 'update', {
+          id: m.id,
+          moment_id: null,
+          updated_at: ts,
+        });
       }
     }
     // Soft-delete the Moment itself.
