@@ -153,13 +153,9 @@ export async function reorderCategories(orderedIds: string[]): Promise<void> {
   await db.withTransactionAsync(async () => {
     for (let i = 0; i < orderedIds.length; i += 1) {
       const id = orderedIds[i];
-      await db.runAsync(
-        'UPDATE categories SET sort_order = ?, updated_at = ? WHERE id = ?;',
-        [i, now, id],
-      );
       const existing = await db.getFirstAsync<CategoryRow>(
-        'SELECT * FROM categories WHERE id = ?;',
-        [id],
+        'UPDATE categories SET sort_order = ?, updated_at = ? WHERE id = ? RETURNING *;',
+        [i, now, id],
       );
       if (existing) {
         await enqueueSync(
