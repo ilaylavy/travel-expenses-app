@@ -615,8 +615,10 @@ export function DayScreen({ tripId, initialDayDate, showBackButton }: Props) {
       if (prev != null && prev !== momentId) stolenCount += 1;
     }
     try {
-      for (const a of toAdd) await journalMoments.addMember(momentId, a.kind, a.id);
-      for (const r of toRemove) await journalMoments.removeMember(r.kind, r.id);
+      await Promise.all([
+        ...toAdd.map((a) => journalMoments.addMember(momentId, a.kind, a.id)),
+        ...toRemove.map((r) => journalMoments.removeMember(r.kind, r.id))
+      ]);
       cancelSelection();
       await Promise.all([reloadDayLists(), moments.reload(), summary.reload()]);
       if (stolenCount > 0) {
