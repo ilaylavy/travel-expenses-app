@@ -5,11 +5,10 @@
 // included, for free.
 //
 // The prop surface matches the native modal so callers don't branch.
-// markedDates and the calendar theme are intentionally ignored — the
-// browser-native picker doesn't expose hooks for them.
+// The calendar theme is intentionally ignored — the browser-native
+// picker doesn't expose hooks for it.
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { MarkedDates } from 'react-native-calendars/src/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
@@ -30,9 +29,6 @@ interface CalendarPickerModalProps {
   onRangeChange?: (start: string, end: string) => void;
   minDate?: string;
   maxDate?: string;
-  // markedDates is part of the shared prop surface but unused on web —
-  // <input type="date"> doesn't expose per-day decoration hooks.
-  markedDates?: MarkedDates;
   title?: string;
 }
 
