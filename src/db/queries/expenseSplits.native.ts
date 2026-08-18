@@ -10,7 +10,7 @@ import { newId } from '@/utils/id';
 
 import type { ExpenseSplitsQueries } from './contract';
 import { SettlementAttributedError } from './errors';
-import { enqueueSync } from './syncQueue';
+import { enqueueSync, enqueueSyncBatch, type SyncQueueBatchItem } from './syncQueue';
 
 // Same check used by expenses.native.ts; duplicated here to avoid a circular
 // import. Any non-deleted attributed settlement that points at one of this
@@ -159,61 +159,125 @@ export async function updateSplits(
 
   const result: ExpenseSplit[] = [];
 
-  await db.withTransactionAsync(async () => {
-    // Upsert each incoming split by user_id. Existing → UPDATE in place;
-    // new user → INSERT a fresh row.
-    for (const incoming of splits) {
-      const existing = existingByUser.get(incoming.userId);
-      if (existing) {
-        const next: ExpenseSplit = {
-          id: existing.id,
-          expenseId,
-          userId: incoming.userId,
-          amount: incoming.amount,
-          isPayer: incoming.isPayer,
-          createdAt: existing.created_at,
-          updatedAt: now,
-          deletedAt: null,
-        };
-        await db.runAsync(
-          `UPDATE expense_splits
-             SET amount = ?, is_payer = ?, deleted_at = NULL, updated_at = ?
-             WHERE id = ?;`,
-          [next.amount, next.isPayer ? 1 : 0, now, next.id],
-        );
-        await enqueueSync(db, 'expense_splits', next.id, 'update', splitToPayload(next));
-        result.push(next);
-      } else {
-        const next: ExpenseSplit = {
-          id: newId(),
-          expenseId,
-          userId: incoming.userId,
-          amount: incoming.amount,
-          isPayer: incoming.isPayer,
-          createdAt: now,
-          updatedAt: now,
-          deletedAt: null,
-        };
-        await insertSplit(db, next);
-        await enqueueSync(db, 'expense_splits', next.id, 'create', splitToPayload(next));
-        result.push(next);
-      }
-    }
+  const splitsToInsert: ExpenseSplit[] = [];
+  const splitsToUpdate: ExpenseSplit[] = [];
+  const splitsToDelete: ExpenseSplitRow[] = [];
+  const syncItems: SyncQueueBatchItem[] = [];
 
-    // Soft-delete rows whose user dropped out of the new set. Skip rows that
-    // are already soft-deleted — no need to re-queue an idempotent delete.
-    for (const existing of existingRows) {
-      if (existing.deleted_at !== null) continue;
-      if (incomingByUser.has(existing.user_id)) continue;
-      await db.runAsync(
-        'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id = ?;',
-        [now, now, existing.id],
-      );
-      await enqueueSync(db, 'expense_splits', existing.id, 'delete', {
+  for (const incoming of splits) {
+    const existing = existingByUser.get(incoming.userId);
+    if (existing) {
+      const next: ExpenseSplit = {
+        id: existing.id,
+        expenseId,
+        userId: incoming.userId,
+        amount: incoming.amount,
+        isPayer: incoming.isPayer,
+        createdAt: existing.created_at,
+        updatedAt: now,
+        deletedAt: null,
+      };
+      splitsToUpdate.push(next);
+      syncItems.push({
+        tableName: 'expense_splits',
+        recordId: next.id,
+        action: 'update',
+        payload: splitToPayload(next),
+      });
+      result.push(next);
+    } else {
+      const next: ExpenseSplit = {
+        id: newId(),
+        expenseId,
+        userId: incoming.userId,
+        amount: incoming.amount,
+        isPayer: incoming.isPayer,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+      splitsToInsert.push(next);
+      syncItems.push({
+        tableName: 'expense_splits',
+        recordId: next.id,
+        action: 'create',
+        payload: splitToPayload(next),
+      });
+      result.push(next);
+    }
+  }
+
+  for (const existing of existingRows) {
+    if (existing.deleted_at !== null) continue;
+    if (incomingByUser.has(existing.user_id)) continue;
+    splitsToDelete.push(existing);
+    syncItems.push({
+      tableName: 'expense_splits',
+      recordId: existing.id,
+      action: 'delete',
+      payload: {
         id: existing.id,
         deleted_at: now,
         updated_at: now,
-      });
+      },
+    });
+  }
+
+  await db.withTransactionAsync(async () => {
+    // 1. Batch inserts
+    if (splitsToInsert.length > 0) {
+      const placeholders: string[] = [];
+      const values: unknown[] = [];
+      for (const s of splitsToInsert) {
+        placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
+        values.push(s.id, s.expenseId, s.userId, s.amount, s.isPayer ? 1 : 0, s.createdAt, s.updatedAt, s.deletedAt);
+      }
+      const chunkSize = 200; // 1600 vars max
+      for (let i = 0; i < splitsToInsert.length; i += chunkSize) {
+        await db.runAsync(
+          `INSERT INTO expense_splits
+             (id, expense_id, user_id, amount, is_payer, created_at, updated_at, deleted_at)
+           VALUES ${placeholders.slice(i, i + chunkSize).join(', ')};`,
+          values.slice(i * 8, (i + chunkSize) * 8)
+        );
+      }
+    }
+
+    // 2. Batch updates
+    if (splitsToUpdate.length > 0) {
+      let updateStmt: any = null;
+      try {
+        updateStmt = await db.prepareAsync(
+          `UPDATE expense_splits
+             SET amount = ?, is_payer = ?, deleted_at = NULL, updated_at = ?
+             WHERE id = ?;`
+        );
+        for (const s of splitsToUpdate) {
+          await updateStmt.executeAsync([s.amount, s.isPayer ? 1 : 0, now, s.id]);
+        }
+      } finally {
+        if (updateStmt) await updateStmt.finalizeAsync();
+      }
+    }
+
+    // 3. Batch deletes
+    if (splitsToDelete.length > 0) {
+      let deleteStmt: any = null;
+      try {
+        deleteStmt = await db.prepareAsync(
+          'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id = ?;'
+        );
+        for (const existing of splitsToDelete) {
+          await deleteStmt.executeAsync([now, now, existing.id]);
+        }
+      } finally {
+        if (deleteStmt) await deleteStmt.finalizeAsync();
+      }
+    }
+
+    // 4. Batch sync queue
+    if (syncItems.length > 0) {
+      await enqueueSyncBatch(db, syncItems);
     }
   });
 
