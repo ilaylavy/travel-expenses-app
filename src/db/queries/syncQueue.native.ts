@@ -18,3 +18,47 @@ export async function enqueueSync(
   // (or several mutations in quick succession) fires one sync, not N.
   requestSync();
 }
+
+export type SyncQueueBatchItem = {
+  tableName: SyncTable;
+  recordId: string;
+  action: SyncAction;
+  payload: Record<string, unknown>;
+};
+
+export async function enqueueSyncBatch(
+  db: SQLiteDatabase,
+  items: SyncQueueBatchItem[],
+): Promise<void> {
+  if (items.length === 0) return;
+
+  const now = new Date().toISOString();
+  const values: unknown[] = [];
+  const placeholders: string[] = [];
+
+  for (const item of items) {
+    placeholders.push('(?, ?, ?, ?, ?)');
+    values.push(
+      item.tableName,
+      item.recordId,
+      item.action,
+      JSON.stringify(item.payload),
+      now
+    );
+  }
+
+  // SQLite hard limit is typically 999 or 32766 variables depending on version.
+  // We chunk by 500 items (2500 variables) to be safe.
+  const chunkSize = 500;
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunkPlaceholders = placeholders.slice(i, i + chunkSize);
+    const chunkValues = values.slice(i * 5, (i + chunkSize) * 5);
+
+    await db.runAsync(
+      `INSERT INTO sync_queue (table_name, record_id, action, payload, created_at) VALUES ${chunkPlaceholders.join(', ')};`,
+      chunkValues
+    );
+  }
+
+  requestSync();
+}
