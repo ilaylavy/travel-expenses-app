@@ -129,10 +129,6 @@ export async function ensureDefaultsReconciled(
 
     await markReconciled(db);
   });
-
-  if (remap.size > 0) {
-    console.log(`sync: reconciled ${remap.size} default categor${remap.size === 1 ? 'y' : 'ies'}`);
-  }
 }
 
 const PAYLOAD_RENAME_KEY = 'expense_payload_renamed_excluded_at';
