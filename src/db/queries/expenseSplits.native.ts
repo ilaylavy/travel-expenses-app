@@ -10,7 +10,7 @@ import { newId } from '@/utils/id';
 
 import type { ExpenseSplitsQueries } from './contract';
 import { SettlementAttributedError } from './errors';
-import { enqueueSync } from './syncQueue';
+import { enqueueSync, enqueueSyncBatch } from './syncQueue';
 
 // Same check used by expenses.native.ts; duplicated here to avoid a circular
 // import. Any non-deleted attributed settlement that points at one of this
@@ -121,11 +121,40 @@ export async function createSplits(
     deletedAt: null,
   }));
 
+  if (rows.length === 0) return rows;
+
   await db.withTransactionAsync(async () => {
-    for (const row of rows) {
-      await insertSplit(db, row);
-      await enqueueSync(db, 'expense_splits', row.id, 'create', splitToPayload(row));
+    const CHUNK_SIZE = 99; // Using 8 params per split (792 total params, under the 999 limit)
+
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const values = chunk.flatMap((s) => [
+        s.id,
+        s.expenseId,
+        s.userId,
+        s.amount,
+        s.isPayer ? 1 : 0,
+        s.createdAt,
+        s.updatedAt,
+        s.deletedAt,
+      ]);
+
+      await db.runAsync(
+        `INSERT INTO expense_splits
+           (id, expense_id, user_id, amount, is_payer, created_at, updated_at, deleted_at)
+         VALUES ${placeholders};`,
+        values,
+      );
     }
+
+    const syncItems = rows.map((row) => ({
+      tableName: 'expense_splits' as const,
+      recordId: row.id,
+      action: 'create' as const,
+      payload: splitToPayload(row),
+    }));
+    await enqueueSyncBatch(db, syncItems);
   });
 
   return rows;
