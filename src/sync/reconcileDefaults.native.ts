@@ -165,8 +165,4 @@ export async function ensureExpensePayloadsRenamed(db: SQLiteDatabase): Promise<
     'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?);',
     [PAYLOAD_RENAME_KEY, new Date().toISOString()],
   );
-
-  if (result.changes > 0) {
-    console.log(`sync: renamed is_excluded_from_metrics in ${result.changes} pending payload${result.changes === 1 ? '' : 's'}`);
-  }
 }
