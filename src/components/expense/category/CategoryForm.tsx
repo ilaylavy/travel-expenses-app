@@ -28,6 +28,96 @@ interface CategoryFormProps {
   footer?: React.ReactNode;
 }
 
+function NameField({ name, setName }: { name: string; setName: (name: string) => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.name')}</Text>
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder={t('categoryForm.namePlaceholder')}
+        placeholderTextColor={theme.textMuted}
+        style={[
+          styles.input,
+          { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+        ]}
+      />
+    </View>
+  );
+}
+
+function EmojiField({ emoji, setEmoji }: { emoji: string; setEmoji: (emoji: string) => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.emoji')}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+        {CATEGORY_EMOJI_OPTIONS.map((e) => {
+          const selected = e === emoji;
+          return (
+            <Pressable
+              key={e}
+              onPress={() => setEmoji(e)}
+              style={({ pressed }) => [
+                styles.emojiChip,
+                {
+                  backgroundColor: selected ? theme.accentSoft : theme.surface,
+                  borderColor: selected ? theme.accent : theme.border,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                },
+              ]}
+            >
+              <Text style={styles.emojiText}>{e}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ColorField({
+  color,
+  setColor,
+}: {
+  color: CategoryColorToken;
+  setColor: (color: CategoryColorToken) => void;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.color')}</Text>
+      <View style={styles.row}>
+        {CATEGORY_COLOR_TOKENS.map((token) => {
+          const selected = token === color;
+          const resolved = getCategoryColor(token, theme);
+          return (
+            <Pressable
+              key={token}
+              onPress={() => setColor(token)}
+              style={({ pressed }) => [
+                styles.colorDot,
+                {
+                  backgroundColor: resolved,
+                  borderColor: selected ? theme.text : 'transparent',
+                  transform: [{ scale: pressed ? 0.9 : 1 }],
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function CategoryForm({
   initial,
   submitLabel,
@@ -58,68 +148,11 @@ export function CategoryForm({
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.field}>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.name')}</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder={t('categoryForm.namePlaceholder')}
-          placeholderTextColor={theme.textMuted}
-          style={[
-            styles.input,
-            { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-          ]}
-        />
-      </View>
+      <NameField name={name} setName={setName} />
 
-      <View style={styles.field}>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.emoji')}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-          {CATEGORY_EMOJI_OPTIONS.map((e) => {
-            const selected = e === emoji;
-            return (
-              <Pressable
-                key={e}
-                onPress={() => setEmoji(e)}
-                style={({ pressed }) => [
-                  styles.emojiChip,
-                  {
-                    backgroundColor: selected ? theme.accentSoft : theme.surface,
-                    borderColor: selected ? theme.accent : theme.border,
-                    transform: [{ scale: pressed ? 0.94 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.emojiText}>{e}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+      <EmojiField emoji={emoji} setEmoji={setEmoji} />
 
-      <View style={styles.field}>
-        <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.color')}</Text>
-        <View style={styles.row}>
-          {CATEGORY_COLOR_TOKENS.map((token) => {
-            const selected = token === color;
-            const resolved = getCategoryColor(token, theme);
-            return (
-              <Pressable
-                key={token}
-                onPress={() => setColor(token)}
-                style={({ pressed }) => [
-                  styles.colorDot,
-                  {
-                    backgroundColor: resolved,
-                    borderColor: selected ? theme.text : 'transparent',
-                    transform: [{ scale: pressed ? 0.9 : 1 }],
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-      </View>
+      <ColorField color={color} setColor={setColor} />
 
       {error && <Text style={[styles.error, { color: theme.red }]}>{error}</Text>}
 
