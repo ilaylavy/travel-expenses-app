@@ -1,46 +1,50 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Keyboard } from "react-native";
 
-import { evaluate } from '@/components/expense/numpad/calculator';
-import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
+import { evaluate } from "@/components/expense/numpad/calculator";
+import { CURRENCIES, currencyForCountryCode } from "@/constants/currencies";
 import {
   categoryUsageForTrip,
   getRecentNotes,
   lastUsedPaymentMethodForTrip,
   type RecentNoteSuggestion,
-} from '@/db/queries/expenseAnalytics';
-import { SettlementAttributedError } from '@/db/queries/errors';
-import { getExpense } from '@/db/queries/expenses';
+} from "@/db/queries/expenseAnalytics";
+import { SettlementAttributedError } from "@/db/queries/errors";
+import { getExpense } from "@/db/queries/expenses";
 import {
   getSplitsForExpense,
   type CreateSplitInput,
-} from '@/db/queries/expenseSplits';
-import { getProfileName } from '@/db/queries/profiles';
-import { getTrip, listTripMembers } from '@/db/queries/trips';
-import { useExchangeRate } from '@/hooks/useExchangeRate';
-import { useTranslation } from '@/hooks/useTranslation';
-import { captureCurrentLocation } from '@/services/locationService';
-import { useAuthStore } from '@/stores/authStore';
+} from "@/db/queries/expenseSplits";
+import { getProfileName } from "@/db/queries/profiles";
+import { getTrip, listTripMembers } from "@/db/queries/trips";
+import { useExchangeRate } from "@/hooks/useExchangeRate";
+import { useTranslation } from "@/hooks/useTranslation";
+import { captureCurrentLocation } from "@/services/locationService";
+import { useAuthStore } from "@/stores/authStore";
 import {
   selectCategoriesForTrip,
   useCategoryStore,
-} from '@/stores/categoryStore';
-import { useExpenseStore } from '@/stores/expenseStore';
-import { useSettingsStore } from '@/stores/settingsStore';
-import { useSettlementStore } from '@/stores/settlementStore';
-import type { Category } from '@/types/category';
-import type { PaymentMethod } from '@/types/expense';
-import type { Trip, TripMember } from '@/types/trip';
-import { getCategoryDisplayName } from '@/utils/category';
-import { roundAmount } from '@/utils/currency';
-import { isValidIsoDate, todayIsoDate } from '@/utils/date';
-import { shareExpense } from '@/utils/share';
+} from "@/stores/categoryStore";
+import { useExpenseStore } from "@/stores/expenseStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useSettlementStore } from "@/stores/settlementStore";
+import type { Category } from "@/types/category";
+import type { PaymentMethod } from "@/types/expense";
+import type { Trip, TripMember } from "@/types/trip";
+import { getCategoryDisplayName } from "@/utils/category";
+import { roundAmount } from "@/utils/currency";
+import { isValidIsoDate, todayIsoDate } from "@/utils/date";
+import { shareExpense } from "@/utils/share";
 
-export type SplitMode = 'equal' | 'custom';
-export type LocationStatus = 'idle' | 'capturing' | 'captured' | 'none';
-export type ActiveInput = 'numpad' | 'text' | null;
+export type SplitMode = "equal" | "custom";
+export type LocationStatus = "idle" | "capturing" | "captured" | "none";
+export type ActiveInput = "numpad" | "text" | null;
 
-export const PAYMENT_METHODS: readonly PaymentMethod[] = ['credit', 'cash', 'debit'];
+export const PAYMENT_METHODS: readonly PaymentMethod[] = [
+  "credit",
+  "cash",
+  "debit",
+];
 
 export interface PersistedPhoto {
   id: string;
@@ -60,9 +64,9 @@ export interface UseExpenseEntryFormOptions {
 
 function currentTime(): string {
   const d = new Date();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
 }
 
@@ -101,9 +105,11 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   const createExpense = useExpenseStore((s) => s.createExpense);
   const updateExpenseInStore = useExpenseStore((s) => s.updateExpense);
   const favoriteCurrencies = useSettingsStore((s) => s.favoriteCurrencies);
-  const toggleFavoriteCurrency = useSettingsStore((s) => s.toggleFavoriteCurrency);
+  const toggleFavoriteCurrency = useSettingsStore(
+    (s) => s.toggleFavoriteCurrency,
+  );
   const createSettlement = useSettlementStore((s) => s.createSettlement);
-  const deleteSettlement = useSettlementStore((s) => s.deleteSettlement);
+  const deleteSettlements = useSettlementStore((s) => s.deleteSettlements);
 
   // Trip context
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -112,12 +118,14 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
 
   // Amount + currency
-  const [amountText, setAmountText] = useState('');
-  const [currency, setCurrency] = useState<string>('');
+  const [amountText, setAmountText] = useState("");
+  const [currency, setCurrency] = useState<string>("");
   const [manualRate, setManualRate] = useState<number | null>(null);
   // Only relevant in edit mode: preserve the exchange rate the expense was
   // originally booked at. docs/PRD.md — historical values must not drift.
-  const [lockedExchangeRate, setLockedExchangeRate] = useState<number | null>(null);
+  const [lockedExchangeRate, setLockedExchangeRate] = useState<number | null>(
+    null,
+  );
   // True once the user has actively picked a currency (chip or picker).
   // Stops the async location-derived auto-pick from clobbering their choice
   // if reverse-geocoding finishes after they already tapped something.
@@ -126,23 +134,26 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   // Category
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
-  const [categoryUsage, setCategoryUsage] =
-    useState<Map<string, { count: number; lastUsed: string }>>(new Map());
+  const [categoryUsage, setCategoryUsage] = useState<
+    Map<string, { count: number; lastUsed: string }>
+  >(new Map());
 
   // Note + recent suggestions
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState("");
   const [recentNotes, setRecentNotes] = useState<RecentNoteSuggestion[]>([]);
 
   // Date / time / spread
   const [expenseDate, setExpenseDate] = useState(todayIsoDate());
   const [expenseTime, setExpenseTime] = useState(currentTime());
   const [isSpread, setIsSpread] = useState(false);
-  const [spreadStart, setSpreadStart] = useState('');
-  const [spreadEnd, setSpreadEnd] = useState('');
+  const [spreadStart, setSpreadStart] = useState("");
+  const [spreadEnd, setSpreadEnd] = useState("");
 
   // Payment / location
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
+    null,
+  );
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [placeName, setPlaceName] = useState<string | null>(null);
@@ -154,9 +165,13 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
 
   // Split
   const [splitEnabled, setSplitEnabled] = useState(false);
-  const [splitMode, setSplitMode] = useState<SplitMode>('equal');
-  const [splitParticipants, setSplitParticipants] = useState<Set<string>>(new Set());
-  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  const [splitMode, setSplitMode] = useState<SplitMode>("equal");
+  const [splitParticipants, setSplitParticipants] = useState<Set<string>>(
+    new Set(),
+  );
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>(
+    {},
+  );
   const [payerId, setPayerId] = useState<string | null>(null);
   // "Already settled" — when on, save creates one attributed settlement
   // payment per non-payer split so the resulting balance impact is zero.
@@ -173,7 +188,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   // focus we hide the numpad, and tapping the amount hero dismisses the
   // system keyboard. Default to numpad because the amount is the typical
   // first interaction.
-  const [activeInput, setActiveInput] = useState<ActiveInput>('numpad');
+  const [activeInput, setActiveInput] = useState<ActiveInput>("numpad");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Load trip + recent-note / payment / usage data up front.
@@ -184,13 +199,14 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     const userId = user.id;
     (async () => {
       try {
-        const [loadedTrip, notes, lastPayment, usage, members] = await Promise.all([
-          getTrip(tripId),
-          getRecentNotes(tripId, userId),
-          lastUsedPaymentMethodForTrip(tripId),
-          categoryUsageForTrip(tripId),
-          listTripMembers(tripId),
-        ]);
+        const [loadedTrip, notes, lastPayment, usage, members] =
+          await Promise.all([
+            getTrip(tripId),
+            getRecentNotes(tripId, userId),
+            lastUsedPaymentMethodForTrip(tripId),
+            categoryUsageForTrip(tripId),
+            listTripMembers(tripId),
+          ]);
         if (cancelled) return;
         if (loadedTrip) {
           setTrip(loadedTrip);
@@ -211,14 +227,17 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
           setPayerId((prev) => prev ?? userId);
         }
         const nameEntries = await Promise.all(
-          joined.map(async (m) => [m.userId, (await getProfileName(m.userId)) ?? ''] as const),
+          joined.map(
+            async (m) =>
+              [m.userId, (await getProfileName(m.userId)) ?? ""] as const,
+          ),
         );
         if (cancelled) return;
         const namesMap: Record<string, string> = {};
         for (const [uid, name] of nameEntries) namesMap[uid] = name;
         setMemberNames(namesMap);
       } catch (e) {
-        console.warn('Failed to load add-expense context:', e);
+        console.warn("Failed to load add-expense context:", e);
       }
     })();
     return () => {
@@ -236,14 +255,14 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       setAmountText(String(Math.abs(existing.amount)));
       setCurrency(existing.currency);
       setCategoryId(existing.categoryId);
-      setNote(existing.note ?? '');
+      setNote(existing.note ?? "");
       setPaymentMethod(existing.paymentMethod ?? null);
       setExpenseDate(existing.expenseDate);
       setExpenseTime(existing.expenseTime);
       setLatitude(existing.latitude);
       setLongitude(existing.longitude);
       setPlaceName(existing.placeName);
-      setLocationStatus(existing.latitude != null ? 'captured' : 'none');
+      setLocationStatus(existing.latitude != null ? "captured" : "none");
       setIsRefund(existing.isRefund);
       setIsExcluded(existing.isExcludedFromDailyMetrics);
       setIsPrivate(existing.isPrivate);
@@ -269,7 +288,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
           const isEqual = splits.every(
             (s) => Math.abs(s.amount - equalShare) < 0.02,
           );
-          setSplitMode(isEqual ? 'equal' : 'custom');
+          setSplitMode(isEqual ? "equal" : "custom");
           const amounts: Record<string, string> = {};
           for (const s of splits) {
             amounts[s.userId] = s.amount.toFixed(2);
@@ -285,7 +304,9 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
             const allSettlements = useSettlementStore.getState().settlements;
             const attributed = new Set(
               allSettlements
-                .filter((p) => p.deletedAt === null && p.expenseSplitId !== null)
+                .filter(
+                  (p) => p.deletedAt === null && p.expenseSplitId !== null,
+                )
                 .map((p) => p.expenseSplitId as string),
             );
             const fullySettled = nonPayer.every((s) => attributed.has(s.id));
@@ -306,7 +327,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   useEffect(() => {
     if (isEditing) return;
     let cancelled = false;
-    setLocationStatus('capturing');
+    setLocationStatus("capturing");
     (async () => {
       const loc = await captureCurrentLocation();
       if (cancelled) return;
@@ -314,14 +335,14 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
         setLatitude(loc.latitude);
         setLongitude(loc.longitude);
         setPlaceName(loc.placeName);
-        setLocationStatus('captured');
+        setLocationStatus("captured");
         const derived = currencyForCountryCode(loc.countryCode);
         if (derived && !userPickedCurrencyRef.current) {
           setCurrency(derived);
           setManualRate(null);
         }
       } else {
-        setLocationStatus('none');
+        setLocationStatus("none");
       }
     })();
     return () => {
@@ -333,10 +354,10 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   // when a TextInput is focused. The KeyboardAvoidingView handles content,
   // but the absolutely-positioned FAB needs its own offset.
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
       setKeyboardHeight(e.endCoordinates.height);
     });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
       setKeyboardHeight(0);
     });
     return () => {
@@ -351,7 +372,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       setSplitEnabled(false);
       setSplitParticipants(new Set());
       setCustomAmounts({});
-      setSplitMode('equal');
+      setSplitMode("equal");
       setIsSettled(false);
     }
   }, [isRefund, isPrivate, splitEnabled]);
@@ -380,7 +401,8 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   );
 
   const visibleCategories = useMemo(
-    () => (categoriesExpanded ? orderedCategories : orderedCategories.slice(0, 8)),
+    () =>
+      categoriesExpanded ? orderedCategories : orderedCategories.slice(0, 8),
     [orderedCategories, categoriesExpanded],
   );
   const hasMoreCategories = orderedCategories.length > 8;
@@ -443,7 +465,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
 
   // Equal-mode shares with rounding remainder absorbed by the payer.
   const equalShares = useMemo<Record<string, number>>(() => {
-    if (!splitEnabled || splitMode !== 'equal') return {};
+    if (!splitEnabled || splitMode !== "equal") return {};
     const ids = Array.from(splitParticipants);
     if (ids.length === 0 || amountValue <= 0) return {};
     const total = amountValue;
@@ -464,10 +486,10 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   }, [splitEnabled, splitMode, splitParticipants, amountValue, user, payerId]);
 
   const customAssigned = useMemo(() => {
-    if (!splitEnabled || splitMode !== 'custom') return 0;
+    if (!splitEnabled || splitMode !== "custom") return 0;
     let sum = 0;
     for (const member of tripMembers) {
-      const raw = customAmounts[member.userId] ?? '';
+      const raw = customAmounts[member.userId] ?? "";
       const n = Number(raw);
       if (Number.isFinite(n)) sum += n;
     }
@@ -475,7 +497,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   }, [splitEnabled, splitMode, tripMembers, customAmounts]);
 
   const customMatchesTotal =
-    splitMode === 'custom' && Math.abs(customAssigned - amountValue) < 0.01;
+    splitMode === "custom" && Math.abs(customAssigned - amountValue) < 0.01;
 
   // Tapping a suggestion fills the note and pre-selects the category from
   // its most recent use.
@@ -486,11 +508,11 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
 
   const handleAmountPress = useCallback(() => {
     Keyboard.dismiss();
-    setActiveInput('numpad');
+    setActiveInput("numpad");
   }, []);
 
   const handleTextFocus = useCallback(() => {
-    setActiveInput('text');
+    setActiveInput("text");
   }, []);
 
   const handleNumpadDone = useCallback(() => {
@@ -498,15 +520,15 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   }, []);
 
   const refreshLocation = useCallback(async () => {
-    setLocationStatus('capturing');
+    setLocationStatus("capturing");
     const loc = await captureCurrentLocation();
     if (loc) {
       setLatitude(loc.latitude);
       setLongitude(loc.longitude);
       setPlaceName(loc.placeName);
-      setLocationStatus('captured');
+      setLocationStatus("captured");
     } else {
-      setLocationStatus('none');
+      setLocationStatus("none");
     }
   }, []);
 
@@ -514,7 +536,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     setLatitude(null);
     setLongitude(null);
     setPlaceName(null);
-    setLocationStatus('none');
+    setLocationStatus("none");
   }, []);
 
   const pickCurrency = useCallback((code: string) => {
@@ -532,8 +554,8 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
 
   const exitSpread = useCallback(() => {
     setIsSpread(false);
-    setSpreadStart('');
-    setSpreadEnd('');
+    setSpreadStart("");
+    setSpreadEnd("");
   }, []);
 
   const handleSpreadRangeChange = useCallback((start: string, end: string) => {
@@ -548,7 +570,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     if (!v) {
       setSplitParticipants(new Set());
       setCustomAmounts({});
-      setSplitMode('equal');
+      setSplitMode("equal");
       setIsSettled(false);
     }
   }, []);
@@ -567,7 +589,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
   }, []);
 
   const splitRest = useCallback(() => {
-    if (!splitEnabled || splitMode !== 'custom') return;
+    if (!splitEnabled || splitMode !== "custom") return;
     const total = amountValue;
     if (total <= 0) return;
     const remainder = roundAmount(total - customAssigned);
@@ -575,7 +597,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     const zeroIds = tripMembers
       .map((m) => m.userId)
       .filter((id) => {
-        const raw = customAmounts[id] ?? '';
+        const raw = customAmounts[id] ?? "";
         const n = Number(raw);
         return !Number.isFinite(n) || n === 0;
       });
@@ -593,14 +615,21 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       next[last] = roundAmount(per + leftover).toFixed(2);
     }
     setCustomAmounts(next);
-  }, [splitEnabled, splitMode, amountValue, customAssigned, tripMembers, customAmounts]);
+  }, [
+    splitEnabled,
+    splitMode,
+    amountValue,
+    customAssigned,
+    tripMembers,
+    customAmounts,
+  ]);
 
   const buildSplitsForSave = useCallback((): CreateSplitInput[] | null => {
     if (!splitEnabled || !user) return null;
     const effectivePayer = payerId ?? user.id;
 
     let baseSplits: CreateSplitInput[];
-    if (splitMode === 'equal') {
+    if (splitMode === "equal") {
       const ids = Array.from(splitParticipants);
       if (ids.length < 2) return null;
       baseSplits = ids.map((userId) => ({
@@ -614,10 +643,14 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       // a participant whose share is 0", versus a missing row meaning "you're
       // not part of this split".
       baseSplits = tripMembers.map((m) => {
-        const raw = customAmounts[m.userId] ?? '';
+        const raw = customAmounts[m.userId] ?? "";
         const n = Number(raw);
         const amount = Number.isFinite(n) ? roundAmount(n) : 0;
-        return { userId: m.userId, amount, isPayer: m.userId === effectivePayer };
+        return {
+          userId: m.userId,
+          amount,
+          isPayer: m.userId === effectivePayer,
+        };
       });
     }
 
@@ -628,25 +661,35 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     }
 
     return baseSplits;
-  }, [splitEnabled, splitMode, splitParticipants, equalShares, customAmounts, tripMembers, user, payerId]);
+  }, [
+    splitEnabled,
+    splitMode,
+    splitParticipants,
+    equalShares,
+    customAmounts,
+    tripMembers,
+    user,
+    payerId,
+  ]);
 
   const validate = useCallback((): string | null => {
-    if (!amountText) return t('expense.errors.amountRequired');
-    if (amountValue <= 0) return t('expense.errors.amountInvalid');
-    if (!categoryId) return t('expense.errors.categoryRequired');
-    if (!isValidIsoDate(expenseDate)) return t('expense.errors.dateInvalid');
-    if (!isValidTime(expenseTime)) return t('expense.errors.timeInvalid');
+    if (!amountText) return t("expense.errors.amountRequired");
+    if (amountValue <= 0) return t("expense.errors.amountInvalid");
+    if (!categoryId) return t("expense.errors.categoryRequired");
+    if (!isValidIsoDate(expenseDate)) return t("expense.errors.dateInvalid");
+    if (!isValidTime(expenseTime)) return t("expense.errors.timeInvalid");
     if (isSpread) {
       if (!isValidIsoDate(spreadStart) || !isValidIsoDate(spreadEnd)) {
-        return t('expense.errors.dateInvalid');
+        return t("expense.errors.dateInvalid");
       }
-      if (spreadEnd < spreadStart) return t('expense.errors.spreadRangeInvalid');
+      if (spreadEnd < spreadStart)
+        return t("expense.errors.spreadRangeInvalid");
     }
     if (splitEnabled) {
-      if (splitMode === 'equal') {
-        if (splitParticipants.size < 2) return t('split.minMembers');
+      if (splitMode === "equal") {
+        if (splitParticipants.size < 2) return t("split.minMembers");
       } else if (!customMatchesTotal) {
-        return t('split.amountMismatch');
+        return t("split.amountMismatch");
       }
     }
     return null;
@@ -670,7 +713,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     async (options: SaveOptions = {}) => {
       setError(null);
       if (!user) {
-        setError(t('expense.errors.notSignedIn'));
+        setError(t("expense.errors.notSignedIn"));
         return;
       }
       if (!trip || !tripId) return;
@@ -747,7 +790,9 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
           if (options.thenShare) {
             await shareExpense({
               expense: created,
-              categoryName: selectedCategory ? getCategoryDisplayName(selectedCategory, t) : null,
+              categoryName: selectedCategory
+                ? getCategoryDisplayName(selectedCategory, t)
+                : null,
               categoryEmoji: selectedCategory?.emoji ?? null,
               homeCurrency: trip.homeCurrency,
             });
@@ -773,9 +818,8 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
               splitsForExpense.some((s) => s.id === p.expenseSplitId),
           );
 
-        for (const p of existingAttributed) {
-          // eslint-disable-next-line no-await-in-loop
-          await deleteSettlement(p.id);
+        if (existingAttributed.length > 0) {
+          await deleteSettlements(existingAttributed.map((p) => p.id));
         }
 
         if (isSettled && splitEnabled && splitsForExpense.length > 0) {
@@ -804,11 +848,13 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
         onComplete();
       } catch (e) {
         if (e instanceof SettlementAttributedError) {
-          setError(t('balances.editBlockedBody'));
+          setError(t("balances.editBlockedBody"));
           return;
         }
-        console.warn('Failed to save expense:', e);
-        setError(e instanceof Error ? e.message : t('expense.errors.saveFailed'));
+        console.warn("Failed to save expense:", e);
+        setError(
+          e instanceof Error ? e.message : t("expense.errors.saveFailed"),
+        );
       } finally {
         setSaving(false);
       }
@@ -820,7 +866,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       convertedAmount,
       createExpense,
       createSettlement,
-      deleteSettlement,
+      deleteSettlements,
       updateExpenseInStore,
       currency,
       expenseDate,

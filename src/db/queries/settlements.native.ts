@@ -1,13 +1,13 @@
-import { getDatabase } from '@/db/database';
+import { getDatabase } from "@/db/database";
 import type {
   CreateSettlementInput,
   SettlementPayment,
   SettlementPaymentRow,
-} from '@/types/settlement';
-import { newId } from '@/utils/id';
+} from "@/types/settlement";
+import { newId } from "@/utils/id";
 
-import type { SettlementsQueries } from './contract';
-import { enqueueSync } from './syncQueue';
+import type { SettlementsQueries } from "./contract";
+import { enqueueSync } from "./syncQueue";
 
 function rowToSettlement(row: SettlementPaymentRow): SettlementPayment {
   return {
@@ -126,7 +126,13 @@ export async function createSettlement(
         row.deletedAt,
       ],
     );
-    await enqueueSync(db, 'settlement_payments', row.id, 'create', settlementToPayload(row));
+    await enqueueSync(
+      db,
+      "settlement_payments",
+      row.id,
+      "create",
+      settlementToPayload(row),
+    );
   });
 
   return row;
@@ -137,19 +143,52 @@ export async function deleteSettlement(id: string): Promise<void> {
   const now = new Date().toISOString();
   await db.withTransactionAsync(async () => {
     const existing = await db.getFirstAsync<{ id: string }>(
-      'SELECT id FROM settlement_payments WHERE id = ? AND deleted_at IS NULL;',
+      "SELECT id FROM settlement_payments WHERE id = ? AND deleted_at IS NULL;",
       [id],
     );
     if (!existing) return;
     await db.runAsync(
-      'UPDATE settlement_payments SET deleted_at = ?, updated_at = ? WHERE id = ?;',
+      "UPDATE settlement_payments SET deleted_at = ?, updated_at = ? WHERE id = ?;",
       [now, now, id],
     );
-    await enqueueSync(db, 'settlement_payments', id, 'delete', {
+    await enqueueSync(db, "settlement_payments", id, "delete", {
       id,
       deleted_at: now,
       updated_at: now,
     });
+  });
+}
+
+export async function deleteSettlements(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+
+  const CHUNK_SIZE = 99;
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    chunks.push(ids.slice(i, i + CHUNK_SIZE));
+  }
+
+  await db.withTransactionAsync(async () => {
+    for (const chunk of chunks) {
+      const placeholders = chunk.map(() => "?").join(",");
+      const rows = await db.getAllAsync<{ id: string }>(
+        `UPDATE settlement_payments
+         SET deleted_at = ?, updated_at = ?
+         WHERE id IN (${placeholders}) AND deleted_at IS NULL
+         RETURNING id;`,
+        [now, now, ...chunk],
+      );
+
+      for (const row of rows) {
+        await enqueueSync(db, "settlement_payments", row.id, "delete", {
+          id: row.id,
+          deleted_at: now,
+          updated_at: now,
+        });
+      }
+    }
   });
 }
 
@@ -158,5 +197,6 @@ const _check: SettlementsQueries = {
   listSettlementsForPair,
   createSettlement,
   deleteSettlement,
+  deleteSettlements,
 };
 void _check;
