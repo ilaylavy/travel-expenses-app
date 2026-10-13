@@ -28,6 +28,8 @@ interface ExpenseState {
   activeTripId: string | null;
   expenses: ExpenseWithPhotos[];
   splits: ExpenseSplit[];
+  expenseMap: Map<string, ExpenseWithPhotos>;
+  splitMap: Map<string, Map<string, ExpenseSplit>>;
   isLoading: boolean;
   error: string | null;
   loadForTrip: (tripId: string) => Promise<void>;
@@ -54,10 +56,32 @@ function sortExpenses(expenses: ExpenseWithPhotos[]): ExpenseWithPhotos[] {
   });
 }
 
+function buildMaps(expenses: ExpenseWithPhotos[], splits: ExpenseSplit[]) {
+  const expenseMap = new Map<string, ExpenseWithPhotos>();
+  for (const e of expenses) {
+    expenseMap.set(e.id, e);
+  }
+
+  const splitMap = new Map<string, Map<string, ExpenseSplit>>();
+  for (const s of splits) {
+    if (s.deletedAt !== null) continue;
+    let userMap = splitMap.get(s.expenseId);
+    if (!userMap) {
+      userMap = new Map<string, ExpenseSplit>();
+      splitMap.set(s.expenseId, userMap);
+    }
+    userMap.set(s.userId, s);
+  }
+
+  return { expenseMap, splitMap };
+}
+
 export const useExpenseStore = create<ExpenseState>((set, get) => ({
   activeTripId: null,
   expenses: [],
   splits: [],
+  expenseMap: new Map(),
+  splitMap: new Map(),
   isLoading: false,
   error: null,
 
@@ -69,7 +93,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         getSplitsForTrip(tripId),
       ]);
       if (get().activeTripId !== tripId) return;
-      set({ expenses, splits, isLoading: false });
+      const { expenseMap, splitMap } = buildMaps(expenses, splits);
+      set({ expenses, splits, expenseMap, splitMap, isLoading: false });
     } catch (error) {
       console.warn('Failed to load expenses:', error);
       set({ error: 'Could not load expenses', isLoading: false });
@@ -84,7 +109,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         listExpensesForTrip(tripId),
         getSplitsForTrip(tripId),
       ]);
-      set({ expenses, splits, error: null });
+      const { expenseMap, splitMap } = buildMaps(expenses, splits);
+      set({ expenses, splits, expenseMap, splitMap, error: null });
     } catch (error) {
       console.warn('Failed to refresh expenses:', error);
       set({ error: 'Could not load expenses' });
@@ -101,9 +127,15 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       if (state.activeTripId !== input.tripId) return state;
       const nextExpense: ExpenseWithPhotos =
         createdSplits.length > 0 ? { ...expense, isSplit: true } : expense;
+      const nextExpenses = sortExpenses([nextExpense, ...state.expenses]);
+      const nextSplits =
+        createdSplits.length > 0 ? [...state.splits, ...createdSplits] : state.splits;
+      const { expenseMap, splitMap } = buildMaps(nextExpenses, nextSplits);
       return {
-        expenses: sortExpenses([nextExpense, ...state.expenses]),
-        splits: createdSplits.length > 0 ? [...state.splits, ...createdSplits] : state.splits,
+        expenses: nextExpenses,
+        splits: nextSplits,
+        expenseMap,
+        splitMap,
       };
     });
     return expense;
@@ -134,37 +166,54 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         photos:
           state.expenses.find((e) => e.id === updated.id)?.photos ?? [],
       };
+      const nextExpenses = sortExpenses(
+        state.expenses.map((e) => (e.id === updated.id ? nextExpense : e)),
+      );
+      const { expenseMap, splitMap } = buildMaps(nextExpenses, updatedSplits);
       return {
-        expenses: sortExpenses(
-          state.expenses.map((e) => (e.id === updated.id ? nextExpense : e)),
-        ),
+        expenses: nextExpenses,
         splits: updatedSplits,
+        expenseMap,
+        splitMap,
       };
     });
   },
 
   deleteExpense: async (id) => {
     await dbSoftDelete(id);
-    set((state) => ({
-      expenses: state.expenses.filter((e) => e.id !== id),
-      splits: state.splits.filter((s) => s.expenseId !== id),
-    }));
+    set((state) => {
+      const nextExpenses = state.expenses.filter((e) => e.id !== id);
+      const nextSplits = state.splits.filter((s) => s.expenseId !== id);
+      const { expenseMap, splitMap } = buildMaps(nextExpenses, nextSplits);
+      return {
+        expenses: nextExpenses,
+        splits: nextSplits,
+        expenseMap,
+        splitMap,
+      };
+    });
   },
 
   deletePhoto: async (photo) => {
     await dbDeletePhoto(photo);
-    set((state) => ({
-      expenses: state.expenses.map((e) =>
+    set((state) => {
+      const nextExpenses = state.expenses.map((e) =>
         e.id === photo.expenseId
           ? { ...e, photos: e.photos.filter((p) => p.id !== photo.id) }
           : e,
-      ),
-    }));
+      );
+      const { expenseMap, splitMap } = buildMaps(nextExpenses, state.splits);
+      return {
+        expenses: nextExpenses,
+        expenseMap,
+        splitMap,
+      };
+    });
   },
 
   getUserShareForExpense: (expenseId, userId) => {
     const state = get();
-    const expense = state.expenses.find((e) => e.id === expenseId);
+    const expense = state.expenseMap.get(expenseId);
     if (!expense) {
       return { amount: 0, convertedAmount: 0, isParticipant: false };
     }
@@ -182,9 +231,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         isParticipant: false,
       };
     }
-    const userSplit = state.splits.find(
-      (s) => s.expenseId === expenseId && s.userId === userId && s.deletedAt === null,
-    );
+    const userSplit = state.splitMap.get(expenseId)?.get(userId);
     if (!userSplit) {
       // Split expense the user isn't part of — show full amount, mark non-participant.
       return {
@@ -201,5 +248,5 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     };
   },
 
-  clear: () => set({ activeTripId: null, expenses: [], splits: [], error: null }),
+  clear: () => set({ activeTripId: null, expenses: [], splits: [], expenseMap: new Map(), splitMap: new Map(), error: null }),
 }));
