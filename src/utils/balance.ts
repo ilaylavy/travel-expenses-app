@@ -61,11 +61,20 @@ export function computeBalance({
 
   // Index splits by expense id for O(1) lookup.
   const splitsByExpense = new Map<string, ExpenseSplit[]>();
+  const payerByExpense = new Map<string, string>();
   for (const s of splits) {
     if (s.deletedAt !== null) continue;
-    const list = splitsByExpense.get(s.expenseId) ?? [];
+
+    let list = splitsByExpense.get(s.expenseId);
+    if (!list) {
+      list = [];
+      splitsByExpense.set(s.expenseId, list);
+    }
     list.push(s);
-    splitsByExpense.set(s.expenseId, list);
+
+    if (s.isPayer) {
+      payerByExpense.set(s.expenseId, s.userId);
+    }
   }
 
   // Build set of split IDs that have an active attributed settlement. These
@@ -109,8 +118,7 @@ export function computeBalance({
     }
 
     // Split expense — find the payer and divide the converted amount by ratio.
-    const payerSplit = expenseSplits.find((s) => s.isPayer);
-    const payerId = payerSplit?.userId ?? e.userId;
+    const payerId = payerByExpense.get(e.id) ?? e.userId;
     const totalAmount = e.amount;
     const totalConverted = e.convertedAmount;
 
