@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon';
 import { Avatar } from '@/components/ui/Avatar';
 import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { type ThemeColors } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { Trip, TripWithStats } from '@/types/trip';
 import { formatAmount } from '@/utils/currency';
@@ -22,6 +23,17 @@ type TripPhase = 'upcoming' | 'ongoing' | 'past';
 type StatusInfo = { label: string; phase: TripPhase };
 
 type Translate = (key: string, opts?: Record<string, unknown>) => string;
+
+function getPhaseColors(phase: TripPhase, theme: ThemeColors) {
+  switch (phase) {
+    case 'ongoing':
+      return { bg: theme.tealSoft, fg: theme.teal };
+    case 'upcoming':
+      return { bg: theme.accentSoft, fg: theme.accentLight };
+    default:
+      return { bg: theme.bgSoft, fg: theme.textMuted };
+  }
+}
 
 function getStatus(trip: Trip, t: Translate): StatusInfo {
   const today = todayIsoDate();
@@ -50,6 +62,48 @@ function getStatus(trip: Trip, t: Translate): StatusInfo {
   return { label: t('trips.statusDay', { day: dayN }), phase: 'ongoing' };
 }
 
+function BudgetProgress({ trip, theme, pct, t }: { trip: TripWithStats; theme: ThemeColors; pct: number; t: Translate }) {
+  // Budget bar uses an indigo monochrome gradient under 90% and switches
+  // to the red fill once over budget — that's the one approved
+  // budget-warning gradient surface in the design system.
+  const barGradient = pct > 0.9 ? null : theme.fabGradient;
+  const { stats } = trip;
+
+  return (
+    <View style={styles.budgetBlock}>
+      <View style={[styles.track, { backgroundColor: theme.bgSoft }]}>
+        {barGradient ? (
+          <LinearGradient
+            colors={barGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.trackFill, { width: `${Math.round(pct * 100)}%` }]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.trackFill,
+              {
+                width: `${Math.round(Math.min(pct, 1) * 100)}%`,
+                backgroundColor: theme.red,
+              },
+            ]}
+          />
+        )}
+      </View>
+      <View style={styles.budgetMeta}>
+        <Text style={[styles.budgetLabel, { color: theme.textMuted }]}>
+          {t('trips.budget')}
+        </Text>
+        <Text style={[styles.budgetValue, { color: theme.textSecondary }]}>
+          {formatAmount(stats.totalSpent, trip.homeCurrency)} /{' '}
+          {formatAmount(stats.budgetHome ?? 0, trip.homeCurrency)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -60,23 +114,7 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
   const isShared = stats.memberCount > 1;
   const status = getStatus(trip, t);
 
-  // Budget bar uses an indigo monochrome gradient under 90% and switches
-  // to the red fill once over budget — that's the one approved
-  // budget-warning gradient surface in the design system.
-  const barGradient = pct > 0.9 ? null : theme.fabGradient;
-
-  const statusBg =
-    status.phase === 'ongoing'
-      ? theme.tealSoft
-      : status.phase === 'upcoming'
-        ? theme.accentSoft
-        : theme.bgSoft;
-  const statusFg =
-    status.phase === 'ongoing'
-      ? theme.teal
-      : status.phase === 'upcoming'
-        ? theme.accentLight
-        : theme.textMuted;
+  const { bg: statusBg, fg: statusFg } = getPhaseColors(status.phase, theme);
 
   const isOngoing = status.phase === 'ongoing';
   const tint = getTripTint(trip.id, theme);
@@ -167,39 +205,7 @@ export function TripCard({ trip, onPress, onEdit }: TripCardProps) {
           )}
         </View>
 
-        {hasBudget && (
-          <View style={styles.budgetBlock}>
-            <View style={[styles.track, { backgroundColor: theme.bgSoft }]}>
-              {barGradient ? (
-                <LinearGradient
-                  colors={barGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.trackFill, { width: `${Math.round(pct * 100)}%` }]}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.trackFill,
-                    {
-                      width: `${Math.round(Math.min(pct, 1) * 100)}%`,
-                      backgroundColor: theme.red,
-                    },
-                  ]}
-                />
-              )}
-            </View>
-            <View style={styles.budgetMeta}>
-              <Text style={[styles.budgetLabel, { color: theme.textMuted }]}>
-                {t('trips.budget')}
-              </Text>
-              <Text style={[styles.budgetValue, { color: theme.textSecondary }]}>
-                {formatAmount(stats.totalSpent, trip.homeCurrency)} /{' '}
-                {formatAmount(stats.budgetHome ?? 0, trip.homeCurrency)}
-              </Text>
-            </View>
-          </View>
-        )}
+        {hasBudget && <BudgetProgress trip={trip} theme={theme} pct={pct} t={t} />}
       </View>
     </Pressable>
   );
