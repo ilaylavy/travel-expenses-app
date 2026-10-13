@@ -1,14 +1,14 @@
-import * as Haptics from 'expo-haptics';
-import { memo, useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from "expo-haptics";
+import { memo, useCallback } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Icon } from '@/components/Icon';
-import { LTRView } from '@/components/ui/LTRView';
-import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
-import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
+import { Icon } from "@/components/Icon";
+import { LTRView } from "@/components/ui/LTRView";
+import { borderWidth, sizing, spacing, typography } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
+import { useTranslation } from "@/hooks/useTranslation";
 
-import { appendKey, type NumpadInput, type Op, trailingOperator } from './calculator';
+import { appendKey, type NumpadInput, type Op } from "./calculator";
 
 // Re-exported so callers can keep the old import path; the type still
 // represents "valid numpad keypresses" — operators are now part of the
@@ -19,7 +19,7 @@ export type NumPadKey = NumpadInput;
 // Re-export the engine's appender so existing call sites keep working.
 // New code can import directly from `./calculator` to access the rest of
 // the engine (evaluate, tokenize, etc.).
-export { appendKey as appendNumPadKey } from './calculator';
+export { appendKey as appendNumPadKey } from "./calculator";
 
 interface NumPadProps {
   onKeyPress: (key: NumpadInput) => void;
@@ -38,22 +38,230 @@ interface NumPadProps {
   // Layout mode. 'digits' keeps the original 3-col-numbers + 1-col-actions
   // layout for simple numeric fields (budget input). 'calculator' shows
   // the full 4-col grid with operator keys and a 2-cell action bar.
-  mode?: 'digits' | 'calculator';
+  mode?: "digits" | "calculator";
   disabled?: boolean;
 }
 
 const DIGIT_ROWS_BASIC: (NumpadInput | null)[][] = [
-  ['1', '2', '3'],
-  ['4', '5', '6'],
-  ['7', '8', '9'],
-  ['.', '0', null],
+  ["1", "2", "3"],
+  ["4", "5", "6"],
+  ["7", "8", "9"],
+  [".", "0", null],
 ];
 
 const CALC_ROWS: { digit: NumpadInput | null; op: Op | null }[][] = [
-  [{ digit: '7', op: null }, { digit: '8', op: null }, { digit: '9', op: null }, { digit: null, op: '/' }],
-  [{ digit: '4', op: null }, { digit: '5', op: null }, { digit: '6', op: null }, { digit: null, op: '*' }],
-  [{ digit: '1', op: null }, { digit: '2', op: null }, { digit: '3', op: null }, { digit: null, op: '-' }],
+  [
+    { digit: "7", op: null },
+    { digit: "8", op: null },
+    { digit: "9", op: null },
+    { digit: null, op: "/" },
+  ],
+  [
+    { digit: "4", op: null },
+    { digit: "5", op: null },
+    { digit: "6", op: null },
+    { digit: null, op: "*" },
+  ],
+  [
+    { digit: "1", op: null },
+    { digit: "2", op: null },
+    { digit: "3", op: null },
+    { digit: null, op: "-" },
+  ],
 ];
+
+interface CalculatorLayoutProps {
+  onPress: (key: NumpadInput) => void;
+  onLongBackspace?: () => void;
+  onDone: () => void;
+  onEquals: () => void;
+  activeOperator?: Op | null;
+}
+
+function CalculatorLayout({
+  onPress,
+  onLongBackspace,
+  onDone,
+  onEquals,
+  activeOperator,
+}: CalculatorLayoutProps) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <LTRView style={styles.calcPad}>
+      {CALC_ROWS.map((row, rowIndex) => (
+        <View key={rowIndex} style={styles.calcRow}>
+          {row.map((cell, colIndex) => {
+            if (cell.op) {
+              return (
+                <OperatorKey
+                  key={`${rowIndex}-${colIndex}`}
+                  op={cell.op}
+                  active={activeOperator === cell.op}
+                  onPress={onPress}
+                  theme={theme}
+                />
+              );
+            }
+            if (cell.digit) {
+              return (
+                <NumberKey
+                  key={cell.digit}
+                  value={cell.digit}
+                  onPress={onPress}
+                  textColor={theme.text}
+                  bgColor={theme.surface}
+                  borderColor={theme.border}
+                  accentColor={theme.accent}
+                />
+              );
+            }
+            return (
+              <View
+                key={`spacer-${rowIndex}-${colIndex}`}
+                style={styles.calcCell}
+              />
+            );
+          })}
+        </View>
+      ))}
+      {/* Row 4 — `.`, `0`, backspace, `+` */}
+      <View style={styles.calcRow}>
+        <NumberKey
+          value="."
+          onPress={onPress}
+          textColor={theme.text}
+          bgColor={theme.surface}
+          borderColor={theme.border}
+          accentColor={theme.accent}
+        />
+        <NumberKey
+          value="0"
+          onPress={onPress}
+          textColor={theme.text}
+          bgColor={theme.surface}
+          borderColor={theme.border}
+          accentColor={theme.accent}
+        />
+        <BackspaceKey
+          onPress={onPress}
+          onLongPress={onLongBackspace}
+          glyphColor={theme.textSecondary}
+          bgColor={theme.surface}
+          borderColor={theme.border}
+          accentColor={theme.accent}
+        />
+        <OperatorKey
+          op="+"
+          active={activeOperator === "+"}
+          onPress={onPress}
+          theme={theme}
+        />
+      </View>
+      {/* Action bar: equals (1fr) + Done (2fr) */}
+      <View style={styles.actionBar}>
+        <Pressable
+          onPress={onEquals}
+          accessibilityRole="button"
+          accessibilityLabel={t("expense.numpadEqualsAriaLabel")}
+          style={({ pressed }) => [
+            styles.equalsKey,
+            {
+              borderColor: theme.accent,
+              backgroundColor: pressed ? theme.accentSoft : "transparent",
+            },
+          ]}
+        >
+          <Text style={[styles.equalsText, { color: theme.accent }]}>=</Text>
+        </Pressable>
+        <Pressable
+          onPress={onDone}
+          accessibilityRole="button"
+          accessibilityLabel={t("expense.numpadDone")}
+          style={({ pressed }) => [
+            styles.doneKey,
+            styles.doneKeyCalc,
+            {
+              backgroundColor: theme.accent,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+              opacity: pressed ? 0.92 : 1,
+            },
+          ]}
+        >
+          <Icon name="check" size={16} color="#FFFFFF" stroke={2.4} />
+          <Text style={[styles.doneText]}>{t("expense.numpadDone")}</Text>
+        </Pressable>
+      </View>
+    </LTRView>
+  );
+}
+
+interface DigitsLayoutProps {
+  onPress: (key: NumpadInput) => void;
+  onLongBackspace?: () => void;
+  onDone: () => void;
+}
+
+function DigitsLayout({ onPress, onLongBackspace, onDone }: DigitsLayoutProps) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <LTRView style={styles.pad}>
+      <View style={styles.numbersCol}>
+        {DIGIT_ROWS_BASIC.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.row}>
+            {row.map((key, colIndex) =>
+              key === null ? (
+                <View
+                  key={`spacer-${rowIndex}-${colIndex}`}
+                  style={styles.spacer}
+                />
+              ) : (
+                <NumberKey
+                  key={key}
+                  value={key}
+                  onPress={onPress}
+                  textColor={theme.text}
+                  bgColor={theme.surface}
+                  borderColor={theme.border}
+                  accentColor={theme.accent}
+                />
+              ),
+            )}
+          </View>
+        ))}
+      </View>
+      <View style={styles.rightCol}>
+        <BackspaceKey
+          onPress={onPress}
+          onLongPress={onLongBackspace}
+          glyphColor={theme.textSecondary}
+          bgColor={theme.surface}
+          borderColor={theme.border}
+          accentColor={theme.accent}
+        />
+        <Pressable
+          onPress={onDone}
+          accessibilityRole="button"
+          accessibilityLabel={t("expense.numpadDone")}
+          style={({ pressed }) => [
+            styles.doneKey,
+            {
+              backgroundColor: theme.accent,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+              opacity: pressed ? 0.92 : 1,
+            },
+          ]}
+        >
+          <Icon name="check" size={16} color="#FFFFFF" stroke={2.4} />
+          <Text style={[styles.doneText]}>{t("expense.numpadDone")}</Text>
+        </Pressable>
+      </View>
+    </LTRView>
+  );
+}
 
 function NumPadInner({
   onKeyPress,
@@ -61,12 +269,9 @@ function NumPadInner({
   onDone,
   onEquals,
   activeOperator,
-  mode = 'digits',
+  mode = "digits",
   disabled,
 }: NumPadProps) {
-  const theme = useTheme();
-  const { t } = useTranslation();
-
   const handlePress = useCallback(
     (key: NumpadInput) => {
       if (disabled) return;
@@ -88,164 +293,24 @@ function NumPadInner({
     onEquals();
   }, [disabled, onEquals]);
 
-  if (mode === 'calculator') {
+  if (mode === "calculator") {
     return (
-      <LTRView style={styles.calcPad}>
-        {CALC_ROWS.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.calcRow}>
-            {row.map((cell, colIndex) => {
-              if (cell.op) {
-                return (
-                  <OperatorKey
-                    key={`${rowIndex}-${colIndex}`}
-                    op={cell.op}
-                    active={activeOperator === cell.op}
-                    onPress={handlePress}
-                    theme={theme}
-                  />
-                );
-              }
-              if (cell.digit) {
-                return (
-                  <NumberKey
-                    key={cell.digit}
-                    value={cell.digit}
-                    onPress={handlePress}
-                    textColor={theme.text}
-                    bgColor={theme.surface}
-                    borderColor={theme.border}
-                    accentColor={theme.accent}
-                  />
-                );
-              }
-              return <View key={`spacer-${rowIndex}-${colIndex}`} style={styles.calcCell} />;
-            })}
-          </View>
-        ))}
-        {/* Row 4 — `.`, `0`, backspace, `+` */}
-        <View style={styles.calcRow}>
-          <NumberKey
-            value="."
-            onPress={handlePress}
-            textColor={theme.text}
-            bgColor={theme.surface}
-            borderColor={theme.border}
-            accentColor={theme.accent}
-          />
-          <NumberKey
-            value="0"
-            onPress={handlePress}
-            textColor={theme.text}
-            bgColor={theme.surface}
-            borderColor={theme.border}
-            accentColor={theme.accent}
-          />
-          <BackspaceKey
-            onPress={handlePress}
-            onLongPress={onLongBackspace}
-            glyphColor={theme.textSecondary}
-            bgColor={theme.surface}
-            borderColor={theme.border}
-            accentColor={theme.accent}
-          />
-          <OperatorKey
-            op="+"
-            active={activeOperator === '+'}
-            onPress={handlePress}
-            theme={theme}
-          />
-        </View>
-        {/* Action bar: equals (1fr) + Done (2fr) */}
-        <View style={styles.actionBar}>
-          <Pressable
-            onPress={handleEquals}
-            accessibilityRole="button"
-            accessibilityLabel={t('expense.numpadEqualsAriaLabel')}
-            style={({ pressed }) => [
-              styles.equalsKey,
-              {
-                borderColor: theme.accent,
-                backgroundColor: pressed ? theme.accentSoft : 'transparent',
-              },
-            ]}
-          >
-            <Text style={[styles.equalsText, { color: theme.accent }]}>=</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleDone}
-            accessibilityRole="button"
-            accessibilityLabel={t('expense.numpadDone')}
-            style={({ pressed }) => [
-              styles.doneKey,
-              styles.doneKeyCalc,
-              {
-                backgroundColor: theme.accent,
-                transform: [{ scale: pressed ? 0.96 : 1 }],
-                opacity: pressed ? 0.92 : 1,
-              },
-            ]}
-          >
-            <Icon name="check" size={16} color="#FFFFFF" stroke={2.4} />
-            <Text style={[styles.doneText]}>{t('expense.numpadDone')}</Text>
-          </Pressable>
-        </View>
-      </LTRView>
+      <CalculatorLayout
+        onPress={handlePress}
+        onLongBackspace={onLongBackspace}
+        onDone={handleDone}
+        onEquals={handleEquals}
+        activeOperator={activeOperator}
+      />
     );
   }
 
-  // ─ digits mode (default) — the legacy layout retained for the budget
-  // input and any other simple numeric entry. 3 cols of digits on the
-  // left, single trailing col with backspace on top and Done below.
   return (
-    <LTRView style={styles.pad}>
-      <View style={styles.numbersCol}>
-        {DIGIT_ROWS_BASIC.map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.row}>
-            {row.map((key, colIndex) =>
-              key === null ? (
-                <View key={`spacer-${rowIndex}-${colIndex}`} style={styles.spacer} />
-              ) : (
-                <NumberKey
-                  key={key}
-                  value={key}
-                  onPress={handlePress}
-                  textColor={theme.text}
-                  bgColor={theme.surface}
-                  borderColor={theme.border}
-                  accentColor={theme.accent}
-                />
-              ),
-            )}
-          </View>
-        ))}
-      </View>
-      <View style={styles.rightCol}>
-        <BackspaceKey
-          onPress={handlePress}
-          onLongPress={onLongBackspace}
-          glyphColor={theme.textSecondary}
-          bgColor={theme.surface}
-          borderColor={theme.border}
-          accentColor={theme.accent}
-        />
-        <Pressable
-          onPress={handleDone}
-          accessibilityRole="button"
-          accessibilityLabel={t('expense.numpadDone')}
-          style={({ pressed }) => [
-            styles.doneKey,
-            {
-              backgroundColor: theme.accent,
-              transform: [{ scale: pressed ? 0.96 : 1 }],
-              opacity: pressed ? 0.92 : 1,
-            },
-          ]}
-        >
-          <Icon name="check" size={16} color="#FFFFFF" stroke={2.4} />
-          <Text style={[styles.doneText]}>{t('expense.numpadDone')}</Text>
-        </Pressable>
-      </View>
-    </LTRView>
+    <DigitsLayout
+      onPress={handlePress}
+      onLongBackspace={onLongBackspace}
+      onDone={handleDone}
+    />
   );
 }
 
@@ -282,7 +347,9 @@ const NumberKey = memo(function NumberKey({
         },
       ]}
     >
-      <Text style={[styles.keyText, { color: textColor }]}>{String(value)}</Text>
+      <Text style={[styles.keyText, { color: textColor }]}>
+        {String(value)}
+      </Text>
     </Pressable>
   );
 });
@@ -294,12 +361,12 @@ interface OperatorKeyProps {
   theme: ReturnType<typeof useTheme>;
 }
 
-const GLYPH: Record<Op, string> = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+const GLYPH: Record<Op, string> = { "+": "+", "-": "−", "*": "×", "/": "÷" };
 const ARIA_KEY: Record<Op, string> = {
-  '+': 'expense.numpadOpAddAriaLabel',
-  '-': 'expense.numpadOpSubAriaLabel',
-  '*': 'expense.numpadOpMulAriaLabel',
-  '/': 'expense.numpadOpDivAriaLabel',
+  "+": "expense.numpadOpAddAriaLabel",
+  "-": "expense.numpadOpSubAriaLabel",
+  "*": "expense.numpadOpMulAriaLabel",
+  "/": "expense.numpadOpDivAriaLabel",
 };
 
 function OperatorKey({ op, active, onPress, theme }: OperatorKeyProps) {
@@ -344,14 +411,14 @@ const BackspaceKey = memo(function BackspaceKey({
   accentColor,
 }: BackspaceKeyProps) {
   const { t } = useTranslation();
-  const handlePress = useCallback(() => onPress('backspace'), [onPress]);
+  const handlePress = useCallback(() => onPress("backspace"), [onPress]);
   return (
     <Pressable
       onPress={handlePress}
       onLongPress={onLongPress}
       hitSlop={4}
       accessibilityRole="button"
-      accessibilityLabel={t('expense.numpadBackspaceAriaLabel')}
+      accessibilityLabel={t("expense.numpadBackspaceAriaLabel")}
       style={({ pressed }) => [
         styles.key,
         {
@@ -382,26 +449,30 @@ export const DIGITS_PAD_HEIGHT = 4 * KEY_HEIGHT + 3 * GRID_GAP;
 
 const styles = StyleSheet.create({
   // ── digits mode (legacy 3+1 layout) ──
-  pad: { flexDirection: 'row', gap: spacing.sm },
+  pad: { flexDirection: "row", gap: spacing.sm },
   numbersCol: { flex: 3, gap: spacing.sm },
   rightCol: { flex: 1, gap: spacing.sm },
-  row: { flexDirection: 'row', gap: spacing.sm },
+  row: { flexDirection: "row", gap: spacing.sm },
   spacer: { flex: 1, minHeight: KEY_HEIGHT },
 
   // ── calculator mode ──
   calcPad: { gap: GRID_GAP },
-  calcRow: { flexDirection: 'row', gap: GRID_GAP },
+  calcRow: { flexDirection: "row", gap: GRID_GAP },
   calcCell: { flex: 1, minHeight: KEY_HEIGHT },
-  actionBar: { flexDirection: 'row', gap: GRID_GAP, marginTop: ACTION_GAP - GRID_GAP },
+  actionBar: {
+    flexDirection: "row",
+    gap: GRID_GAP,
+    marginTop: ACTION_GAP - GRID_GAP,
+  },
   equalsKey: {
     flex: 1,
     minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
     borderWidth: borderWidth.hairline,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  equalsText: { fontSize: 22, fontWeight: '800' },
+  equalsText: { fontSize: 22, fontWeight: "800" },
 
   // ── shared key shapes ──
   key: {
@@ -409,21 +480,26 @@ const styles = StyleSheet.create({
     minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
     borderWidth: borderWidth.hairline,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   keyText: { ...typography.numpad, lineHeight: 26 },
-  opText: { fontSize: 22, fontWeight: '700', lineHeight: 26 },
+  opText: { fontSize: 22, fontWeight: "700", lineHeight: 26 },
 
   doneKey: {
     flex: 1,
     minHeight: KEY_HEIGHT,
     borderRadius: sizing.radiusButton,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.xs + 2,
   },
   doneKeyCalc: { flex: 2 },
-  doneText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  doneText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
 });
