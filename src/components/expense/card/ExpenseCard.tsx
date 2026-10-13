@@ -1,15 +1,15 @@
-import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { CategoryIcon } from '@/components/CategoryIcon';
-import { Icon } from '@/components/Icon';
-import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
-import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
-import type { Category } from '@/types/category';
-import type { ExpenseWithPhotos } from '@/types/expense';
-import { getCategoryDisplayName } from '@/utils/category';
-import { formatAmount } from '@/utils/currency';
+import { CategoryIcon } from "@/components/CategoryIcon";
+import { Icon } from "@/components/Icon";
+import { borderWidth, sizing, spacing, typography } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
+import { useTranslation } from "@/hooks/useTranslation";
+import type { Category } from "@/types/category";
+import type { ExpenseWithPhotos } from "@/types/expense";
+import { getCategoryDisplayName } from "@/utils/category";
+import { formatAmount } from "@/utils/currency";
 
 interface ExpenseCardProps {
   expense: ExpenseWithPhotos;
@@ -52,12 +52,17 @@ function ExpenseCardInner({
   // Display priority: per-day amount (if provided and expense is spread)
   // > user's split share > full expense amount.
   const displayAmount = perDayAmount ?? userShareAmount ?? expense.amount;
-  const displayConverted = perDayConverted ?? userShareConverted ?? expense.convertedAmount;
+  const displayConverted =
+    perDayConverted ?? userShareConverted ?? expense.convertedAmount;
   const primary = formatAmount(displayAmount, expense.currency);
-  const secondary = showConverted ? formatAmount(displayConverted, homeCurrency) : null;
+  const secondary = showConverted
+    ? formatAmount(displayConverted, homeCurrency)
+    : null;
 
   const title =
-    expense.note?.trim() || (category ? getCategoryDisplayName(category, t) : '') || '—';
+    expense.note?.trim() ||
+    (category ? getCategoryDisplayName(category, t) : "") ||
+    "—";
 
   return (
     <Pressable
@@ -73,10 +78,19 @@ function ExpenseCardInner({
       ]}
     >
       {category ? (
-        <CategoryIcon category={category} size={40} radius={sizing.radiusIcon} />
+        <CategoryIcon
+          category={category}
+          size={40}
+          radius={sizing.radiusIcon}
+        />
       ) : (
         // Defensive — shouldn't happen since rows always have a category
-        <View style={[styles.iconFallback, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+        <View
+          style={[
+            styles.iconFallback,
+            { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+          ]}
+        >
           <Icon name="other" size={20} color={theme.accent} stroke={1.8} />
         </View>
       )}
@@ -92,78 +106,11 @@ function ExpenseCardInner({
         >
           {title}
         </Text>
-        <View style={styles.metaRow}>
-          {expense.placeName ? (
-            <Text style={[styles.meta, { color: theme.textSecondary }]} numberOfLines={1}>
-              {expense.placeName}
-            </Text>
-          ) : null}
-          {expense.paymentMethod ? (
-            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
-              <Icon
-                name={expense.paymentMethod === 'cash' ? 'cash' : 'card'}
-                size={11}
-                color={theme.textSecondary}
-                stroke={1.8}
-              />
-              <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
-                {paymentLabel(expense.paymentMethod, t)}
-              </Text>
-            </View>
-          ) : null}
-          {expense.photos.length > 0 ? (
-            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
-              <Icon name="photo" size={11} color={theme.textSecondary} stroke={1.8} />
-              <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
-                {expense.photos.length}
-              </Text>
-            </View>
-          ) : null}
-          {expense.isRefund ? (
-            <View style={[styles.badge, { backgroundColor: theme.greenSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.green }]}>
-                {t('expenseDetail.badgeRefund')}
-              </Text>
-            </View>
-          ) : null}
-          {expense.spreadStartDate && expense.spreadEndDate ? (
-            <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>
-                {t('expenseDetail.badgeMultiDay')}
-              </Text>
-            </View>
-          ) : null}
-          {expense.isExcludedFromDailyMetrics ? (
-            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
-              <Icon name="exclude" size={10} color={theme.textMuted} stroke={2} />
-              <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-                {t('expenseDetail.badgeExcluded')}
-              </Text>
-            </View>
-          ) : null}
-          {expense.isPrivate ? (
-            <View style={[styles.badge, styles.badgeRow, { backgroundColor: theme.bgSoft }]}>
-              <Icon name="lock" size={10} color={theme.textMuted} stroke={2} />
-              <Text style={[styles.badgeText, { color: theme.textMuted }]}>
-                {t('expense.privateBadge')}
-              </Text>
-            </View>
-          ) : null}
-          {expense.isSplit ? (
-            <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>
-                {t('split.badge')}
-              </Text>
-            </View>
-          ) : null}
-          {loggedByName && !isSelfLogged ? (
-            <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>
-                {loggedByName}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        <ExpenseCardBadges
+          expense={expense}
+          loggedByName={loggedByName}
+          isSelfLogged={isSelfLogged}
+        />
       </View>
 
       <View style={styles.right}>
@@ -174,11 +121,14 @@ function ExpenseCardInner({
           ]}
           numberOfLines={1}
         >
-          {expense.isRefund ? '+' : ''}
+          {expense.isRefund ? "+" : ""}
           {primary}
         </Text>
         {secondary ? (
-          <Text style={[styles.amountSecondary, { color: theme.textMuted }]} numberOfLines={1}>
+          <Text
+            style={[styles.amountSecondary, { color: theme.textMuted }]}
+            numberOfLines={1}
+          >
             ≈ {secondary}
           </Text>
         ) : null}
@@ -187,12 +137,134 @@ function ExpenseCardInner({
   );
 }
 
+interface ExpenseCardBadgesProps {
+  expense: ExpenseWithPhotos;
+  loggedByName?: string | null;
+  isSelfLogged?: boolean;
+}
+
+const ExpenseCardBadges = memo(function ExpenseCardBadges({
+  expense,
+  loggedByName,
+  isSelfLogged,
+}: ExpenseCardBadgesProps) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.metaRow}>
+      {expense.placeName ? (
+        <Text
+          style={[styles.meta, { color: theme.textSecondary }]}
+          numberOfLines={1}
+        >
+          {expense.placeName}
+        </Text>
+      ) : null}
+      {expense.paymentMethod ? (
+        <View
+          style={[
+            styles.badge,
+            styles.badgeRow,
+            { backgroundColor: theme.bgSoft },
+          ]}
+        >
+          <Icon
+            name={expense.paymentMethod === "cash" ? "cash" : "card"}
+            size={11}
+            color={theme.textSecondary}
+            stroke={1.8}
+          />
+          <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
+            {paymentLabel(expense.paymentMethod, t)}
+          </Text>
+        </View>
+      ) : null}
+      {expense.photos.length > 0 ? (
+        <View
+          style={[
+            styles.badge,
+            styles.badgeRow,
+            { backgroundColor: theme.bgSoft },
+          ]}
+        >
+          <Icon
+            name="photo"
+            size={11}
+            color={theme.textSecondary}
+            stroke={1.8}
+          />
+          <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
+            {expense.photos.length}
+          </Text>
+        </View>
+      ) : null}
+      {expense.isRefund ? (
+        <View style={[styles.badge, { backgroundColor: theme.greenSoft }]}>
+          <Text style={[styles.badgeText, { color: theme.green }]}>
+            {t("expenseDetail.badgeRefund")}
+          </Text>
+        </View>
+      ) : null}
+      {expense.spreadStartDate && expense.spreadEndDate ? (
+        <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
+          <Text style={[styles.badgeText, { color: theme.accent }]}>
+            {t("expenseDetail.badgeMultiDay")}
+          </Text>
+        </View>
+      ) : null}
+      {expense.isExcludedFromDailyMetrics ? (
+        <View
+          style={[
+            styles.badge,
+            styles.badgeRow,
+            { backgroundColor: theme.bgSoft },
+          ]}
+        >
+          <Icon name="exclude" size={10} color={theme.textMuted} stroke={2} />
+          <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+            {t("expenseDetail.badgeExcluded")}
+          </Text>
+        </View>
+      ) : null}
+      {expense.isPrivate ? (
+        <View
+          style={[
+            styles.badge,
+            styles.badgeRow,
+            { backgroundColor: theme.bgSoft },
+          ]}
+        >
+          <Icon name="lock" size={10} color={theme.textMuted} stroke={2} />
+          <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+            {t("expense.privateBadge")}
+          </Text>
+        </View>
+      ) : null}
+      {expense.isSplit ? (
+        <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
+          <Text style={[styles.badgeText, { color: theme.accent }]}>
+            {t("split.badge")}
+          </Text>
+        </View>
+      ) : null}
+      {loggedByName && !isSelfLogged ? (
+        <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
+          <Text style={[styles.badgeText, { color: theme.accent }]}>
+            {loggedByName}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+});
+
 function paymentLabel(method: string, t: (key: string) => string): string {
   // stats.* keys exist in en.json/he.json with the plain "Cash" / "Credit"
   // labels (no emoji prefix). The icon is rendered separately by the badge.
-  if (method === 'cash') return t('stats.paymentCash');
-  if (method === 'credit') return t('stats.paymentCredit');
-  if (method === 'debit') return t('stats.paymentDebit');
+  if (method === "cash") return t("stats.paymentCash");
+  if (method === "credit") return t("stats.paymentCredit");
+  if (method === "debit") return t("stats.paymentDebit");
   return method;
 }
 
@@ -200,8 +272,8 @@ export const ExpenseCard = memo(ExpenseCardInner);
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: sizing.radiusCardInner,
@@ -212,22 +284,27 @@ const styles = StyleSheet.create({
     height: sizing.categoryIconMedium,
     borderRadius: sizing.radiusIcon,
     borderWidth: borderWidth.hairline,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   middle: { flex: 1, minWidth: 0, gap: spacing.xs },
   title: { ...typography.itemTitle, fontSize: 15 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, alignItems: 'center' },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    alignItems: "center",
+  },
   meta: { ...typography.secondary, fontSize: 12 },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: sizing.radiusPill,
   },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  badgeRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   badgeText: { ...typography.micro, fontSize: 10 },
-  right: { alignItems: 'flex-end', gap: 3 },
+  right: { alignItems: "flex-end", gap: 3 },
   amount: { ...typography.amountSmall, fontSize: 15 },
   // caption is shared with non-numeric copy elsewhere; tabular is intent-specific here.
-  amountSecondary: { ...typography.caption, fontVariant: ['tabular-nums'] },
+  amountSecondary: { ...typography.caption, fontVariant: ["tabular-nums"] },
 });
