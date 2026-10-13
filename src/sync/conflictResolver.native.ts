@@ -523,6 +523,180 @@ export async function applyRemote(
   }
 }
 
+
+type TableConfig = {
+  columns: string[];
+  conflictResolution: string;
+};
+
+const tableConfigs: Record<PullTable, TableConfig> = {
+  profiles: {
+    columns: ['id', 'name', 'avatar_url', 'default_currency', 'created_at', 'updated_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET name = excluded.name, avatar_url = excluded.avatar_url, default_currency = excluded.default_currency, updated_at = excluded.updated_at',
+  },
+  trips: {
+    columns: ['id', 'name', 'emoji', 'start_date', 'end_date', 'base_currency', 'home_currency', 'budget', 'owner_id', 'cover_photo_storage_path', 'created_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET name = excluded.name, emoji = excluded.emoji, start_date = excluded.start_date, end_date = excluded.end_date, base_currency = excluded.base_currency, home_currency = excluded.home_currency, budget = excluded.budget, owner_id = excluded.owner_id, cover_photo_storage_path = excluded.cover_photo_storage_path, created_at = excluded.created_at, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+  trip_members: {
+    columns: ['id', 'trip_id', 'user_id', 'role', 'budget', 'invited_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, user_id = excluded.user_id, role = excluded.role, budget = excluded.budget, invited_at = excluded.invited_at, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+  categories: {
+    columns: ['id', 'trip_id', 'name', 'icon', 'color', 'is_default', 'sort_order', 'created_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, name = excluded.name, icon = excluded.icon, color = excluded.color, is_default = excluded.is_default, sort_order = excluded.sort_order, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+  expenses: {
+    columns: ['id', 'trip_id', 'category_id', 'created_by', 'amount', 'currency', 'exchange_rate', 'converted_amount', 'description', 'date', 'is_reimbursable', 'created_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, category_id = excluded.category_id, created_by = excluded.created_by, amount = excluded.amount, currency = excluded.currency, exchange_rate = excluded.exchange_rate, converted_amount = excluded.converted_amount, description = excluded.description, date = excluded.date, is_reimbursable = excluded.is_reimbursable, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+  expense_splits: {
+    columns: ['id', 'expense_id', 'user_id', 'amount', 'created_at', 'updated_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET expense_id = excluded.expense_id, user_id = excluded.user_id, amount = excluded.amount, updated_at = excluded.updated_at',
+  },
+  expense_photos: {
+    columns: ['id', 'expense_id', 'storage_path', 'local_uri', 'sort_order', 'created_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET expense_id = excluded.expense_id, storage_path = excluded.storage_path, local_uri = excluded.local_uri, sort_order = excluded.sort_order, created_at = excluded.created_at',
+  },
+  settlement_payments: {
+    columns: ['id', 'trip_id', 'from_user_id', 'to_user_id', 'amount', 'currency', 'exchange_rate', 'converted_amount', 'settled_date', 'note', 'expense_split_id', 'created_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, from_user_id = excluded.from_user_id, to_user_id = excluded.to_user_id, amount = excluded.amount, currency = excluded.currency, exchange_rate = excluded.exchange_rate, converted_amount = excluded.converted_amount, settled_date = excluded.settled_date, note = excluded.note, expense_split_id = excluded.expense_split_id, created_at = excluded.created_at, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+  journal_photo_entries: {
+    columns: ['id', 'trip_id', 'user_id', 'occurred_at', 'caption', 'is_private', 'created_at', 'updated_at', 'deleted_at', 'moment_id'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, user_id = excluded.user_id, occurred_at = excluded.occurred_at, caption = excluded.caption, is_private = excluded.is_private, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, moment_id = excluded.moment_id',
+  },
+  journal_photos: {
+    columns: ['id', 'entry_id', 'storage_path', 'local_uri', 'sort_order', 'exif_taken_at', 'created_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET entry_id = excluded.entry_id, storage_path = excluded.storage_path, local_uri = excluded.local_uri, sort_order = excluded.sort_order, exif_taken_at = excluded.exif_taken_at, created_at = excluded.created_at',
+  },
+  voice_clips: {
+    columns: ['id', 'trip_id', 'user_id', 'occurred_at', 'storage_path', 'local_uri', 'duration_sec', 'transcript', 'transcript_status', 'transcript_error', 'is_private', 'created_at', 'updated_at', 'deleted_at', 'moment_id'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, user_id = excluded.user_id, occurred_at = excluded.occurred_at, storage_path = excluded.storage_path, transcript = excluded.transcript, transcript_status = excluded.transcript_status, transcript_error = excluded.transcript_error, is_private = excluded.is_private, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, moment_id = excluded.moment_id',
+  },
+  journal_days: {
+    columns: ['id', 'trip_id', 'day_date', 'location', 'cover_photo_entry_id', 'created_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET location = excluded.location, cover_photo_entry_id = excluded.cover_photo_entry_id, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+  journal_moments: {
+    columns: ['id', 'trip_id', 'day_date', 'title', 'cover_photo_entry_id', 'created_by', 'created_at', 'updated_at', 'deleted_at'],
+    conflictResolution: 'ON CONFLICT(id) DO UPDATE SET trip_id = excluded.trip_id, day_date = excluded.day_date, title = excluded.title, cover_photo_entry_id = excluded.cover_photo_entry_id, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at',
+  },
+};
+
+export async function applyRemoteBulk(
+  db: SQLiteDatabase,
+  table: PullTable,
+  remotes: Remote[],
+): Promise<number> {
+  if (remotes.length === 0) return 0;
+
+  // 1. Fetch local updated_at for all ids in batch
+  const validRemotes = remotes.filter(r => asString(r.id) != null);
+  if (validRemotes.length === 0) return 0;
+
+  const ids = validRemotes.map(r => asString(r.id)!);
+  const localUpdatedAts = new Map<string, string | null>();
+
+  // Chunk ids for IN clause (SQLite max vars is usually 999, so chunks of 500 are safe)
+  const idChunks = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    idChunks.push(ids.slice(i, i + 500));
+  }
+
+  for (const chunk of idChunks) {
+    const placeholders = chunk.map(() => '?').join(',');
+    if (table === 'expense_photos' || table === 'journal_photos') {
+      const rows = await db.getAllAsync<{ id: string; created_at: string }>(
+        `SELECT id, created_at FROM ${table} WHERE id IN (${placeholders});`,
+        chunk
+      );
+      for (const row of rows) localUpdatedAts.set(row.id, row.created_at);
+    } else if (table === 'trip_members') {
+      const rows = await db.getAllAsync<{ id: string; updated_at: string | null; invited_at: string }>(
+        `SELECT id, updated_at, invited_at FROM trip_members WHERE id IN (${placeholders});`,
+        chunk
+      );
+      for (const row of rows) localUpdatedAts.set(row.id, row.updated_at ?? row.invited_at ?? null);
+    } else {
+      const rows = await db.getAllAsync<{ id: string; updated_at: string }>(
+        `SELECT id, updated_at FROM ${table} WHERE id IN (${placeholders});`,
+        chunk
+      );
+      for (const row of rows) localUpdatedAts.set(row.id, row.updated_at);
+    }
+  }
+
+  // 2. Filter remotes that actually need to be applied
+  const toApply = validRemotes.filter(r => {
+    const id = asString(r.id)!;
+    const remoteUpdatedAt = asString(
+      table === 'expense_photos' || table === 'journal_photos'
+        ? r.created_at
+        : table === 'trip_members'
+          ? (r.updated_at ?? r.invited_at)
+          : r.updated_at
+    );
+    const localUpdatedAt = localUpdatedAts.get(id) ?? null;
+    return shouldApplyRemote(localUpdatedAt, remoteUpdatedAt);
+  });
+
+  if (toApply.length === 0) return 0;
+
+  // 3. Construct batched INSERT strings based on table schema
+  const config = tableConfigs[table];
+  const { columns, conflictResolution } = config;
+  const placeholdersPerRow = columns.map(() => '?').join(',');
+  const rowPlaceholder = `(${placeholdersPerRow})`;
+
+  // Max variables is 999. chunkSize * columns.length <= 999.
+  const chunkSize = Math.floor(999 / columns.length);
+
+  let appliedCount = 0;
+
+  for (let i = 0; i < toApply.length; i += chunkSize) {
+    const chunk = toApply.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => rowPlaceholder).join(',');
+    const query = `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${placeholders} ${conflictResolution};`;
+
+    const params: any[] = [];
+    for (const r of chunk) {
+      if (table === 'profiles') {
+        params.push(asString(r.id), asString(r.name) ?? '', asString(r.avatar_url), asString(r.default_currency) ?? 'USD', asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString());
+      } else if (table === 'trips') {
+        params.push(asString(r.id), asString(r.name) ?? '', asString(r.emoji) ?? '✈️', asString(r.start_date) ?? '', asString(r.end_date), asString(r.base_currency) ?? 'USD', asString(r.home_currency) ?? 'USD', asNumber(r.budget), asString(r.owner_id) ?? '', asString(r.cover_photo_storage_path), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      } else if (table === 'trip_members') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.user_id), asString(r.role) ?? 'member', asNumber(r.budget), asString(r.invited_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      } else if (table === 'categories') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.name) ?? '', asString(r.icon), asString(r.color), asBoolInt(r.is_default), asNumber(r.sort_order) ?? 0, asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      } else if (table === 'expenses') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.category_id), asString(r.created_by), asNumber(r.amount) ?? 0, asString(r.currency) ?? 'USD', asNumber(r.exchange_rate) ?? 1, asNumber(r.converted_amount) ?? 0, asString(r.description), asString(r.date) ?? '', asBoolInt(r.is_reimbursable), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      } else if (table === 'expense_splits') {
+        params.push(asString(r.id), asString(r.expense_id), asString(r.user_id), asNumber(r.amount) ?? 0, asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString());
+      } else if (table === 'expense_photos') {
+        params.push(asString(r.id), asString(r.expense_id), asString(r.storage_path) ?? '', asString(r.local_uri), asNumber(r.sort_order) ?? 0, asString(r.created_at) ?? new Date().toISOString());
+      } else if (table === 'settlement_payments') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.from_user_id), asString(r.to_user_id), asNumber(r.amount) ?? 0, asString(r.currency) ?? 'USD', asNumber(r.exchange_rate) ?? 1, asNumber(r.converted_amount) ?? 0, asString(r.settled_date) ?? '', asString(r.note), asString(r.expense_split_id), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      } else if (table === 'journal_photo_entries') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.user_id), asString(r.occurred_at), asString(r.caption), asBoolInt(r.is_private), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at), asString(r.moment_id));
+      } else if (table === 'journal_photos') {
+        params.push(asString(r.id), asString(r.entry_id), asString(r.storage_path) ?? '', asString(r.local_uri), asNumber(r.sort_order) ?? 0, asString(r.exif_taken_at), asString(r.created_at) ?? new Date().toISOString());
+      } else if (table === 'voice_clips') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.user_id), asString(r.occurred_at), asString(r.storage_path) ?? '', asString(r.local_uri), asNumber(r.duration_sec) ?? 1, asString(r.transcript), asString(r.transcript_status) ?? 'pending', asString(r.transcript_error), asBoolInt(r.is_private), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at), asString(r.moment_id));
+      } else if (table === 'journal_days') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.day_date), asString(r.location), asString(r.cover_photo_entry_id), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      } else if (table === 'journal_moments') {
+        params.push(asString(r.id), asString(r.trip_id), asString(r.day_date), asString(r.title), asString(r.cover_photo_entry_id), asString(r.created_by), asString(r.created_at) ?? new Date().toISOString(), asString(r.updated_at) ?? new Date().toISOString(), asString(r.deleted_at));
+      }
+    }
+
+    await db.runAsync(query, params);
+    appliedCount += chunk.length;
+  }
+
+  return appliedCount;
+}
+
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function doRefreshStores(): Promise<void> {

@@ -4,7 +4,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { useAuthStore } from '@/stores/authStore';
 import type { PullTable } from '@/types/sync';
 
-import { applyRemote, refreshStores } from './conflictResolver';
+import { applyRemote, applyRemoteBulk, refreshStores } from './conflictResolver';
 import { formatError } from './errorUtils';
 import { reconcileVisibility } from './reconcileVisibility';
 import { getLastPulledAt, setLastPulledAt } from './syncQueue';
@@ -63,26 +63,32 @@ async function pullTable(
     const rows = data ?? [];
     if (rows.length === 0) break;
 
-    for (const row of rows as Record<string, unknown>[]) {
-      try {
-        const changed = await applyRemote(db, table, row);
-        if (changed) applied += 1;
-      } catch (err) {
-        const msg = formatError(err);
-        // A row whose FK parent isn't visible to this user (an RLS asymmetry,
-        // e.g. a split for a private expense) would otherwise throw and abort
-        // the ENTIRE pull, leaving the cursor un-advanced so every future
-        // cycle re-hits it — i.e. sync permanently wedged. Skip the orphan and
-        // log its parent refs so the root cause is traceable. Non-constraint
-        // errors (network, real bugs) still propagate.
-        if (!msg.toLowerCase().includes('constraint')) throw err;
-        const refs: Record<string, unknown> = {};
-        for (const k of Object.keys(row)) {
-          if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
+    try {
+      const changed = await applyRemoteBulk(db, table, rows as Record<string, unknown>[]);
+      applied += changed;
+    } catch (err) {
+      const msg = formatError(err);
+      if (!msg.toLowerCase().includes('constraint')) throw err;
+      // In bulk mode, a constraint error fails the whole chunk.
+      // Fallback to row-by-row insertion to isolate the failure and not lose valid rows.
+      console.warn(`sync: bulk skipped orphans in ${table} due to constraint. Falling back to row-by-row.`, '—', msg);
+      for (const row of rows as Record<string, unknown>[]) {
+        try {
+          const changed = await applyRemote(db, table, row);
+          if (changed) applied += 1;
+        } catch (rowErr) {
+          const rowMsg = formatError(rowErr);
+          if (!rowMsg.toLowerCase().includes('constraint')) throw rowErr;
+          const refs: Record<string, unknown> = {};
+          for (const k of Object.keys(row)) {
+            if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
+          }
+          console.warn(`sync: skipped orphan ${table} row`, refs, '—', rowMsg);
         }
-        console.warn(`sync: skipped orphan ${table} row`, refs, '—', msg);
       }
+    }
 
+    for (const row of rows as Record<string, unknown>[]) {
       const rowCursor = row[cursor];
       if (typeof rowCursor === 'string' && rowCursor > maxCursor) maxCursor = rowCursor;
 
@@ -124,12 +130,24 @@ async function backfillMissingProfiles(
     console.warn('sync: failed to backfill profiles', error.message);
     return 0;
   }
-  let applied = 0;
-  for (const row of (data ?? []) as Record<string, unknown>[]) {
-    const changed = await applyRemote(db, 'profiles', row);
-    if (changed) applied += 1;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  if (rows.length === 0) return 0;
+
+  try {
+    return await applyRemoteBulk(db, 'profiles', rows);
+  } catch (err) {
+    console.warn('sync: failed to bulk apply backfill profiles, falling back to row-by-row', err);
+    let backfillApplied = 0;
+    for (const row of rows) {
+      try {
+        const changed = await applyRemote(db, 'profiles', row);
+        if (changed) backfillApplied += 1;
+      } catch (rowErr) {
+        console.warn('sync: failed to apply backfill profile row', rowErr);
+      }
+    }
+    return backfillApplied;
   }
-  return applied;
 }
 
 export async function pullChanges(
