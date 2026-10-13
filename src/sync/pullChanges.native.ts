@@ -36,6 +36,30 @@ function cursorColumn(table: PullTable): 'updated_at' | 'created_at' {
   return 'updated_at';
 }
 
+async function getFailCount(db: SQLiteDatabase, table: PullTable, id: string): Promise<number> {
+  const key = `pull_fail_count_${table}_${id}`;
+  const row = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM sync_metadata WHERE key = ?;',
+    [key],
+  );
+  return row ? parseInt(row.value, 10) : 0;
+}
+
+async function incrementFailCount(db: SQLiteDatabase, table: PullTable, id: string): Promise<number> {
+  const count = (await getFailCount(db, table, id)) + 1;
+  const key = `pull_fail_count_${table}_${id}`;
+  await db.runAsync(
+    'INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?);',
+    [key, count.toString()],
+  );
+  return count;
+}
+
+async function resetFailCount(db: SQLiteDatabase, table: PullTable, id: string): Promise<void> {
+  const key = `pull_fail_count_${table}_${id}`;
+  await db.runAsync('DELETE FROM sync_metadata WHERE key = ?;', [key]);
+}
+
 async function pullTable(
   db: SQLiteDatabase,
   supabase: SupabaseClient,
@@ -64,9 +88,12 @@ async function pullTable(
     if (rows.length === 0) break;
 
     for (const row of rows as Record<string, unknown>[]) {
+      const rowId = typeof row.id === 'string' ? row.id : undefined;
+
       try {
         const changed = await applyRemote(db, table, row);
         if (changed) applied += 1;
+        if (rowId) await resetFailCount(db, table, rowId);
       } catch (err) {
         const msg = formatError(err);
         // A row whose FK parent isn't visible to this user (an RLS asymmetry,
@@ -74,13 +101,27 @@ async function pullTable(
         // the ENTIRE pull, leaving the cursor un-advanced so every future
         // cycle re-hits it — i.e. sync permanently wedged. Skip the orphan and
         // log its parent refs so the root cause is traceable. Non-constraint
-        // errors (network, real bugs) still propagate.
-        if (!msg.toLowerCase().includes('constraint')) throw err;
-        const refs: Record<string, unknown> = {};
-        for (const k of Object.keys(row)) {
-          if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
+        // errors (network, real bugs) still propagate, but have a fallback:
+        // after 3 failed attempts, we swallow the error to un-wedge the sync.
+        if (!msg.toLowerCase().includes('constraint')) {
+          if (rowId) {
+            const failCount = await incrementFailCount(db, table, rowId);
+            if (failCount < 3) {
+              throw err; // Retry on next sync
+            }
+            // Give up and swallow so the cursor can advance
+            console.warn(`sync: permanently skipping failing ${table} row ${rowId} after ${failCount} attempts —`, msg);
+            await resetFailCount(db, table, rowId);
+          } else {
+            throw err;
+          }
+        } else {
+          const refs: Record<string, unknown> = {};
+          for (const k of Object.keys(row)) {
+            if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
+          }
+          console.warn(`sync: skipped orphan ${table} row`, refs, '—', msg);
         }
-        console.warn(`sync: skipped orphan ${table} row`, refs, '—', msg);
       }
 
       const rowCursor = row[cursor];
