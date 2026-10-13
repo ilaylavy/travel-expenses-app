@@ -15,18 +15,19 @@ import {
 } from '@vis.gl/react-google-maps';
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
 } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/Icon';
-import type { MapHandle, TripMapHandle } from '@/components/map/types';
+import type { TripMapHandle } from '@/components/map/types';
 import { spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useExpenseClustering } from '@/hooks/useExpenseClustering';
+import { useFocusExpense } from '@/hooks/useFocusExpense';
+import { useWebMapHandle } from '@/hooks/useWebMapHandle';
+import { useMapViewportSync } from '@/hooks/useMapViewportSync';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 
@@ -112,56 +113,7 @@ function MapInner({
   handleRef,
 }: MapInnerProps) {
   const map = useMap();
-
-  // MapHandle for the clustering hook. Translates the platform-agnostic
-  // Region (latitude/delta) into google.maps panTo/fitBounds calls.
-  const mapHandle = useMemo<MapHandle | null>(() => {
-    if (!map) return null;
-    return {
-      animateToRegion: (region) => {
-        map.panTo({ lat: region.latitude, lng: region.longitude });
-        // longitudeDelta is in degrees; Google zoom is log2(360 / delta).
-        // The clamp keeps us inside the legal zoom range.
-        const zoom = Math.max(
-          0,
-          Math.min(20, Math.round(Math.log2(360 / Math.max(region.longitudeDelta, 0.0001)))),
-        );
-        map.setZoom(zoom);
-      },
-      fitToCoordinates: (coords) => {
-        if (coords.length === 0) return;
-        let north = coords[0].latitude;
-        let south = north;
-        let east = coords[0].longitude;
-        let west = east;
-        for (let i = 1; i < coords.length; i += 1) {
-          const { latitude, longitude } = coords[i];
-          if (latitude > north) north = latitude;
-          if (latitude < south) south = latitude;
-          if (longitude > east) east = longitude;
-          if (longitude < west) west = longitude;
-        }
-        map.fitBounds({ north, south, east, west }, 64);
-      },
-    };
-  }, [map]);
-
-  // Imperative handle for the parent's panTo. Re-registers when map changes.
-  useEffect(() => {
-    if (!map) {
-      handleRef.current = null;
-      return;
-    }
-    handleRef.current = {
-      panTo: (coords) => {
-        map.panTo({ lat: coords.latitude, lng: coords.longitude });
-        map.setZoom(15);
-      },
-    };
-    return () => {
-      handleRef.current = null;
-    };
-  }, [map, handleRef]);
+  const mapHandle = useWebMapHandle({ map, handleRef });
 
   const { items, setRegion, focusExpense, zoomIntoCluster } = useExpenseClustering({
     allExpenses,
@@ -169,51 +121,15 @@ function MapInner({
     mapHandle,
   });
 
-  // Sync map viewport into the clustering hook's region state. Listen on
-  // 'idle' (fires once panning/zooming finishes) and translate the bounds
-  // back into a MapRegion the clustering algorithm understands.
-  useEffect(() => {
-    if (!map) return;
-    const sync = () => {
-      const center = map.getCenter();
-      const bounds = map.getBounds();
-      if (!center || !bounds) return;
-      const ne = bounds.getNorthEast();
-      const sw = bounds.getSouthWest();
-      setRegion({
-        latitude: center.lat(),
-        longitude: center.lng(),
-        latitudeDelta: Math.max(ne.lat() - sw.lat(), 0.0001),
-        longitudeDelta: Math.max(ne.lng() - sw.lng(), 0.0001),
-      });
-    };
-    // addListener can transiently return undefined when the map is mid-
-    // teardown (React 19 strict mode invokes effects twice in dev), so we
-    // optional-chain the cleanup to avoid the "reading 'remove'" crash.
-    const listener = map.addListener('idle', sync);
-    sync();
-    return () => {
-      listener?.remove();
-    };
-  }, [map, setRegion]);
+  useMapViewportSync({ map, setRegion });
 
-  // Focus URL handling — same flow as TripMap.native.tsx.
-  const focusHandledRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!focusExpenseId) return;
-    if (focusHandledRef.current === focusExpenseId) return;
-    const target = allExpenses.find((e) => e.id === focusExpenseId);
-    if (!target) return;
-    if (target.latitude == null || target.longitude == null) {
-      focusHandledRef.current = focusExpenseId;
-      onFocusHandled?.();
-      return;
-    }
-    focusExpense(target);
-    onPressExpense(target);
-    focusHandledRef.current = focusExpenseId;
-    onFocusHandled?.();
-  }, [focusExpenseId, allExpenses, focusExpense, onPressExpense, onFocusHandled]);
+  useFocusExpense({
+    focusExpenseId,
+    allExpenses,
+    focusExpense,
+    onPressExpense,
+    onFocusHandled,
+  });
 
   return (
     <>
