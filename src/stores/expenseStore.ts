@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 import {
   createSplits as dbCreateSplits,
@@ -6,8 +6,8 @@ import {
   getSplitsForTrip,
   updateSplits as dbUpdateSplits,
   type CreateSplitInput,
-} from '@/db/queries/expenseSplits';
-import { deletePhoto as dbDeletePhoto } from '@/db/queries/expensePhotos';
+} from "@/db/queries/expenseSplits";
+import { deletePhoto as dbDeletePhoto } from "@/db/queries/expensePhotos";
 import {
   createExpense as dbCreate,
   listExpensesForTrip,
@@ -15,8 +15,12 @@ import {
   updateExpense as dbUpdate,
   type CreateExpenseInput,
   type UpdateExpenseInput,
-} from '@/db/queries/expenses';
-import type { ExpensePhoto, ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
+} from "@/db/queries/expenses";
+import type {
+  ExpensePhoto,
+  ExpenseSplit,
+  ExpenseWithPhotos,
+} from "@/types/expense";
 
 interface UserShare {
   amount: number;
@@ -28,6 +32,8 @@ interface ExpenseState {
   activeTripId: string | null;
   expenses: ExpenseWithPhotos[];
   splits: ExpenseSplit[];
+  expensesById: Map<string, ExpenseWithPhotos>;
+  splitsByExpenseUser: Map<string, ExpenseSplit>;
   isLoading: boolean;
   error: string | null;
   loadForTrip: (tripId: string) => Promise<void>;
@@ -42,14 +48,33 @@ interface ExpenseState {
   ) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   deletePhoto: (photo: ExpensePhoto) => Promise<void>;
-  getUserShareForExpense: (expenseId: string, userId: string | null) => UserShare;
+  getUserShareForExpense: (
+    expenseId: string,
+    userId: string | null,
+  ) => UserShare;
   clear: () => void;
+}
+
+function buildMaps(expenses: ExpenseWithPhotos[], splits: ExpenseSplit[]) {
+  const expensesById = new Map<string, ExpenseWithPhotos>();
+  for (const e of expenses) {
+    expensesById.set(e.id, e);
+  }
+  const splitsByExpenseUser = new Map<string, ExpenseSplit>();
+  for (const s of splits) {
+    if (s.deletedAt === null) {
+      splitsByExpenseUser.set(`${s.expenseId}_${s.userId}`, s);
+    }
+  }
+  return { expensesById, splitsByExpenseUser };
 }
 
 function sortExpenses(expenses: ExpenseWithPhotos[]): ExpenseWithPhotos[] {
   return [...expenses].sort((a, b) => {
-    if (a.expenseDate !== b.expenseDate) return a.expenseDate < b.expenseDate ? 1 : -1;
-    if (a.expenseTime !== b.expenseTime) return a.expenseTime < b.expenseTime ? 1 : -1;
+    if (a.expenseDate !== b.expenseDate)
+      return a.expenseDate < b.expenseDate ? 1 : -1;
+    if (a.expenseTime !== b.expenseTime)
+      return a.expenseTime < b.expenseTime ? 1 : -1;
     return a.createdAt < b.createdAt ? 1 : -1;
   });
 }
@@ -58,6 +83,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   activeTripId: null,
   expenses: [],
   splits: [],
+  expensesById: new Map(),
+  splitsByExpenseUser: new Map(),
   isLoading: false,
   error: null,
 
@@ -69,10 +96,15 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         getSplitsForTrip(tripId),
       ]);
       if (get().activeTripId !== tripId) return;
-      set({ expenses, splits, isLoading: false });
+      set({
+        expenses,
+        splits,
+        ...buildMaps(expenses, splits),
+        isLoading: false,
+      });
     } catch (error) {
-      console.warn('Failed to load expenses:', error);
-      set({ error: 'Could not load expenses', isLoading: false });
+      console.warn("Failed to load expenses:", error);
+      set({ error: "Could not load expenses", isLoading: false });
     }
   },
 
@@ -84,10 +116,10 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         listExpensesForTrip(tripId),
         getSplitsForTrip(tripId),
       ]);
-      set({ expenses, splits, error: null });
+      set({ expenses, splits, ...buildMaps(expenses, splits), error: null });
     } catch (error) {
-      console.warn('Failed to refresh expenses:', error);
-      set({ error: 'Could not load expenses' });
+      console.warn("Failed to refresh expenses:", error);
+      set({ error: "Could not load expenses" });
     }
   },
 
@@ -101,9 +133,16 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       if (state.activeTripId !== input.tripId) return state;
       const nextExpense: ExpenseWithPhotos =
         createdSplits.length > 0 ? { ...expense, isSplit: true } : expense;
-      return {
+      const newState = {
         expenses: sortExpenses([nextExpense, ...state.expenses]),
-        splits: createdSplits.length > 0 ? [...state.splits, ...createdSplits] : state.splits,
+        splits:
+          createdSplits.length > 0
+            ? [...state.splits, ...createdSplits]
+            : state.splits,
+      };
+      return {
+        ...newState,
+        ...buildMaps(newState.expenses, newState.splits),
       };
     });
     return expense;
@@ -131,40 +170,55 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       const nextExpense: ExpenseWithPhotos = {
         ...updated,
         isSplit: nextSplits === null ? updated.isSplit : nextSplits.length > 0,
-        photos:
-          state.expenses.find((e) => e.id === updated.id)?.photos ?? [],
+        photos: state.expenses.find((e) => e.id === updated.id)?.photos ?? [],
       };
-      return {
+      const newState = {
         expenses: sortExpenses(
           state.expenses.map((e) => (e.id === updated.id ? nextExpense : e)),
         ),
         splits: updatedSplits,
+      };
+      return {
+        ...newState,
+        ...buildMaps(newState.expenses, newState.splits),
       };
     });
   },
 
   deleteExpense: async (id) => {
     await dbSoftDelete(id);
-    set((state) => ({
-      expenses: state.expenses.filter((e) => e.id !== id),
-      splits: state.splits.filter((s) => s.expenseId !== id),
-    }));
+    set((state) => {
+      const newState = {
+        expenses: state.expenses.filter((e) => e.id !== id),
+        splits: state.splits.filter((s) => s.expenseId !== id),
+      };
+      return {
+        ...newState,
+        ...buildMaps(newState.expenses, newState.splits),
+      };
+    });
   },
 
   deletePhoto: async (photo) => {
     await dbDeletePhoto(photo);
-    set((state) => ({
-      expenses: state.expenses.map((e) =>
-        e.id === photo.expenseId
-          ? { ...e, photos: e.photos.filter((p) => p.id !== photo.id) }
-          : e,
-      ),
-    }));
+    set((state) => {
+      const newState = {
+        expenses: state.expenses.map((e) =>
+          e.id === photo.expenseId
+            ? { ...e, photos: e.photos.filter((p) => p.id !== photo.id) }
+            : e,
+        ),
+      };
+      return {
+        ...newState,
+        ...buildMaps(newState.expenses, state.splits),
+      };
+    });
   },
 
   getUserShareForExpense: (expenseId, userId) => {
     const state = get();
-    const expense = state.expenses.find((e) => e.id === expenseId);
+    const expense = state.expensesById.get(expenseId);
     if (!expense) {
       return { amount: 0, convertedAmount: 0, isParticipant: false };
     }
@@ -182,9 +236,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         isParticipant: false,
       };
     }
-    const userSplit = state.splits.find(
-      (s) => s.expenseId === expenseId && s.userId === userId && s.deletedAt === null,
-    );
+    const userSplit = state.splitsByExpenseUser.get(`${expenseId}_${userId}`);
     if (!userSplit) {
       // Split expense the user isn't part of — show full amount, mark non-participant.
       return {
@@ -201,5 +253,13 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     };
   },
 
-  clear: () => set({ activeTripId: null, expenses: [], splits: [], error: null }),
+  clear: () =>
+    set({
+      activeTripId: null,
+      expenses: [],
+      splits: [],
+      expensesById: new Map(),
+      splitsByExpenseUser: new Map(),
+      error: null,
+    }),
 }));
