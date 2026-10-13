@@ -1,13 +1,17 @@
-import type { ExpenseSplit, ExpenseWithPhotos, PaymentMethod } from '@/types/expense';
-import type { SettlementPayment } from '@/types/settlement';
-import type { Trip } from '@/types/trip';
-import { computeBalance } from '@/utils/balance';
-import { roundAmount } from '@/utils/currency';
-import { isValidIsoDate } from '@/utils/date';
-import { expandExpense } from '@/utils/expenseGrouping';
-import { userShareConverted } from '@/utils/share';
+import type {
+  ExpenseSplit,
+  ExpenseWithPhotos,
+  PaymentMethod,
+} from "@/types/expense";
+import type { SettlementPayment } from "@/types/settlement";
+import type { Trip } from "@/types/trip";
+import { computeBalance } from "@/utils/balance";
+import { roundAmount } from "@/utils/currency";
+import { isValidIsoDate } from "@/utils/date";
+import { expandExpense } from "@/utils/expenseGrouping";
+import { userShareConverted } from "@/utils/share";
 
-export type PaymentMethodBucket = 'cash' | 'credit' | 'debit' | 'other';
+export type PaymentMethodBucket = "cash" | "credit" | "debit" | "other";
 
 export interface CategoryTotal {
   categoryId: string;
@@ -66,15 +70,15 @@ export interface TripStats {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function isoToUtc(iso: string): number {
-  const [y, m, d] = iso.split('-').map(Number);
+  const [y, m, d] = iso.split("-").map(Number);
   return Date.UTC(y, m - 1, d);
 }
 
 function addDaysIso(iso: string, n: number): string {
   const next = new Date(isoToUtc(iso) + n * MS_PER_DAY);
   const yy = next.getUTCFullYear();
-  const mm = String(next.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(next.getUTCDate()).padStart(2, '0');
+  const mm = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(next.getUTCDate()).padStart(2, "0");
   return `${yy}-${mm}-${dd}`;
 }
 
@@ -88,10 +92,13 @@ function clampIso(iso: string, min: string, max: string): string {
   return iso;
 }
 
-function toPaymentBucket(method: PaymentMethod | null): PaymentMethodBucket | null {
+function toPaymentBucket(
+  method: PaymentMethod | null,
+): PaymentMethodBucket | null {
   if (method === null) return null;
-  if (method === 'cash' || method === 'credit' || method === 'debit') return method;
-  return 'other';
+  if (method === "cash" || method === "credit" || method === "debit")
+    return method;
+  return "other";
 }
 
 export interface AggregateInput {
@@ -172,7 +179,9 @@ export function aggregate({
   // belong to totalSpent but don't render on the chart.
   const axisTo = clampIso(today, windowFrom, windowTo);
   const windowed = isPeriodMode
-    ? active.filter((e) => e.expenseDate >= windowFrom && e.expenseDate <= windowTo)
+    ? active.filter(
+        (e) => e.expenseDate >= windowFrom && e.expenseDate <= windowTo,
+      )
     : active;
 
   // ----- Totals -----
@@ -193,12 +202,15 @@ export function aggregate({
   // Spread expenses: the share is the caller's full-expense share divided
   // evenly across the spread's day count, mirroring how expandExpense
   // splits the per-day converted amount.
-  const dailyContributing = windowed.filter((e) => !e.isExcludedFromDailyMetrics);
+  const dailyContributing = windowed.filter(
+    (e) => !e.isExcludedFromDailyMetrics,
+  );
   const byDayMap = new Map<string, number>();
   for (const e of dailyContributing) {
     const fullShare = shareOf(e);
     const slices = expandExpense(e);
-    const perSliceShare = slices.length > 0 ? fullShare / slices.length : fullShare;
+    const perSliceShare =
+      slices.length > 0 ? fullShare / slices.length : fullShare;
     for (const slice of slices) {
       const key = slice.displayExpense.expenseDate;
       // Chart only collects slices that fall within [windowFrom, axisTo]
@@ -212,9 +224,10 @@ export function aggregate({
   // daysElapsed counts days that have happened in the window (start to
   // axisTo). Drives dailyAverage. A future-only window collapses to one
   // day so the divisor stays sane.
-  const daysElapsed = isValidIsoDate(windowFrom) && isValidIsoDate(axisTo)
-    ? Math.max(1, inclusiveDayCount(windowFrom, axisTo))
-    : 1;
+  const daysElapsed =
+    isValidIsoDate(windowFrom) && isValidIsoDate(axisTo)
+      ? Math.max(1, inclusiveDayCount(windowFrom, axisTo))
+      : 1;
 
   const byDay: DailyTotal[] = [];
   if (isValidIsoDate(windowFrom) && isValidIsoDate(axisTo)) {
@@ -269,14 +282,18 @@ export function aggregate({
     (acc, v) => acc + Math.abs(v),
     0,
   );
-  const byCategory: CategoryTotal[] = Array.from(categoryMap.entries())
-    .filter(([, total]) => total !== 0)
-    .map(([categoryId, total]) => ({
-      categoryId,
-      total: roundAmount(total),
-      percent: categoryAbsSum === 0 ? 0 : (Math.abs(total) / categoryAbsSum) * 100,
-    }))
-    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+  const byCategory: CategoryTotal[] = [];
+  for (const [categoryId, total] of categoryMap) {
+    if (total !== 0) {
+      byCategory.push({
+        categoryId,
+        total: roundAmount(total),
+        percent:
+          categoryAbsSum === 0 ? 0 : (Math.abs(total) / categoryAbsSum) * 100,
+      });
+    }
+  }
+  byCategory.sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 
   // ----- By payment method (caller's share, attributed to the actual method
   // used at purchase time even when the caller is just a participant) -----
@@ -292,20 +309,27 @@ export function aggregate({
     (acc, v) => acc + Math.abs(v),
     0,
   );
-  const byPaymentMethod: PaymentTotal[] = Array.from(paymentMap.entries())
-    .map(([method, total]) => ({
+  const byPaymentMethod: PaymentTotal[] = [];
+  for (const [method, total] of paymentMap) {
+    byPaymentMethod.push({
       method,
       total: roundAmount(total),
-      percent: paymentAbsSum === 0 ? 0 : (Math.abs(total) / paymentAbsSum) * 100,
-    }))
-    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+      percent:
+        paymentAbsSum === 0 ? 0 : (Math.abs(total) / paymentAbsSum) * 100,
+    });
+  }
+  byPaymentMethod.sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
 
   // ----- By member + settlement (split-aware) -----
   // Each member's share = sum of their split rows + sum of non-split expenses
   // they paid for. Settlement is netted pairwise across split debts and
   // reduced by any recorded settlement payments.
   // Private expenses are excluded (the logger's own cost).
-  const balance = computeBalance({ expenses: active, splits, settlementPayments });
+  const balance = computeBalance({
+    expenses: active,
+    splits,
+    settlementPayments,
+  });
   const byMember: MemberTotal[] = balance.byMember.map((m) => ({
     userId: m.userId,
     total: m.total,
@@ -320,7 +344,9 @@ export function aggregate({
     .filter((e) => !e.isRefund)
     .map((e) => ({ expense: e, userShareConverted: shareOf(e) }))
     .filter((t) => Math.abs(t.userShareConverted) >= 0.01)
-    .sort((a, b) => Math.abs(b.userShareConverted) - Math.abs(a.userShareConverted))
+    .sort(
+      (a, b) => Math.abs(b.userShareConverted) - Math.abs(a.userShareConverted),
+    )
     .slice(0, 5);
 
   return {
