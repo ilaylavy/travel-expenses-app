@@ -139,11 +139,15 @@ export function selectMySharedExpenses(
     let otherNonPayers: { userId: string; shareConverted: number }[] = [];
     if (userIsPayer) {
       otherNonPayers = expenseSplits
-        .filter((s) => !s.isPayer && s.userId !== currentUserId)
-        .map((s) => ({
-          userId: s.userId,
-          shareConverted: shareInHome(e.amount, e.convertedAmount, s.amount),
-        }))
+        .reduce<{ userId: string; shareConverted: number }[]>((acc, s) => {
+          if (!s.isPayer && s.userId !== currentUserId) {
+            acc.push({
+              userId: s.userId,
+              shareConverted: shareInHome(e.amount, e.convertedAmount, s.amount),
+            });
+          }
+          return acc;
+        }, [])
         .sort((a, b) => {
           if (b.shareConverted !== a.shareConverted) {
             return b.shareConverted - a.shareConverted;
