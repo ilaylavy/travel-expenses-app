@@ -4,7 +4,6 @@ import type { PairwiseSettlement } from '@/utils/balance';
 import {
   selectMySharedExpenses,
   selectOutstandingForUser,
-  type SharedExpenseRow,
 } from './balanceDisplay';
 
 function expense(overrides: Partial<ExpenseWithPhotos>): ExpenseWithPhotos {
