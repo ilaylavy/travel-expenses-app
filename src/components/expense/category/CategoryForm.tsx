@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { borderWidth, sizing, spacing, typography } from '@/constants/theme';
+import { type ThemeColors, borderWidth, sizing, spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { CATEGORY_COLOR_TOKENS, getCategoryColor, type CategoryColorToken } from '@/utils/category';
@@ -26,6 +26,55 @@ interface CategoryFormProps {
   submittingLabel: string;
   onSubmit: (values: CategoryFormValues) => Promise<void>;
   footer?: React.ReactNode;
+}
+
+interface EmojiChipProps {
+  emoji: string;
+  selected: boolean;
+  onPress: () => void;
+  theme: ThemeColors;
+}
+
+interface ColorDotProps {
+  token: CategoryColorToken;
+  selected: boolean;
+  resolvedColor: string;
+  onPress: () => void;
+  theme: ThemeColors;
+}
+
+function EmojiChip({ emoji, selected, onPress, theme }: EmojiChipProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.emojiChip,
+        {
+          backgroundColor: selected ? theme.accentSoft : theme.surface,
+          borderColor: selected ? theme.accent : theme.border,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+        },
+      ]}
+    >
+      <Text style={styles.emojiText}>{emoji}</Text>
+    </Pressable>
+  );
+}
+
+function ColorDot({ token, selected, resolvedColor, onPress, theme }: ColorDotProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.colorDot,
+        {
+          backgroundColor: resolvedColor,
+          borderColor: selected ? theme.text : 'transparent',
+          transform: [{ scale: pressed ? 0.9 : 1 }],
+        },
+      ]}
+    />
+  );
 }
 
 export function CategoryForm({
@@ -75,49 +124,31 @@ export function CategoryForm({
       <View style={styles.field}>
         <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.emoji')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-          {CATEGORY_EMOJI_OPTIONS.map((e) => {
-            const selected = e === emoji;
-            return (
-              <Pressable
-                key={e}
-                onPress={() => setEmoji(e)}
-                style={({ pressed }) => [
-                  styles.emojiChip,
-                  {
-                    backgroundColor: selected ? theme.accentSoft : theme.surface,
-                    borderColor: selected ? theme.accent : theme.border,
-                    transform: [{ scale: pressed ? 0.94 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.emojiText}>{e}</Text>
-              </Pressable>
-            );
-          })}
+          {CATEGORY_EMOJI_OPTIONS.map((e) => (
+            <EmojiChip
+              key={e}
+              emoji={e}
+              selected={e === emoji}
+              onPress={() => setEmoji(e)}
+              theme={theme}
+            />
+          ))}
         </ScrollView>
       </View>
 
       <View style={styles.field}>
         <Text style={[styles.label, { color: theme.textSecondary }]}>{t('categoryForm.color')}</Text>
         <View style={styles.row}>
-          {CATEGORY_COLOR_TOKENS.map((token) => {
-            const selected = token === color;
-            const resolved = getCategoryColor(token, theme);
-            return (
-              <Pressable
-                key={token}
-                onPress={() => setColor(token)}
-                style={({ pressed }) => [
-                  styles.colorDot,
-                  {
-                    backgroundColor: resolved,
-                    borderColor: selected ? theme.text : 'transparent',
-                    transform: [{ scale: pressed ? 0.9 : 1 }],
-                  },
-                ]}
-              />
-            );
-          })}
+          {CATEGORY_COLOR_TOKENS.map((token) => (
+            <ColorDot
+              key={token}
+              token={token}
+              selected={token === color}
+              resolvedColor={getCategoryColor(token, theme)}
+              onPress={() => setColor(token)}
+              theme={theme}
+            />
+          ))}
         </View>
       </View>
 
