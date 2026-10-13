@@ -171,9 +171,14 @@ async function reconcileExpensesForTrip(
         console.warn(`reconcile: fetch granted chunk failed for ${tripId}`, error.message);
         continue;
       }
-      for (const row of (data ?? []) as Record<string, unknown>[]) {
-        const changed = await applyRemote(db, 'expenses', row);
-        if (changed) granted += 1;
+      const rows = (data ?? []) as Record<string, unknown>[];
+      if (rows.length > 0) {
+        await db.withTransactionAsync(async () => {
+          for (const row of rows) {
+            const changed = await applyRemote(db, 'expenses', row);
+            if (changed) granted += 1;
+          }
+        });
       }
     }
   }
