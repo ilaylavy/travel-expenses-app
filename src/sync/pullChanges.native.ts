@@ -77,7 +77,7 @@ async function pullTable(
         // errors (network, real bugs) still propagate.
         if (!msg.toLowerCase().includes('constraint')) throw err;
         const refs: Record<string, unknown> = {};
-        for (const k of Object.keys(row)) {
+        for (const k in row) {
           if (k === 'id' || k.endsWith('_id')) refs[k] = row[k];
         }
         console.warn(`sync: skipped orphan ${table} row`, refs, '—', msg);
