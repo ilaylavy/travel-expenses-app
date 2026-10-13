@@ -109,11 +109,20 @@ export function selectMySharedExpenses(
 ): SharedExpenseRow[] {
   // Index splits by expense id, dropping soft-deleted rows up front.
   const splitsByExpense = new Map<string, ExpenseSplit[]>();
+  const payerByExpense = new Map<string, string>();
   for (const s of splits) {
     if (s.deletedAt !== null) continue;
-    const list = splitsByExpense.get(s.expenseId) ?? [];
+
+    let list = splitsByExpense.get(s.expenseId);
+    if (!list) {
+      list = [];
+      splitsByExpense.set(s.expenseId, list);
+    }
     list.push(s);
-    splitsByExpense.set(s.expenseId, list);
+
+    if (s.isPayer) {
+      payerByExpense.set(s.expenseId, s.userId);
+    }
   }
 
   const rows: SharedExpenseRow[] = [];
@@ -130,8 +139,7 @@ export function selectMySharedExpenses(
 
     // Resolve the payer: prefer the is_payer split (server-side truth);
     // fall back to expense.userId if no is_payer flag is set anywhere.
-    const payerSplit = expenseSplits.find((s) => s.isPayer);
-    const payerUserId = payerSplit?.userId ?? e.userId;
+    const payerUserId = payerByExpense.get(e.id) ?? e.userId;
     const userIsPayer = payerUserId === currentUserId;
 
     const userShareConverted = shareInHome(e.amount, e.convertedAmount, mySplit.amount);
