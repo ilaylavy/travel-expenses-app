@@ -27,13 +27,30 @@ import type { MapHandle, TripMapHandle } from '@/components/map/types';
 import { spacing, typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useExpenseClustering } from '@/hooks/useExpenseClustering';
+import { useExpenseFocus } from '@/hooks/useExpenseFocus';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
+import type { MapItem } from '@/utils/mapCluster';
 
 const API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_WEB ??
   process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ??
   '';
+
+function getBoundsForCoordinates(coords: { latitude: number; longitude: number }[]) {
+  let north = coords[0].latitude;
+  let south = north;
+  let east = coords[0].longitude;
+  let west = east;
+  for (let i = 1; i < coords.length; i += 1) {
+    const { latitude, longitude } = coords[i];
+    if (latitude > north) north = latitude;
+    if (latitude < south) south = latitude;
+    if (longitude > east) east = longitude;
+    if (longitude < west) west = longitude;
+  }
+  return { north, south, east, west };
+}
 
 // Builds a small data:image/svg+xml URL for a colored pin. Legacy <Marker>
 // accepts an icon URL; SVG inline keeps it sharp at any zoom level.
@@ -130,18 +147,8 @@ function MapInner({
       },
       fitToCoordinates: (coords) => {
         if (coords.length === 0) return;
-        let north = coords[0].latitude;
-        let south = north;
-        let east = coords[0].longitude;
-        let west = east;
-        for (let i = 1; i < coords.length; i += 1) {
-          const { latitude, longitude } = coords[i];
-          if (latitude > north) north = latitude;
-          if (latitude < south) south = latitude;
-          if (longitude > east) east = longitude;
-          if (longitude < west) west = longitude;
-        }
-        map.fitBounds({ north, south, east, west }, 64);
+        const bounds = getBoundsForCoordinates(coords);
+        map.fitBounds(bounds, 64);
       },
     };
   }, [map]);
@@ -197,24 +204,37 @@ function MapInner({
     };
   }, [map, setRegion]);
 
-  // Focus URL handling — same flow as TripMap.native.tsx.
-  const focusHandledRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!focusExpenseId) return;
-    if (focusHandledRef.current === focusExpenseId) return;
-    const target = allExpenses.find((e) => e.id === focusExpenseId);
-    if (!target) return;
-    if (target.latitude == null || target.longitude == null) {
-      focusHandledRef.current = focusExpenseId;
-      onFocusHandled?.();
-      return;
-    }
-    focusExpense(target);
-    onPressExpense(target);
-    focusHandledRef.current = focusExpenseId;
-    onFocusHandled?.();
-  }, [focusExpenseId, allExpenses, focusExpense, onPressExpense, onFocusHandled]);
+  useExpenseFocus({
+    focusExpenseId,
+    allExpenses,
+    focusExpense,
+    onPressExpense,
+    onFocusHandled,
+  });
 
+  return (
+    <MapMarkers
+      items={items}
+      categoryById={categoryById}
+      onPressExpense={onPressExpense}
+      zoomIntoCluster={zoomIntoCluster}
+    />
+  );
+}
+
+interface MapMarkersProps {
+  items: MapItem[];
+  categoryById: Map<string, Category>;
+  onPressExpense: (expense: ExpenseWithPhotos) => void;
+  zoomIntoCluster: (expenses: ExpenseWithPhotos[]) => void;
+}
+
+function MapMarkers({
+  items,
+  categoryById,
+  onPressExpense,
+  zoomIntoCluster,
+}: MapMarkersProps) {
   return (
     <>
       {items.map((item) => {
