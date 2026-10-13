@@ -572,13 +572,15 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
     if (total <= 0) return;
     const remainder = roundAmount(total - customAssigned);
     if (remainder <= 0) return;
-    const zeroIds = tripMembers
-      .map((m) => m.userId)
-      .filter((id) => {
-        const raw = customAmounts[id] ?? '';
-        const n = Number(raw);
-        return !Number.isFinite(n) || n === 0;
-      });
+    const zeroIds: string[] = [];
+    for (const m of tripMembers) {
+      const id = m.userId;
+      const raw = customAmounts[id] ?? '';
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n === 0) {
+        zeroIds.push(id);
+      }
+    }
     if (zeroIds.length === 0) return;
     const per = Math.floor((remainder / zeroIds.length) * 100) / 100;
     const next: Record<string, string> = { ...customAmounts };
@@ -774,7 +776,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
           );
 
         for (const p of existingAttributed) {
-          // eslint-disable-next-line no-await-in-loop
+
           await deleteSettlement(p.id);
         }
 
@@ -784,7 +786,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
             for (const split of splitsForExpense) {
               if (split.isPayer) continue;
               if (Math.abs(split.amount) < 0.0001) continue;
-              // eslint-disable-next-line no-await-in-loop
+
               await createSettlement({
                 tripId,
                 fromUserId: split.userId,
