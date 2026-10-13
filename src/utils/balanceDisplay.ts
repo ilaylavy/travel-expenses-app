@@ -1,6 +1,6 @@
-import type { ExpenseSplit, ExpenseWithPhotos } from '@/types/expense';
-import type { PairwiseSettlement } from '@/utils/balance';
-import { roundAmount } from '@/utils/currency';
+import type { ExpenseSplit, ExpenseWithPhotos } from "@/types/expense";
+import type { PairwiseSettlement } from "@/utils/balance";
+import { roundAmount } from "@/utils/currency";
 
 export interface OutstandingSummary {
   // Debts where the current user is the debtor (fromUserId === currentUserId).
@@ -32,7 +32,7 @@ export interface BalanceCardSummary {
   // Top obligation involving the current user. Null when fully settled.
   top: {
     otherUserId: string;
-    direction: 'owesYou' | 'youOwe';
+    direction: "owesYou" | "youOwe";
     amount: number;
   } | null;
   // Other obligations beyond the top one — used for "+N more" copy.
@@ -64,8 +64,9 @@ export function selectBalanceCardSummary(
   return {
     net: roundAmount(net),
     top: {
-      otherUserId: top.toUserId === currentUserId ? top.fromUserId : top.toUserId,
-      direction: top.toUserId === currentUserId ? 'owesYou' : 'youOwe',
+      otherUserId:
+        top.toUserId === currentUserId ? top.fromUserId : top.toUserId,
+      direction: top.toUserId === currentUserId ? "owesYou" : "youOwe",
       amount: top.amount,
     },
     extraCount: sorted.length - 1,
@@ -109,11 +110,26 @@ export function selectMySharedExpenses(
 ): SharedExpenseRow[] {
   // Index splits by expense id, dropping soft-deleted rows up front.
   const splitsByExpense = new Map<string, ExpenseSplit[]>();
+  const payerSplitByExpense = new Map<string, ExpenseSplit>();
+  const mySplitByExpense = new Map<string, ExpenseSplit>();
+
   for (const s of splits) {
     if (s.deletedAt !== null) continue;
-    const list = splitsByExpense.get(s.expenseId) ?? [];
+
+    let list = splitsByExpense.get(s.expenseId);
+    if (!list) {
+      list = [];
+      splitsByExpense.set(s.expenseId, list);
+    }
     list.push(s);
-    splitsByExpense.set(s.expenseId, list);
+
+    if (s.isPayer && !payerSplitByExpense.has(s.expenseId)) {
+      payerSplitByExpense.set(s.expenseId, s);
+    }
+
+    if (s.userId === currentUserId && !mySplitByExpense.has(s.expenseId)) {
+      mySplitByExpense.set(s.expenseId, s);
+    }
   }
 
   const rows: SharedExpenseRow[] = [];
@@ -125,16 +141,20 @@ export function selectMySharedExpenses(
     if (expenseSplits.length === 0) continue;
 
     // Find the current user's split. If absent, they don't participate.
-    const mySplit = expenseSplits.find((s) => s.userId === currentUserId);
+    const mySplit = mySplitByExpense.get(e.id);
     if (!mySplit) continue;
 
     // Resolve the payer: prefer the is_payer split (server-side truth);
     // fall back to expense.userId if no is_payer flag is set anywhere.
-    const payerSplit = expenseSplits.find((s) => s.isPayer);
+    const payerSplit = payerSplitByExpense.get(e.id);
     const payerUserId = payerSplit?.userId ?? e.userId;
     const userIsPayer = payerUserId === currentUserId;
 
-    const userShareConverted = shareInHome(e.amount, e.convertedAmount, mySplit.amount);
+    const userShareConverted = shareInHome(
+      e.amount,
+      e.convertedAmount,
+      mySplit.amount,
+    );
 
     let otherNonPayers: { userId: string; shareConverted: number }[] = [];
     if (userIsPayer) {
