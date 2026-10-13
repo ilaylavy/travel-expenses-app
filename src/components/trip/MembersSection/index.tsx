@@ -44,6 +44,19 @@ export function MembersSection({
     void reload();
   }, [reload]);
 
+  const performRemove = async (m: MemberWithName) => {
+    try {
+      await dbRemoveMember(m.id);
+      void syncEngine.triggerSync();
+      await reload();
+    } catch (e) {
+      Alert.alert(
+        t('tripSettings.members.removeFailedTitle'),
+        e instanceof Error ? e.message : t('tripSettings.unknownError'),
+      );
+    }
+  };
+
   const handleRemove = (m: MemberWithName): void => {
     showConfirmDialog({
       title: t('tripSettings.members.removeConfirmTitle'),
@@ -51,19 +64,22 @@ export function MembersSection({
       confirmLabel: t('common.delete'),
       cancelLabel: t('common.cancel'),
       destructive: true,
-      onConfirm: async () => {
-        try {
-          await dbRemoveMember(m.id);
-          void syncEngine.triggerSync();
-          await reload();
-        } catch (e) {
-          Alert.alert(
-            t('tripSettings.members.removeFailedTitle'),
-            e instanceof Error ? e.message : t('tripSettings.unknownError'),
-          );
-        }
-      },
+      onConfirm: () => performRemove(m),
     });
+  };
+
+  const performLeave = async () => {
+    if (!currentUserId) return;
+    try {
+      await dbLeaveTrip(tripId, currentUserId);
+      void syncEngine.triggerSync();
+      await reload();
+    } catch (e) {
+      Alert.alert(
+        t('tripSettings.members.leaveFailedTitle'),
+        e instanceof Error ? e.message : t('tripSettings.unknownError'),
+      );
+    }
   };
 
   const handleLeave = (): void => {
@@ -74,18 +90,7 @@ export function MembersSection({
       confirmLabel: t('tripSettings.members.leaveTrip'),
       cancelLabel: t('common.cancel'),
       destructive: true,
-      onConfirm: async () => {
-        try {
-          await dbLeaveTrip(tripId, currentUserId);
-          void syncEngine.triggerSync();
-          await reload();
-        } catch (e) {
-          Alert.alert(
-            t('tripSettings.members.leaveFailedTitle'),
-            e instanceof Error ? e.message : t('tripSettings.unknownError'),
-          );
-        }
-      },
+      onConfirm: performLeave,
     });
   };
 
