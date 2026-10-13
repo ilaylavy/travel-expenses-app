@@ -228,15 +228,11 @@ export async function deleteSplits(expenseId: string): Promise<void> {
   const now = new Date().toISOString();
 
   await db.withTransactionAsync(async () => {
-    const existing = await db.getAllAsync<{ id: string }>(
-      'SELECT id FROM expense_splits WHERE expense_id = ? AND deleted_at IS NULL;',
-      [expenseId],
+    const updated = await db.getAllAsync<{ id: string }>(
+      'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE expense_id = ? AND deleted_at IS NULL RETURNING id;',
+      [now, now, expenseId],
     );
-    for (const row of existing) {
-      await db.runAsync(
-        'UPDATE expense_splits SET deleted_at = ?, updated_at = ? WHERE id = ?;',
-        [now, now, row.id],
-      );
+    for (const row of updated) {
       await enqueueSync(db, 'expense_splits', row.id, 'delete', {
         id: row.id,
         deleted_at: now,
