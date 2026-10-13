@@ -11,8 +11,7 @@ describe('diffExpenseIds', () => {
   });
 
   it('flags local-only IDs as revoked', () => {
-    // The reported bug: B has a row locally that the server (post-flip) no
-    // longer returns. Reconciliation must surface it for soft-deletion.
+    // Test that when a user has a row locally that the server (post-flip) no longer returns, reconciliation surfaces it for soft-deletion.
     const result = diffExpenseIds(
       ['a', 'b', 'stale'],
       new Set(['a', 'b']),
