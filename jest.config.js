@@ -5,7 +5,11 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/*.test.ts'],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@/(.*)$': [
+      '<rootDir>/src/$1.native',
+      '<rootDir>/src/$1.web',
+      '<rootDir>/src/$1'
+    ],
   },
   transform: {
     '^.+\\.tsx?$': [
