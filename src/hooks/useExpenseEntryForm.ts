@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard } from 'react-native';
 
 import { evaluate } from '@/components/expense/numpad/calculator';
-import { CURRENCIES, currencyForCountryCode } from '@/constants/currencies';
+import { CURRENCIES, CURRENCIES_BY_CODE, currencyForCountryCode } from '@/constants/currencies';
 import {
   categoryUsageForTrip,
   getRecentNotes,
@@ -422,7 +422,7 @@ export function useExpenseEntryForm(opts: UseExpenseEntryFormOptions) {
       codes.push(currency);
     }
     return codes
-      .map((code) => CURRENCIES.find((c) => c.code === code))
+      .map((code) => CURRENCIES_BY_CODE[code])
       .filter((c): c is (typeof CURRENCIES)[number] => Boolean(c));
   }, [favoriteCurrencies, currency]);
 

@@ -1,7 +1,7 @@
-import { CURRENCIES } from '@/constants/currencies';
+import { CURRENCIES_BY_CODE } from '@/constants/currencies';
 
 export function getCurrencySymbol(code: string): string {
-  return CURRENCIES.find((c) => c.code === code)?.symbol ?? code;
+  return CURRENCIES_BY_CODE[code]?.symbol ?? code;
 }
 
 // Currencies that conventionally display without a fractional part.

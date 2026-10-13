@@ -164,6 +164,14 @@ export const CURRENCIES: readonly Currency[] = [
   { code: 'ZMW', symbol: 'ZK', name: 'Zambian Kwacha' },
 ] as const;
 
+export const CURRENCIES_BY_CODE: Readonly<Record<string, Currency>> = CURRENCIES.reduce(
+  (acc, c) => {
+    acc[c.code] = c;
+    return acc;
+  },
+  {} as Record<string, Currency>,
+);
+
 // Popular currencies shown as the default horizontal chip strip on the
 // expense entry screen. Full list available via the "More…" modal.
 export const POPULAR_CURRENCIES: readonly string[] = [
