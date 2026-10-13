@@ -65,16 +65,20 @@ function isoFromOffset(base: string, dayOffset: number): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+function getWeekendStartOffset(dow: number): number {
+  if (dow === 5) return 0;
+  if (dow === 6) return -1;
+  if (dow === 0) return -2;
+  return 5 - dow;
+}
+
 // "This weekend" → next Friday + Sunday (3-day weekend). If today is
 // Fri/Sat/Sun, use the current weekend.
 function thisWeekendRange(today: string): { start: string; end: string } {
   const [y, m, d] = today.split('-').map(Number);
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
   // Friday is 5. If today >= Fri or Sun (=0), start on the most recent Friday.
-  let startOffset: number;
-  if (dow === 5 || dow === 6) startOffset = dow === 5 ? 0 : -1;
-  else if (dow === 0) startOffset = -2;
-  else startOffset = 5 - dow;
+  const startOffset = getWeekendStartOffset(dow);
   return {
     start: isoFromOffset(today, startOffset),
     end: isoFromOffset(today, startOffset + 2),
