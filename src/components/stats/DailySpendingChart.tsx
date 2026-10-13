@@ -20,6 +20,97 @@ interface Props {
 const CHART_HEIGHT = 180;
 const MIN_BAR_HEIGHT = 2;
 
+interface ChartBarProps {
+  d: DailyTotal;
+  i: number;
+  maxValue: number;
+  selectedDate: string | null;
+  currency: string;
+  showBarLabels: boolean;
+  labelStride: number;
+  onPress: () => void;
+}
+
+function ChartBar({
+  d,
+  i,
+  maxValue,
+  selectedDate,
+  currency,
+  showBarLabels,
+  labelStride,
+  onPress,
+}: ChartBarProps) {
+  const theme = useTheme();
+
+  const pct = Math.abs(d.total) / maxValue;
+  const h = Math.max(MIN_BAR_HEIGHT, Math.round(CHART_HEIGHT * pct));
+  const isNegative = d.total < 0;
+  const isEmpty = d.total === 0;
+  const isSelected = selectedDate === d.date;
+
+  return (
+    <Pressable
+      key={d.date}
+      onPress={onPress}
+      style={styles.barCol}
+      hitSlop={4}
+    >
+      {showBarLabels && !isEmpty ? (
+        <Text
+          style={[styles.barLabel, { color: theme.textMuted }]}
+          numberOfLines={1}
+        >
+          {formatAmount(d.total, currency)}
+        </Text>
+      ) : null}
+      {isEmpty ? (
+        <View
+          style={[
+            styles.bar,
+            {
+              height: MIN_BAR_HEIGHT,
+              backgroundColor: theme.accent,
+              opacity: 0.3,
+            },
+          ]}
+        />
+      ) : isNegative ? (
+        <View
+          style={[
+            styles.bar,
+            {
+              height: h,
+              backgroundColor: theme.green,
+              opacity: selectedDate && !isSelected ? 0.4 : 1,
+            },
+          ]}
+        />
+      ) : (
+        <LinearGradient
+          colors={theme.gradient1}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[
+            styles.bar,
+            {
+              height: h,
+              opacity: selectedDate && !isSelected ? 0.4 : 1,
+            },
+          ]}
+        />
+      )}
+      {i % labelStride === 0 ? (
+        <Text style={[styles.axisLabel, { color: theme.textMuted }]}>
+          {d.date.slice(-2)}
+        </Text>
+      ) : (
+        <Text style={styles.axisLabel}> </Text>
+      )}
+    </Pressable>
+  );
+}
+
 export function DailySpendingChart({ byDay, average, currency }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -46,75 +137,21 @@ export function DailySpendingChart({ byDay, average, currency }: Props) {
           ]}
         />
         <View style={[styles.bars, { height: CHART_HEIGHT }]}>
-          {byDay.map((d, i) => {
-            const pct = Math.abs(d.total) / maxValue;
-            const h = Math.max(MIN_BAR_HEIGHT, Math.round(CHART_HEIGHT * pct));
-            const isNegative = d.total < 0;
-            const isEmpty = d.total === 0;
-            const isSelected = selectedDate === d.date;
-            return (
-              <Pressable
-                key={d.date}
-                onPress={() =>
-                  setSelectedDate((prev) => (prev === d.date ? null : d.date))
-                }
-                style={styles.barCol}
-                hitSlop={4}
-              >
-                {showBarLabels && !isEmpty ? (
-                  <Text
-                    style={[styles.barLabel, { color: theme.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {formatAmount(d.total, currency)}
-                  </Text>
-                ) : null}
-                {isEmpty ? (
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height: MIN_BAR_HEIGHT,
-                        backgroundColor: theme.accent,
-                        opacity: 0.3,
-                      },
-                    ]}
-                  />
-                ) : isNegative ? (
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height: h,
-                        backgroundColor: theme.green,
-                        opacity: selectedDate && !isSelected ? 0.4 : 1,
-                      },
-                    ]}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={theme.gradient1}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={[
-                      styles.bar,
-                      {
-                        height: h,
-                        opacity: selectedDate && !isSelected ? 0.4 : 1,
-                      },
-                    ]}
-                  />
-                )}
-                {i % labelStride === 0 ? (
-                  <Text style={[styles.axisLabel, { color: theme.textMuted }]}>
-                    {d.date.slice(-2)}
-                  </Text>
-                ) : (
-                  <Text style={styles.axisLabel}> </Text>
-                )}
-              </Pressable>
-            );
-          })}
+          {byDay.map((d, i) => (
+            <ChartBar
+              key={d.date}
+              d={d}
+              i={i}
+              maxValue={maxValue}
+              selectedDate={selectedDate}
+              currency={currency}
+              showBarLabels={showBarLabels}
+              labelStride={labelStride}
+              onPress={() =>
+                setSelectedDate((prev) => (prev === d.date ? null : d.date))
+              }
+            />
+          ))}
         </View>
       </View>
 
