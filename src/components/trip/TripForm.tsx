@@ -113,49 +113,6 @@ export function TripForm({
     [theme],
   );
 
-  // Monogram preview tint — uses the supplied seed (trip.id when editing)
-  // so the preview matches what the rest of the app renders. For new
-  // trips we fall back to the typed name so the user gets immediate
-  // visual feedback as they type.
-  const monogramTint = useMemo(() => {
-    const seed = monogramSeed ?? name ?? '';
-    return getTripTint(seed || 'placeholder', theme);
-  }, [monogramSeed, name, theme]);
-  const monogramLabel = name.trim() ? initials(name) : '+';
-
-  // Date presets — set both start and end. Don't fire when ongoing is on
-  // (no end date to set). Pure UX shortcut; no schema effect.
-  const applyPreset = (preset: 'weekend' | '7d' | '2w'): void => {
-    const today = todayIsoDate();
-    if (preset === 'weekend') {
-      const range = thisWeekendRange(today);
-      setStartDate(range.start);
-      setEndDate(range.end);
-    } else if (preset === '7d') {
-      setStartDate(today);
-      setEndDate(isoFromOffset(today, 6));
-    } else {
-      setStartDate(today);
-      setEndDate(isoFromOffset(today, 13));
-    }
-    setOngoing(false);
-  };
-
-  // Daily budget hint — only shown when we have a budget AND a finite
-  // date range. Ongoing trips don't get a daily hint (no denominator).
-  const parsedBudget = Number(budget);
-  const budgetDailyHint = useMemo(() => {
-    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0) return null;
-    if (ongoing) return null;
-    if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) return null;
-    const days = countDaysInRange(startDate, endDate);
-    if (days <= 0) return null;
-    return {
-      amount: formatAmount(parsedBudget / days, displayCurrency),
-      days,
-    };
-  }, [parsedBudget, ongoing, startDate, endDate, displayCurrency]);
-
   const handleSubmit = async (): Promise<void> => {
     setError(null);
     if (!name.trim()) return setError(t('tripForm.errors.nameRequired'));
@@ -192,18 +149,7 @@ export function TripForm({
       {/* Monogram preview — replaces the old emoji picker. Tint hashes
           from the trip seed (or name for new trips) so the user sees
           immediate identity feedback. */}
-      <View style={styles.monogramBlock}>
-        <Avatar
-          label={monogramLabel}
-          tint={monogramTint}
-          size={78}
-          radius={22}
-          accessibilityLabel={t('tripForm.monogramHint')}
-        />
-        <Text style={[styles.monogramHint, { color: theme.textMuted }]}>
-          {t('tripForm.monogramHint')}
-        </Text>
-      </View>
+      <MonogramPreview name={name} monogramSeed={monogramSeed} />
 
       <Field label={t('tripForm.name')} theme={theme}>
         <TextInput
@@ -270,33 +216,23 @@ export function TripForm({
 
       {/* Date presets — only useful when a definite end date is in play. */}
       {!ongoing ? (
-        <View style={styles.presetRow}>
-          {(
-            [
-              { id: 'weekend' as const, label: t('tripForm.presetWeekend') },
-              { id: '7d' as const, label: t('tripForm.preset7d') },
-              { id: '2w' as const, label: t('tripForm.preset2w') },
-            ]
-          ).map((p) => (
-            <Pressable
-              key={p.id}
-              onPress={() => applyPreset(p.id)}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.presetChip,
-                {
-                  backgroundColor: theme.bgSoft,
-                  borderColor: theme.border,
-                  transform: [{ scale: pressed ? 0.96 : 1 }],
-                },
-              ]}
-            >
-              <Text style={[styles.presetText, { color: theme.textSecondary }]}>
-                {p.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <DatePresets
+          onApply={(preset) => {
+            const today = todayIsoDate();
+            if (preset === 'weekend') {
+              const range = thisWeekendRange(today);
+              setStartDate(range.start);
+              setEndDate(range.end);
+            } else if (preset === '7d') {
+              setStartDate(today);
+              setEndDate(isoFromOffset(today, 6));
+            } else {
+              setStartDate(today);
+              setEndDate(isoFromOffset(today, 13));
+            }
+            setOngoing(false);
+          }}
+        />
       ) : null}
 
       <CalendarPickerModal
@@ -325,14 +261,13 @@ export function TripForm({
           prefix={getCurrencySymbol(displayCurrency)}
           placeholder={t('tripForm.budgetPlaceholder')}
         />
-        {budgetDailyHint ? (
-          <Text style={[styles.budgetHint, { color: theme.textMuted }]}>
-            {t('tripForm.budgetDailyHint', {
-              amount: budgetDailyHint.amount,
-              count: budgetDailyHint.days,
-            })}
-          </Text>
-        ) : null}
+        <BudgetDailyHint
+          budget={budget}
+          ongoing={ongoing}
+          startDate={startDate}
+          endDate={endDate}
+          displayCurrency={displayCurrency}
+        />
       </Field>
 
       {error && <Text style={[styles.error, { color: theme.red }]}>{error}</Text>}
@@ -356,6 +291,108 @@ export function TripForm({
 
       {footer}
     </ScrollView>
+  );
+}
+
+function BudgetDailyHint({
+  budget,
+  ongoing,
+  startDate,
+  endDate,
+  displayCurrency,
+}: {
+  budget: string;
+  ongoing: boolean;
+  startDate: string;
+  endDate: string;
+  displayCurrency: string;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  const parsedBudget = Number(budget);
+  const budgetDailyHint = useMemo(() => {
+    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0) return null;
+    if (ongoing) return null;
+    if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) return null;
+    const days = countDaysInRange(startDate, endDate);
+    if (days <= 0) return null;
+    return {
+      amount: formatAmount(parsedBudget / days, displayCurrency),
+      days,
+    };
+  }, [parsedBudget, ongoing, startDate, endDate, displayCurrency]);
+
+  if (!budgetDailyHint) return null;
+
+  return (
+    <Text style={[styles.budgetHint, { color: theme.textMuted }]}>
+      {t('tripForm.budgetDailyHint', {
+        amount: budgetDailyHint.amount,
+        count: budgetDailyHint.days,
+      })}
+    </Text>
+  );
+}
+
+function DatePresets({ onApply }: { onApply: (preset: 'weekend' | '7d' | '2w') => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.presetRow}>
+      {(
+        [
+          { id: 'weekend' as const, label: t('tripForm.presetWeekend') },
+          { id: '7d' as const, label: t('tripForm.preset7d') },
+          { id: '2w' as const, label: t('tripForm.preset2w') },
+        ]
+      ).map((p) => (
+        <Pressable
+          key={p.id}
+          onPress={() => onApply(p.id)}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.presetChip,
+            {
+              backgroundColor: theme.bgSoft,
+              borderColor: theme.border,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+            },
+          ]}
+        >
+          <Text style={[styles.presetText, { color: theme.textSecondary }]}>
+            {p.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function MonogramPreview({ name, monogramSeed }: { name: string; monogramSeed?: string }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+
+  const monogramTint = useMemo(() => {
+    const seed = monogramSeed ?? name ?? '';
+    return getTripTint(seed || 'placeholder', theme);
+  }, [monogramSeed, name, theme]);
+  const monogramLabel = name.trim() ? initials(name) : '+';
+
+  return (
+    <View style={styles.monogramBlock}>
+      <Avatar
+        label={monogramLabel}
+        tint={monogramTint}
+        size={78}
+        radius={22}
+        accessibilityLabel={t('tripForm.monogramHint')}
+      />
+      <Text style={[styles.monogramHint, { color: theme.textMuted }]}>
+        {t('tripForm.monogramHint')}
+      </Text>
+    </View>
   );
 }
 
