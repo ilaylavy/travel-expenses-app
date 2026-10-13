@@ -1,11 +1,15 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 import {
   createSettlement as dbCreateSettlement,
   deleteSettlement as dbDeleteSettlement,
+  deleteSettlements as dbDeleteSettlements,
   listSettlementsForTrip,
-} from '@/db/queries/settlements';
-import type { CreateSettlementInput, SettlementPayment } from '@/types/settlement';
+} from "@/db/queries/settlements";
+import type {
+  CreateSettlementInput,
+  SettlementPayment,
+} from "@/types/settlement";
 
 interface SettlementState {
   activeTripId: string | null;
@@ -14,15 +18,19 @@ interface SettlementState {
   error: string | null;
   loadForTrip: (tripId: string) => Promise<void>;
   refresh: () => Promise<void>;
-  createSettlement: (input: CreateSettlementInput) => Promise<SettlementPayment>;
+  createSettlement: (
+    input: CreateSettlementInput,
+  ) => Promise<SettlementPayment>;
   deleteSettlement: (id: string) => Promise<void>;
+  deleteSettlements: (ids: string[]) => Promise<void>;
   clear: () => void;
 }
 
 function sortSettlements(rows: SettlementPayment[]): SettlementPayment[] {
   // Newest first by settled_date, then created_at as tiebreaker.
   return [...rows].sort((a, b) => {
-    if (a.settledDate !== b.settledDate) return a.settledDate < b.settledDate ? 1 : -1;
+    if (a.settledDate !== b.settledDate)
+      return a.settledDate < b.settledDate ? 1 : -1;
     return a.createdAt < b.createdAt ? 1 : -1;
   });
 }
@@ -40,8 +48,8 @@ export const useSettlementStore = create<SettlementState>((set, get) => ({
       if (get().activeTripId !== tripId) return;
       set({ settlements: sortSettlements(settlements), isLoading: false });
     } catch (error) {
-      console.warn('Failed to load settlements:', error);
-      set({ error: 'Could not load payments', isLoading: false });
+      console.warn("Failed to load settlements:", error);
+      set({ error: "Could not load payments", isLoading: false });
     }
   },
 
@@ -52,8 +60,8 @@ export const useSettlementStore = create<SettlementState>((set, get) => ({
       const settlements = await listSettlementsForTrip(tripId);
       set({ settlements: sortSettlements(settlements), error: null });
     } catch (error) {
-      console.warn('Failed to refresh settlements:', error);
-      set({ error: 'Could not load payments' });
+      console.warn("Failed to refresh settlements:", error);
+      set({ error: "Could not load payments" });
     }
   },
 
@@ -70,6 +78,15 @@ export const useSettlementStore = create<SettlementState>((set, get) => ({
     await dbDeleteSettlement(id);
     set((state) => ({
       settlements: state.settlements.filter((s) => s.id !== id),
+    }));
+  },
+
+  deleteSettlements: async (ids) => {
+    if (ids.length === 0) return;
+    await dbDeleteSettlements(ids);
+    const idSet = new Set(ids);
+    set((state) => ({
+      settlements: state.settlements.filter((s) => !idSet.has(s.id)),
     }));
   },
 

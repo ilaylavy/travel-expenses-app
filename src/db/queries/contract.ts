@@ -3,8 +3,12 @@
 // each end with `const _check: <Iface> = { fn1, fn2, ... };` so tsc catches
 // signature drift between the two variants the moment it happens.
 
-import type { Category, CreateCategoryInput, UpdateCategoryInput } from '@/types/category';
-import type { ExchangeRate } from '@/types/exchangeRate';
+import type {
+  Category,
+  CreateCategoryInput,
+  UpdateCategoryInput,
+} from "@/types/category";
+import type { ExchangeRate } from "@/types/exchangeRate";
 import type {
   CreateExpenseInput,
   CreateSplitInput,
@@ -14,18 +18,18 @@ import type {
   ExpenseWithPhotos,
   RecentNoteSuggestion,
   UpdateExpenseInput,
-} from '@/types/expense';
+} from "@/types/expense";
 import type {
   DaySummary,
   JournalDay,
   JournalMoment,
   JournalPhotoEntryWithPhotos,
-} from '@/types/journal';
-import type { Profile, UpdateProfileInput } from '@/types/profile';
+} from "@/types/journal";
+import type { Profile, UpdateProfileInput } from "@/types/profile";
 import type {
   CreateSettlementInput,
   SettlementPayment,
-} from '@/types/settlement';
+} from "@/types/settlement";
 import type {
   CreateTripInput,
   PendingInvite,
@@ -33,8 +37,8 @@ import type {
   TripMember,
   TripWithStats,
   UpdateTripInput,
-} from '@/types/trip';
-import type { VoiceClip } from '@/types/voice';
+} from "@/types/trip";
+import type { VoiceClip } from "@/types/voice";
 
 // -----------------------------------------------------------------------------
 // expenses
@@ -53,8 +57,14 @@ export interface ExpenseQueries {
 export interface ExpenseSplitsQueries {
   getSplitsForExpense: (expenseId: string) => Promise<ExpenseSplit[]>;
   getSplitsForTrip: (tripId: string) => Promise<ExpenseSplit[]>;
-  createSplits: (expenseId: string, splits: CreateSplitInput[]) => Promise<ExpenseSplit[]>;
-  updateSplits: (expenseId: string, splits: CreateSplitInput[]) => Promise<ExpenseSplit[]>;
+  createSplits: (
+    expenseId: string,
+    splits: CreateSplitInput[],
+  ) => Promise<ExpenseSplit[]>;
+  updateSplits: (
+    expenseId: string,
+    splits: CreateSplitInput[],
+  ) => Promise<ExpenseSplit[]>;
   deleteSplits: (expenseId: string) => Promise<void>;
 }
 
@@ -82,8 +92,11 @@ export interface SettlementsQueries {
     userA: string,
     userB: string,
   ) => Promise<SettlementPayment[]>;
-  createSettlement: (input: CreateSettlementInput) => Promise<SettlementPayment>;
+  createSettlement: (
+    input: CreateSettlementInput,
+  ) => Promise<SettlementPayment>;
   deleteSettlement: (id: string) => Promise<void>;
+  deleteSettlements: (ids: string[]) => Promise<void>;
 }
 
 // -----------------------------------------------------------------------------
@@ -96,16 +109,26 @@ export interface TripQueries {
   listTripMembers: (tripId: string) => Promise<TripMember[]>;
   createTrip: (input: CreateTripInput) => Promise<Trip>;
   updateTrip: (input: UpdateTripInput) => Promise<Trip>;
-  updateMemberBudget: (tripId: string, userId: string, budget: number | null) => Promise<void>;
+  updateMemberBudget: (
+    tripId: string,
+    userId: string,
+    budget: number | null,
+  ) => Promise<void>;
   softDeleteTrip: (id: string) => Promise<void>;
-  setTripCoverPhoto: (tripId: string, storagePath: string | null) => Promise<void>;
+  setTripCoverPhoto: (
+    tripId: string,
+    storagePath: string | null,
+  ) => Promise<void>;
 }
 
 // -----------------------------------------------------------------------------
 // trip_members
 // -----------------------------------------------------------------------------
 export interface TripMembersQueries {
-  getExistingMember: (tripId: string, userId: string) => Promise<TripMember | null>;
+  getExistingMember: (
+    tripId: string,
+    userId: string,
+  ) => Promise<TripMember | null>;
   inviteMember: (tripId: string, userId: string) => Promise<TripMember>;
   acceptInvite: (memberId: string) => Promise<TripMember>;
   removeMember: (memberId: string) => Promise<void>;
@@ -146,7 +169,11 @@ export interface ProfileQueries {
 // _check assignment.
 // -----------------------------------------------------------------------------
 export interface ExchangeRateQueries {
-  getCachedRate: (base: string, target: string, date: string) => Promise<ExchangeRate | null>;
+  getCachedRate: (
+    base: string,
+    target: string,
+    date: string,
+  ) => Promise<ExchangeRate | null>;
   getLatestRate: (base: string, target: string) => Promise<ExchangeRate | null>;
   upsertRate: (
     base: string,
@@ -194,11 +221,20 @@ export interface JournalPhotoEntriesQueries {
       exifTakenAt: string | null;
     }>;
   }) => Promise<JournalPhotoEntryWithPhotos>;
-  updateEntryCaption: (entryId: string, caption: string | null) => Promise<void>;
-  updateEntryOccurredAt: (entryId: string, occurredAtISO: string) => Promise<void>;
+  updateEntryCaption: (
+    entryId: string,
+    caption: string | null,
+  ) => Promise<void>;
+  updateEntryOccurredAt: (
+    entryId: string,
+    occurredAtISO: string,
+  ) => Promise<void>;
   updateEntryPrivacy: (entryId: string, isPrivate: boolean) => Promise<void>;
   softDeleteEntry: (entryId: string) => Promise<void>;
-  countPhotosForTripDay: (tripId: string, dayDateISO: string) => Promise<number>;
+  countPhotosForTripDay: (
+    tripId: string,
+    dayDateISO: string,
+  ) => Promise<number>;
   firstPhotoStoragePathForDay: (
     tripId: string,
     dayDateISO: string,
@@ -213,10 +249,7 @@ export interface JournalPhotoEntriesQueries {
 // voice_clips
 // -----------------------------------------------------------------------------
 export interface VoiceClipsQueries {
-  listClipsForDay: (
-    tripId: string,
-    dayDateISO: string,
-  ) => Promise<VoiceClip[]>;
+  listClipsForDay: (tripId: string, dayDateISO: string) => Promise<VoiceClip[]>;
   createClip: (input: {
     tripId: string;
     userId: string;
@@ -225,8 +258,14 @@ export interface VoiceClipsQueries {
     durationSec: number;
     isPrivate: boolean;
   }) => Promise<VoiceClip>;
-  updateClipTranscript: (clipId: string, transcript: string | null) => Promise<void>;
-  updateClipOccurredAt: (clipId: string, occurredAtISO: string) => Promise<void>;
+  updateClipTranscript: (
+    clipId: string,
+    transcript: string | null,
+  ) => Promise<void>;
+  updateClipOccurredAt: (
+    clipId: string,
+    occurredAtISO: string,
+  ) => Promise<void>;
   updateClipPrivacy: (clipId: string, isPrivate: boolean) => Promise<void>;
   softDeleteClip: (clipId: string) => Promise<void>;
   countClipsForTripDay: (tripId: string, dayDateISO: string) => Promise<number>;
@@ -236,8 +275,15 @@ export interface VoiceClipsQueries {
 // journal_days (lazy per-day metadata)
 // -----------------------------------------------------------------------------
 export interface JournalDaysQueries {
-  getDayMetadata: (tripId: string, dayDateISO: string) => Promise<JournalDay | null>;
-  setLocation: (tripId: string, dayDateISO: string, location: string | null) => Promise<JournalDay>;
+  getDayMetadata: (
+    tripId: string,
+    dayDateISO: string,
+  ) => Promise<JournalDay | null>;
+  setLocation: (
+    tripId: string,
+    dayDateISO: string,
+    location: string | null,
+  ) => Promise<JournalDay>;
   setCoverPhotoEntry: (
     tripId: string,
     dayDateISO: string,
@@ -259,18 +305,28 @@ export interface JournalMomentsQueries {
     title: string | null;
     coverPhotoEntryId: string | null;
     createdBy: string;
-    memberIds: Array<{ kind: 'photo' | 'voice' | 'expense'; id: string }>;
+    memberIds: Array<{ kind: "photo" | "voice" | "expense"; id: string }>;
   }): Promise<JournalMoment>;
   updateMomentTitle(momentId: string, title: string | null): Promise<void>;
-  updateMomentCover(momentId: string, coverPhotoEntryId: string | null): Promise<void>;
-  addMember(momentId: string, kind: 'photo' | 'voice' | 'expense', entryId: string): Promise<void>;
-  removeMember(kind: 'photo' | 'voice' | 'expense', entryId: string): Promise<void>;
+  updateMomentCover(
+    momentId: string,
+    coverPhotoEntryId: string | null,
+  ): Promise<void>;
+  addMember(
+    momentId: string,
+    kind: "photo" | "voice" | "expense",
+    entryId: string,
+  ): Promise<void>;
+  removeMember(
+    kind: "photo" | "voice" | "expense",
+    entryId: string,
+  ): Promise<void>;
   /** Remove every member from a Moment and soft-delete the Moment itself. */
   deleteMoment(momentId: string): Promise<void>;
   /** Split a Moment after a specific member — kept-members stay; later-members
    *  move into a new Moment titled `${originalTitle ?? 'Untitled'} (2)`. */
   splitMomentAfter(
     momentId: string,
-    afterMember: { kind: 'photo' | 'voice' | 'expense'; id: string },
+    afterMember: { kind: "photo" | "voice" | "expense"; id: string },
   ): Promise<JournalMoment>;
 }

@@ -2,13 +2,13 @@
 // directly to Supabase. Mirrors the public surface of settlements.native.ts so
 // callers can stay platform-agnostic.
 
-import { supabase } from '@/services/supabase';
+import { supabase } from "@/services/supabase";
 import type {
   CreateSettlementInput,
   SettlementPayment,
-} from '@/types/settlement';
+} from "@/types/settlement";
 
-import type { SettlementsQueries } from './contract';
+import type { SettlementsQueries } from "./contract";
 
 interface RemoteSettlementRow {
   id: string;
@@ -28,7 +28,7 @@ interface RemoteSettlementRow {
 }
 
 function asNumber(v: number | string): number {
-  return typeof v === 'number' ? v : Number(v);
+  return typeof v === "number" ? v : Number(v);
 }
 
 function rowToSettlement(row: RemoteSettlementRow): SettlementPayment {
@@ -54,12 +54,12 @@ export async function listSettlementsForTrip(
   tripId: string,
 ): Promise<SettlementPayment[]> {
   const { data, error } = await supabase
-    .from('settlement_payments')
-    .select('*')
-    .eq('trip_id', tripId)
-    .is('deleted_at', null)
-    .order('settled_date', { ascending: false })
-    .order('created_at', { ascending: false });
+    .from("settlement_payments")
+    .select("*")
+    .eq("trip_id", tripId)
+    .is("deleted_at", null)
+    .order("settled_date", { ascending: false })
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RemoteSettlementRow[]).map(rowToSettlement);
 }
@@ -70,16 +70,16 @@ export async function listSettlementsForPair(
   userB: string,
 ): Promise<SettlementPayment[]> {
   const { data, error } = await supabase
-    .from('settlement_payments')
-    .select('*')
-    .eq('trip_id', tripId)
-    .is('deleted_at', null)
+    .from("settlement_payments")
+    .select("*")
+    .eq("trip_id", tripId)
+    .is("deleted_at", null)
     .or(
       `and(from_user_id.eq.${userA},to_user_id.eq.${userB}),` +
         `and(from_user_id.eq.${userB},to_user_id.eq.${userA})`,
     )
-    .order('settled_date', { ascending: false })
-    .order('created_at', { ascending: false });
+    .order("settled_date", { ascending: false })
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as RemoteSettlementRow[]).map(rowToSettlement);
 }
@@ -88,7 +88,7 @@ export async function createSettlement(
   input: CreateSettlementInput,
 ): Promise<SettlementPayment> {
   const { data, error } = await supabase
-    .from('settlement_payments')
+    .from("settlement_payments")
     .insert({
       trip_id: input.tripId,
       from_user_id: input.fromUserId,
@@ -101,7 +101,7 @@ export async function createSettlement(
       note: input.note ?? null,
       expense_split_id: input.expenseSplitId ?? null,
     })
-    .select('*')
+    .select("*")
     .single();
   if (error) throw error;
   return rowToSettlement(data as RemoteSettlementRow);
@@ -110,11 +110,27 @@ export async function createSettlement(
 export async function deleteSettlement(id: string): Promise<void> {
   const now = new Date().toISOString();
   const { error } = await supabase
-    .from('settlement_payments')
+    .from("settlement_payments")
     .update({ deleted_at: now, updated_at: now })
-    .eq('id', id)
-    .is('deleted_at', null);
+    .eq("id", id)
+    .is("deleted_at", null);
   if (error) throw error;
+}
+
+export async function deleteSettlements(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const now = new Date().toISOString();
+
+  const CHUNK_SIZE = 99;
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const { error } = await supabase
+      .from("settlement_payments")
+      .update({ deleted_at: now, updated_at: now })
+      .in("id", chunk)
+      .is("deleted_at", null);
+    if (error) throw error;
+  }
 }
 
 const _check: SettlementsQueries = {
@@ -122,5 +138,6 @@ const _check: SettlementsQueries = {
   listSettlementsForPair,
   createSettlement,
   deleteSettlement,
+  deleteSettlements,
 };
 void _check;
