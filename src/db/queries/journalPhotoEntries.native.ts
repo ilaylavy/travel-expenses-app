@@ -1,17 +1,17 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
+import type { SQLiteDatabase } from "expo-sqlite";
 
-import { getDatabase } from '@/db/database';
-import { newId } from '@/utils/id';
+import { getDatabase } from "@/db/database";
+import { newId } from "@/utils/id";
 import type {
   JournalPhoto,
   JournalPhotoEntry,
   JournalPhotoEntryRow,
   JournalPhotoEntryWithPhotos,
   JournalPhotoRow,
-} from '@/types/journal';
+} from "@/types/journal";
 
-import type { JournalPhotoEntriesQueries } from './contract';
-import { enqueueSync } from './syncQueue';
+import type { JournalPhotoEntriesQueries } from "./contract";
+import { enqueueSync, enqueueSyncBatch, type SyncTask } from "./syncQueue";
 
 function rowToEntry(r: JournalPhotoEntryRow): JournalPhotoEntry {
   return {
@@ -73,7 +73,7 @@ export async function getPhotoById(
   id: string,
 ): Promise<JournalPhoto | null> {
   const row = await db.getFirstAsync<JournalPhotoRow>(
-    'SELECT * FROM journal_photos WHERE id = ?;',
+    "SELECT * FROM journal_photos WHERE id = ?;",
     [id],
   );
   return row ? rowToPhoto(row) : null;
@@ -85,7 +85,7 @@ export async function setPhotoStoragePath(
   storagePath: string,
 ): Promise<void> {
   await db.runAsync(
-    'UPDATE journal_photos SET storage_path = ? WHERE id = ?;',
+    "UPDATE journal_photos SET storage_path = ? WHERE id = ?;",
     [storagePath, id],
   );
 }
@@ -110,7 +110,7 @@ export async function listAllEntriesForTrip(
   );
   if (entries.length === 0) return [];
   const entryIds = entries.map((e) => e.id);
-  const placeholders = entryIds.map(() => '?').join(',');
+  const placeholders = entryIds.map(() => "?").join(",");
   const photos = await db.getAllAsync<JournalPhotoRow>(
     `SELECT * FROM journal_photos
       WHERE entry_id IN (${placeholders})
@@ -144,7 +144,7 @@ export async function listEntriesForDay(
   );
   if (entries.length === 0) return [];
   const entryIds = entries.map((e) => e.id);
-  const placeholders = entryIds.map(() => '?').join(',');
+  const placeholders = entryIds.map(() => "?").join(",");
   const photos = await db.getAllAsync<JournalPhotoRow>(
     `SELECT * FROM journal_photos
       WHERE entry_id IN (${placeholders})
@@ -193,7 +193,7 @@ export async function createEntry(input: {
   const photos: JournalPhoto[] = input.photos.map((p) => ({
     id: newId(),
     entryId,
-    storagePath: '',                 // filled after R2 upload
+    storagePath: "", // filled after R2 upload
     localUri: p.localUri,
     sortOrder: p.sortOrder,
     exifTakenAt: p.exifTakenAt,
@@ -207,21 +207,52 @@ export async function createEntry(input: {
           created_at, updated_at, deleted_at)
        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL);`,
       [
-        entry.id, entry.tripId, entry.userId, entry.occurredAt,
-        entry.caption, entry.isPrivate ? 1 : 0,
-        entry.createdAt, entry.updatedAt,
+        entry.id,
+        entry.tripId,
+        entry.userId,
+        entry.occurredAt,
+        entry.caption,
+        entry.isPrivate ? 1 : 0,
+        entry.createdAt,
+        entry.updatedAt,
       ],
     );
-    await enqueueSync(db, 'journal_photo_entries', entry.id, 'create', entryToPayload(entry));
+    await enqueueSync(
+      db,
+      "journal_photo_entries",
+      entry.id,
+      "create",
+      entryToPayload(entry),
+    );
 
-    for (const p of photos) {
+    const CHUNK_SIZE = 99; // 99 items, 7 params each = 693 params (< 999 max)
+    for (let i = 0; i < photos.length; i += CHUNK_SIZE) {
+      const chunk = photos.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+      const args = chunk.flatMap((p) => [
+        p.id,
+        p.entryId,
+        p.storagePath,
+        p.localUri,
+        p.sortOrder,
+        p.exifTakenAt,
+        p.createdAt,
+      ]);
+
       await db.runAsync(
         `INSERT INTO journal_photos
            (id, entry_id, storage_path, local_uri, sort_order, exif_taken_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-        [p.id, p.entryId, p.storagePath, p.localUri, p.sortOrder, p.exifTakenAt, p.createdAt],
+         VALUES ${placeholders};`,
+        args,
       );
-      await enqueueSync(db, 'journal_photos', p.id, 'create', photoToPayload(p));
+
+      const syncTasks: SyncTask[] = chunk.map((p) => ({
+        tableName: "journal_photos",
+        recordId: p.id,
+        action: "create",
+        payload: photoToPayload(p),
+      }));
+      await enqueueSyncBatch(db, syncTasks);
     }
   });
 
@@ -236,10 +267,10 @@ export async function updateEntryCaption(
   const updatedAt = new Date().toISOString();
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      'UPDATE journal_photo_entries SET caption = ?, updated_at = ? WHERE id = ?;',
+      "UPDATE journal_photo_entries SET caption = ?, updated_at = ? WHERE id = ?;",
       [caption, updatedAt, entryId],
     );
-    await enqueueSync(db, 'journal_photo_entries', entryId, 'update', {
+    await enqueueSync(db, "journal_photo_entries", entryId, "update", {
       id: entryId,
       caption,
       updated_at: updatedAt,
@@ -255,10 +286,10 @@ export async function updateEntryOccurredAt(
   const updatedAt = new Date().toISOString();
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      'UPDATE journal_photo_entries SET occurred_at = ?, updated_at = ? WHERE id = ?;',
+      "UPDATE journal_photo_entries SET occurred_at = ?, updated_at = ? WHERE id = ?;",
       [occurredAtISO, updatedAt, entryId],
     );
-    await enqueueSync(db, 'journal_photo_entries', entryId, 'update', {
+    await enqueueSync(db, "journal_photo_entries", entryId, "update", {
       id: entryId,
       occurred_at: occurredAtISO,
       updated_at: updatedAt,
@@ -274,10 +305,10 @@ export async function updateEntryPrivacy(
   const updatedAt = new Date().toISOString();
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      'UPDATE journal_photo_entries SET is_private = ?, updated_at = ? WHERE id = ?;',
+      "UPDATE journal_photo_entries SET is_private = ?, updated_at = ? WHERE id = ?;",
       [isPrivate ? 1 : 0, updatedAt, entryId],
     );
-    await enqueueSync(db, 'journal_photo_entries', entryId, 'update', {
+    await enqueueSync(db, "journal_photo_entries", entryId, "update", {
       id: entryId,
       is_private: isPrivate ? 1 : 0,
       updated_at: updatedAt,
@@ -290,10 +321,10 @@ export async function softDeleteEntry(entryId: string): Promise<void> {
   const ts = new Date().toISOString();
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      'UPDATE journal_photo_entries SET deleted_at = ?, updated_at = ? WHERE id = ?;',
+      "UPDATE journal_photo_entries SET deleted_at = ?, updated_at = ? WHERE id = ?;",
       [ts, ts, entryId],
     );
-    await enqueueSync(db, 'journal_photo_entries', entryId, 'delete', {
+    await enqueueSync(db, "journal_photo_entries", entryId, "delete", {
       id: entryId,
       deleted_at: ts,
       updated_at: ts,
@@ -301,7 +332,9 @@ export async function softDeleteEntry(entryId: string): Promise<void> {
   });
 }
 
-export async function storagePathForEntry(entryId: string): Promise<string | null> {
+export async function storagePathForEntry(
+  entryId: string,
+): Promise<string | null> {
   const db = await getDatabase();
   const row = await db.getFirstAsync<{ storage_path: string }>(
     `SELECT jp.storage_path
