@@ -4,7 +4,6 @@
 // hook because the hook needs imperative access to the map.
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -16,6 +15,7 @@ import { CategoryPin, ClusterPin } from '@/components/map/ExpensePin';
 import { TrackedMarker } from '@/components/map/TrackedMarker';
 import type { MapHandle, TripMapHandle } from '@/components/map/types';
 import { useExpenseClustering } from '@/hooks/useExpenseClustering';
+import { useExpenseFocus } from '@/hooks/useExpenseFocus';
 import type { Category } from '@/types/category';
 import type { ExpenseWithPhotos } from '@/types/expense';
 import { formatAmount } from '@/utils/currency';
@@ -100,24 +100,13 @@ export const TripMap = forwardRef<TripMapHandle, TripMapProps>(function TripMap(
     [],
   );
 
-  // Focus a specific expense when the route passes ?focusExpenseId=...
-  // Open the popup via onPressExpense; clear the URL via onFocusHandled.
-  const focusHandledRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!focusExpenseId) return;
-    if (focusHandledRef.current === focusExpenseId) return;
-    const target = allExpenses.find((e) => e.id === focusExpenseId);
-    if (!target) return;
-    if (target.latitude == null || target.longitude == null) {
-      focusHandledRef.current = focusExpenseId;
-      onFocusHandled?.();
-      return;
-    }
-    focusExpense(target);
-    onPressExpense(target);
-    focusHandledRef.current = focusExpenseId;
-    onFocusHandled?.();
-  }, [focusExpenseId, allExpenses, focusExpense, onPressExpense, onFocusHandled]);
+  useExpenseFocus({
+    focusExpenseId,
+    allExpenses,
+    focusExpense,
+    onPressExpense,
+    onFocusHandled,
+  });
 
   return (
     <MapView
