@@ -140,9 +140,13 @@ export async function updateSplits(
   if (fetchError) throw fetchError;
 
   const incomingUserIds = new Set(splits.map((s) => s.userId));
-  const toSoftDelete = (existing ?? [])
-    .filter((r) => r.deleted_at === null && !incomingUserIds.has(r.user_id))
-    .map((r) => r.id);
+  const toSoftDelete: string[] = [];
+  for (const r of existing ?? []) {
+    if (r.deleted_at === null && !incomingUserIds.has(r.user_id)) {
+      toSoftDelete.push(r.id);
+    }
+  }
+
   if (toSoftDelete.length > 0) {
     const { error: deleteError } = await supabase
       .from('expense_splits')
