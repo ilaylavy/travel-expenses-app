@@ -151,23 +151,37 @@ export async function reorderCategories(orderedIds: string[]): Promise<void> {
   const db = await getDatabase();
   const now = new Date().toISOString();
   await db.withTransactionAsync(async () => {
-    for (let i = 0; i < orderedIds.length; i += 1) {
-      const id = orderedIds[i];
-      await db.runAsync(
-        'UPDATE categories SET sort_order = ?, updated_at = ? WHERE id = ?;',
-        [i, now, id],
-      );
-      const existing = await db.getFirstAsync<CategoryRow>(
-        'SELECT * FROM categories WHERE id = ?;',
-        [id],
-      );
-      if (existing) {
+    const CHUNK_SIZE = 99;
+    for (let i = 0; i < orderedIds.length; i += CHUNK_SIZE) {
+      const chunk = orderedIds.slice(i, i + CHUNK_SIZE);
+
+      const cases = chunk.map(() => `WHEN ? THEN ?`).join(' ');
+      const placeholders = chunk.map(() => '?').join(', ');
+
+      const query = `
+        UPDATE categories
+        SET sort_order = CASE id ${cases} END,
+            updated_at = ?
+        WHERE id IN (${placeholders})
+        RETURNING *;
+      `;
+
+      const args: any[] = [];
+      for (let j = 0; j < chunk.length; j++) {
+        args.push(chunk[j], i + j);
+      }
+      args.push(now);
+      args.push(...chunk);
+
+      const updatedRows = await db.getAllAsync<CategoryRow>(query, args);
+
+      for (const row of updatedRows) {
         await enqueueSync(
           db,
           'categories',
-          id,
+          row.id,
           'update',
-          categoryToPayload(rowToCategory(existing)),
+          categoryToPayload(rowToCategory(row)),
         );
       }
     }
